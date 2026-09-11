@@ -41,8 +41,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     Emitter<CaptureState> emit,
   ) async {
     try {
-      final currentUserId =
-          Supabase.instance.client.auth.currentUser?.id ?? 'offline-user';
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        throw Exception('User is not authenticated');
+      }
       final now = DateTime.now();
 
       final newMemory = MemoryEntity(

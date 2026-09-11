@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'features/capture/domain/repositories/capture_repository_impl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'core/constants/supabase_constants.dart';
 import 'core/services/isar_service.dart';
+import 'features/auth/data/datasources/auth_remote_data_source.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/domain/usecases/get_current_user_usecase.dart';
+import 'features/auth/domain/usecases/sign_in_usecase.dart';
+import 'features/auth/domain/usecases/sign_out_usecase.dart';
+import 'features/auth/domain/usecases/sign_up_usecase.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/auth/presentation/bloc/auth_state.dart';
+import 'features/auth/presentation/screens/sign_in_screen.dart';
 import 'features/capture/data/datasources/capture_local_data_source.dart';
 import 'features/capture/data/datasources/capture_remote_data_source.dart';
+import 'features/capture/domain/repositories/capture_repository_impl.dart';
 import 'features/capture/domain/usecases/get_memories_usecase.dart';
 import 'features/capture/domain/usecases/save_memory_usecase.dart';
 import 'features/capture/presentation/bloc/capture_bloc.dart';
@@ -22,6 +33,17 @@ void main() async {
 
   await IsarService.init();
 
+  // Auth feature dependencies
+  final authRemoteDataSource = AuthRemoteDataSourceImpl();
+  final authRepository = AuthRepositoryImpl(
+    remoteDataSource: authRemoteDataSource,
+  );
+  final signUpUseCase = SignUpUseCase(authRepository);
+  final signInUseCase = SignInUseCase(authRepository);
+  final signOutUseCase = SignOutUseCase(authRepository);
+  final getCurrentUserUseCase = GetCurrentUserUseCase(authRepository);
+
+  // Capture feature dependencies
   final localDataSource = CaptureLocalDataSourceImpl();
   final remoteDataSource = CaptureRemoteDataSourceImpl();
   final captureRepository = CaptureRepositoryImpl(
@@ -33,6 +55,11 @@ void main() async {
 
   runApp(
     SecondBrainApp(
+      authRepository: authRepository,
+      signUpUseCase: signUpUseCase,
+      signInUseCase: signInUseCase,
+      signOutUseCase: signOutUseCase,
+      getCurrentUserUseCase: getCurrentUserUseCase,
       captureRepository: captureRepository,
       saveMemoryUseCase: saveMemoryUseCase,
       getMemoriesUseCase: getMemoriesUseCase,
@@ -41,12 +68,22 @@ void main() async {
 }
 
 class SecondBrainApp extends StatelessWidget {
+  final AuthRepository authRepository;
+  final SignUpUseCase signUpUseCase;
+  final SignInUseCase signInUseCase;
+  final SignOutUseCase signOutUseCase;
+  final GetCurrentUserUseCase getCurrentUserUseCase;
   final CaptureRepositoryImpl captureRepository;
   final SaveMemoryUseCase saveMemoryUseCase;
   final GetMemoriesUseCase getMemoriesUseCase;
 
   const SecondBrainApp({
     super.key,
+    required this.authRepository,
+    required this.signUpUseCase,
+    required this.signInUseCase,
+    required this.signOutUseCase,
+    required this.getCurrentUserUseCase,
     required this.captureRepository,
     required this.saveMemoryUseCase,
     required this.getMemoriesUseCase,
@@ -54,18 +91,59 @@ class SecondBrainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => CaptureBloc(
-        saveMemoryUseCase: saveMemoryUseCase,
-        getMemoriesUseCase: getMemoriesUseCase,
-        repository: captureRepository,
-      )..add(LoadMemoriesEvent()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => AuthBloc(
+            signUpUseCase: signUpUseCase,
+            signInUseCase: signInUseCase,
+            signOutUseCase: signOutUseCase,
+            getCurrentUserUseCase: getCurrentUserUseCase,
+            authRepository: authRepository,
+          )..add(AuthCheckRequested()),
+        ),
+        BlocProvider(
+          create: (context) => CaptureBloc(
+            saveMemoryUseCase: saveMemoryUseCase,
+            getMemoriesUseCase: getMemoriesUseCase,
+            repository: captureRepository,
+          )..add(LoadMemoriesEvent()),
+        ),
+      ],
       child: MaterialApp(
         title: '2nd Brain',
         debugShowCheckedModeBanner: false,
         theme: ThemeData.dark(useMaterial3: true),
-        home: const CaptureScreen(),
+        home: const AuthSessionGate(),
       ),
+    );
+  }
+}
+
+class AuthSessionGate extends StatelessWidget {
+  const AuthSessionGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is Authenticated) {
+          context.read<CaptureBloc>().add(LoadMemoriesEvent());
+        }
+      },
+      builder: (context, state) {
+        if (state is Authenticated) {
+          return const CaptureScreen();
+        } else if (state is AuthLoading || state is AuthInitial) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        } else {
+          return const SignInScreen();
+        }
+      },
     );
   }
 }

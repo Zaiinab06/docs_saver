@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../bloc/capture_state.dart';
+import 'package:second_brain/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:second_brain/features/auth/presentation/bloc/auth_event.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -43,8 +45,16 @@ class _CaptureScreenState extends State<CaptureScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.sync),
+            tooltip: 'Sync Pending Memories',
             onPressed: () {
               context.read<CaptureBloc>().add(SyncPendingMemoriesEvent());
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () {
+              context.read<AuthBloc>().add(SignOutRequested());
             },
           ),
         ],
