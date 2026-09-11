@@ -35,6 +35,53 @@ class MemoryModel {
   late DateTime serverUpdatedAt;
 
   bool isSynced = false; // Local tracking flag for offline sync engine
+
+  static MemoryModel fromMap(Map<String, dynamic> map, {bool isSynced = true}) {
+    final model = MemoryModel()
+      ..serverId = (map['id'] ?? '').toString()
+      ..userId = (map['user_id'] ?? '').toString()
+      ..title = (map['title'] ?? '').toString()
+      ..content = (map['content'] ?? '').toString()
+      ..mediaUrl = map['media_url'] as String?
+      ..tags = map['tags'] != null
+          ? List<String>.from(map['tags'] as List)
+          : []
+      ..category = (map['category'] ?? 'General').toString()
+      ..aiStatus = (map['ai_status'] ?? 'pending').toString()
+      ..isConflictCopy = map['is_conflict_copy'] as bool? ?? false
+      ..clientCreatedAt = map['client_created_at'] != null
+          ? DateTime.tryParse(map['client_created_at'].toString()) ??
+              DateTime.now()
+          : DateTime.now()
+      ..clientUpdatedAt = map['client_updated_at'] != null
+          ? DateTime.tryParse(map['client_updated_at'].toString()) ??
+              DateTime.now()
+          : DateTime.now()
+      ..serverUpdatedAt = map['server_updated_at'] != null
+          ? DateTime.tryParse(map['server_updated_at'].toString()) ??
+              DateTime.now()
+          : DateTime.now()
+      ..isSynced = isSynced;
+
+    if (map['embedding'] != null) {
+      if (map['embedding'] is List) {
+        model.embedding = (map['embedding'] as List)
+            .map((e) => (e as num).toDouble())
+            .toList();
+      } else if (map['embedding'] is String) {
+        final str = (map['embedding'] as String)
+            .replaceAll('[', '')
+            .replaceAll(']', '');
+        model.embedding = str
+            .split(',')
+            .map((s) => double.tryParse(s.trim()))
+            .whereType<double>()
+            .toList();
+      }
+    }
+
+    return model;
+  }
 }
 
 extension MemoryModelMapper on MemoryModel {

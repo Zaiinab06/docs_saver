@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
 import 'package:second_brain/features/capture/data/models/memory_model.dart';
@@ -48,5 +49,15 @@ class CaptureRepositoryImpl implements CaptureRepository {
         break; // Connectivity drop hui to next cycle me retry hoga
       }
     }
+  }
+
+  @override
+  Stream<MemoryEntity> subscribeToMemoryUpdates(String userId) {
+    return remoteDataSource
+        .subscribeToMemoryUpdates(userId)
+        .asyncMap((model) async {
+      await localDataSource.updateMemoryFromRemote(model);
+      return model.toEntity();
+    });
   }
 }

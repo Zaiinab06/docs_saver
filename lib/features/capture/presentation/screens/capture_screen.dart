@@ -113,16 +113,90 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         final memory = state.memories[index];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            title: Text(memory.title),
-                            subtitle: Text(
-                              memory.content,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Text(
-                              '${memory.clientCreatedAt.hour}:${memory.clientCreatedAt.minute.toString().padLeft(2, '0')}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 4.0, horizontal: 2.0),
+                            child: ListTile(
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      memory.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  if (memory.aiStatus == 'processed')
+                                    const Tooltip(
+                                      message: 'AI Processed',
+                                      child: Icon(
+                                        Icons.auto_awesome,
+                                        size: 16,
+                                        color: Colors.amber,
+                                      ),
+                                    )
+                                  else if (memory.aiStatus == 'pending')
+                                    const Tooltip(
+                                      message: 'AI Ingestion Pending',
+                                      child: SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    memory.content,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (memory.tags.isNotEmpty ||
+                                      memory.category != 'General') ...[
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 4,
+                                      runSpacing: 2,
+                                      children: [
+                                        if (memory.category != 'General')
+                                          Chip(
+                                            label: Text(
+                                              memory.category,
+                                              style:
+                                                  const TextStyle(fontSize: 10),
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                        ...memory.tags.take(3).map(
+                                              (tag) => Chip(
+                                                label: Text(
+                                                  '#$tag',
+                                                  style: const TextStyle(
+                                                      fontSize: 10),
+                                                ),
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding: EdgeInsets.zero,
+                                              ),
+                                            ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              trailing: Text(
+                                '${memory.clientCreatedAt.hour}:${memory.clientCreatedAt.minute.toString().padLeft(2, '0')}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ),
                           ),
                         );

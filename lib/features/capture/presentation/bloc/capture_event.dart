@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../domain/entities/memory_entity.dart';
 
 abstract class CaptureEvent extends Equatable {
   const CaptureEvent();
@@ -27,3 +28,12 @@ class AddMemoryEvent extends CaptureEvent {
 }
 
 class SyncPendingMemoriesEvent extends CaptureEvent {}
+
+class MemoryUpdatedEvent extends CaptureEvent {
+  final MemoryEntity updatedMemory;
+
+  const MemoryUpdatedEvent(this.updatedMemory);
+
+  @override
+  List<Object?> get props => [updatedMemory];
+}

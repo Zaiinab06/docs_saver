@@ -7,6 +7,7 @@ abstract class CaptureLocalDataSource {
   Future<List<MemoryModel>> getCachedMemories();
   Future<List<MemoryModel>> getUnsyncedMemories();
   Future<void> markAsSynced(String serverId);
+  Future<void> updateMemoryFromRemote(MemoryModel memory);
 }
 
 class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
@@ -43,6 +44,34 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
       memory.isSynced = true;
       await isar.writeTxn(() async {
         await isar.memoryModels.put(memory);
+      });
+    }
+  }
+
+  @override
+  Future<void> updateMemoryFromRemote(MemoryModel updatedMemory) async {
+    final existing = await isar.memoryModels
+        .filter()
+        .serverIdEqualTo(updatedMemory.serverId)
+        .findFirst();
+
+    if (existing != null) {
+      existing.title = updatedMemory.title;
+      existing.category = updatedMemory.category;
+      existing.tags = updatedMemory.tags;
+      existing.aiStatus = updatedMemory.aiStatus;
+      if (updatedMemory.embedding != null) {
+        existing.embedding = updatedMemory.embedding;
+      }
+      existing.serverUpdatedAt = updatedMemory.serverUpdatedAt;
+      existing.isSynced = true;
+
+      await isar.writeTxn(() async {
+        await isar.memoryModels.put(existing);
+      });
+    } else {
+      await isar.writeTxn(() async {
+        await isar.memoryModels.put(updatedMemory);
       });
     }
   }
