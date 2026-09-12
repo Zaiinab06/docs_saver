@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'core/constants/supabase_constants.dart';
 import 'core/services/isar_service.dart';
+import 'core/theme/app_colors.dart';
 import 'features/auth/data/datasources/auth_remote_data_source.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
@@ -13,6 +15,7 @@ import 'features/auth/domain/usecases/sign_up_usecase.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
 import 'features/auth/presentation/bloc/auth_state.dart';
+import 'features/auth/presentation/screens/auth_screen.dart';
 import 'features/auth/presentation/screens/sign_in_screen.dart';
 import 'features/capture/data/datasources/capture_local_data_source.dart';
 import 'features/capture/data/datasources/capture_remote_data_source.dart';
@@ -23,6 +26,7 @@ import 'features/capture/domain/usecases/subscribe_to_memories_usecase.dart';
 import 'features/capture/presentation/bloc/capture_bloc.dart';
 import 'features/capture/presentation/bloc/capture_event.dart';
 import 'features/capture/presentation/screens/capture_screen.dart';
+import 'features/onboarding/presentation/screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +37,10 @@ void main() async {
   );
 
   await IsarService.init();
+
+  // Reset/override has_seen_onboarding flag to ensure OnboardingScreen renders on launch
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('has_seen_onboarding', false);
 
   // Auth feature dependencies
   final authRemoteDataSource = AuthRemoteDataSourceImpl();
@@ -121,7 +129,7 @@ class SecondBrainApp extends StatelessWidget {
         title: '2nd Brain',
         debugShowCheckedModeBanner: false,
         theme: ThemeData.dark(useMaterial3: true),
-        home: const AuthSessionGate(),
+        home: const OnboardingScreen(),
       ),
     );
   }
@@ -143,12 +151,15 @@ class AuthSessionGate extends StatelessWidget {
           return const CaptureScreen();
         } else if (state is AuthLoading || state is AuthInitial) {
           return const Scaffold(
+            backgroundColor: AppColors.background,
             body: Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
             ),
           );
         } else {
-          return const SignInScreen();
+          return const AuthScreen();
         }
       },
     );

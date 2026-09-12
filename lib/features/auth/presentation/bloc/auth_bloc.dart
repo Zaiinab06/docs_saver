@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/sign_in_usecase.dart';
 import '../../domain/usecases/sign_out_usecase.dart';
@@ -58,10 +59,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final user = await signUpUseCase(
         email: event.email,
         password: event.password,
+        fullName: event.fullName,
       );
       emit(Authenticated(user));
     } catch (e) {
-      emit(AuthFailure(e.toString()));
+      emit(AuthFailure(_cleanErrorMessage(e)));
       emit(Unauthenticated());
     }
   }
@@ -78,7 +80,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       emit(Authenticated(user));
     } catch (e) {
-      emit(AuthFailure(e.toString()));
+      emit(AuthFailure(_cleanErrorMessage(e)));
       emit(Unauthenticated());
     }
   }
@@ -92,9 +94,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await signOutUseCase();
       emit(Unauthenticated());
     } catch (e) {
-      emit(AuthFailure(e.toString()));
+      emit(AuthFailure(_cleanErrorMessage(e)));
       emit(Unauthenticated());
     }
+  }
+
+  String _cleanErrorMessage(dynamic error) {
+    if (error is AuthException) {
+      return error.message;
+    }
+    final raw = error.toString();
+    final regex = RegExp(r'AuthException\s*\(\s*message:\s*([^,)]+)');
+    final match = regex.firstMatch(raw);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!.trim();
+    }
+    if (raw.startsWith('Exception: ')) {
+      return raw.replaceFirst('Exception: ', '').trim();
+    }
+    return raw;
   }
 
   @override

@@ -4,6 +4,7 @@ abstract class AuthRepository {
   Future<UserEntity> signUp({
     required String email,
     required String password,
+    String? fullName,
   });
 
   Future<UserEntity> signIn({

@@ -4,6 +4,7 @@ abstract class AuthRemoteDataSource {
   Future<User> signUp({
     required String email,
     required String password,
+    String? fullName,
   });
 
   Future<User> signIn({
@@ -28,10 +29,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<User> signUp({
     required String email,
     required String password,
+    String? fullName,
   }) async {
     final response = await supabase.auth.signUp(
       email: email,
       password: password,
+      data: (fullName != null && fullName.trim().isNotEmpty)
+          ? {'full_name': fullName.trim()}
+          : null,
     );
     if (response.user == null) {
       throw const AuthException('Sign up failed: User is null');

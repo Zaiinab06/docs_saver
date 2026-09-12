@@ -9,7 +9,12 @@ class SignUpUseCase {
   Future<UserEntity> call({
     required String email,
     required String password,
+    String? fullName,
   }) async {
-    return await repository.signUp(email: email, password: password);
+    return await repository.signUp(
+      email: email,
+      password: password,
+      fullName: fullName,
+    );
   }
 }
