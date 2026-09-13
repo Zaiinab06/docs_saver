@@ -1,4 +1,4 @@
-﻿class AppStrings {
+class AppStrings {
   AppStrings._();
 
   // App & Header
@@ -37,4 +37,41 @@
   static const String validationEmptyPassword = 'Please enter your password';
   static const String validationShortPassword =
       'Password must be at least 6 characters';
+
+  // Home / Memory List Screen
+  static const String homeTitle = 'Your second brain';
+  static const String homeSearchHint = 'Search by meaning or keyword';
+  static const String homeWeeklyStatSuffix = 'memories this week';
+  static const String emptyMemoriesTitle = 'No memories yet';
+  static const String emptyMemoriesSubtitle =
+      'Tap the + button to save your first thought, article, or note.';
+  static const String homeGreetingMorning = 'Good morning,';
+  static const String homeGreetingAfternoon = 'Good afternoon,';
+  static const String homeGreetingEvening = 'Good evening,';
+  static const String homeDefaultUser = 'there';
+  static const String homeReadySubtitle = 'Your second brain is ready';
+  static const String homeCategoriesHeader = 'Categories';
+  static const String homeRecentMemoriesHeader = 'Recent Memories';
+  static const String homeSeeAll = 'See all >';
+  static const String categoryWork = 'Work';
+  static const String categoryPersonal = 'Personal';
+  static const String categoryStudy = 'Study';
+  static const String categoryTravel = 'Travel';
+  static const String categoryFashion = 'Fashion';
+  static const String categoryFood = 'Food';
+  static const String categoryFinance = 'Finance';
+  static const String categoryHealth = 'Health & Fitness';
+  static const String categoryAll = 'All';
+  static const String emptyBrainTitle = "Your brain is empty — let's fill it.";
+  static const String emptyBrainSubtitle =
+      'Save your first thought, link, image, or note using the + button.';
+  static const String dialogDeleteTitle = 'Delete memory?';
+  static const String dialogDeleteMessage =
+      'This memory will be removed from your Second Brain.';
+  static const String dialogCancel = 'Cancel';
+  static const String dialogDeleteConfirm = 'Delete';
+  static const String menuPin = 'Pin memory';
+  static const String menuUnpin = 'Unpin';
+  static const String menuShare = 'Share';
+  static const String menuDelete = 'Delete';
 }

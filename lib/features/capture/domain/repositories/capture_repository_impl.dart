@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
 import 'package:second_brain/features/capture/data/models/memory_model.dart';
@@ -14,6 +15,14 @@ class CaptureRepositoryImpl implements CaptureRepository {
     required this.localDataSource,
     required this.remoteDataSource,
   });
+
+  String? _getCurrentUserId() {
+    try {
+      return Supabase.instance.client.auth.currentUser?.id;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<void> saveMemory(MemoryEntity memory) async {
@@ -32,14 +41,18 @@ class CaptureRepositoryImpl implements CaptureRepository {
   }
 
   @override
-  Future<List<MemoryEntity>> getMemories() async {
-    final cachedModels = await localDataSource.getCachedMemories();
+  Future<List<MemoryEntity>> getMemories({String? userId}) async {
+    final effectiveUserId = userId ?? _getCurrentUserId();
+    final cachedModels =
+        await localDataSource.getCachedMemories(userId: effectiveUserId);
     return cachedModels.map((m) => m.toEntity()).toList();
   }
 
   @override
-  Future<void> syncPendingMemories() async {
-    final pendingModels = await localDataSource.getUnsyncedMemories();
+  Future<void> syncPendingMemories({String? userId}) async {
+    final effectiveUserId = userId ?? _getCurrentUserId();
+    final pendingModels =
+        await localDataSource.getUnsyncedMemories(userId: effectiveUserId);
     for (final model in pendingModels) {
       try {
         final entity = model.toEntity();
@@ -47,6 +60,21 @@ class CaptureRepositoryImpl implements CaptureRepository {
         await localDataSource.markAsSynced(model.serverId);
       } catch (_) {
         break; // Connectivity drop hui to next cycle me retry hoga
+      }
+    }
+
+    // Pull down remote updates for authenticated user
+    if (effectiveUserId != null && effectiveUserId.isNotEmpty) {
+      try {
+        final remoteMaps = await remoteDataSource.fetchRemoteMemories(
+          userId: effectiveUserId,
+        );
+        for (final map in remoteMaps) {
+          final model = MemoryModel.fromMap(map, isSynced: true);
+          await localDataSource.updateMemoryFromRemote(model);
+        }
+      } catch (_) {
+        // Offline or network error
       }
     }
   }

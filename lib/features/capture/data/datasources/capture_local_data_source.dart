@@ -4,8 +4,8 @@ import '../models/memory_model.dart';
 
 abstract class CaptureLocalDataSource {
   Future<void> cacheMemory(MemoryModel memory);
-  Future<List<MemoryModel>> getCachedMemories();
-  Future<List<MemoryModel>> getUnsyncedMemories();
+  Future<List<MemoryModel>> getCachedMemories({String? userId});
+  Future<List<MemoryModel>> getUnsyncedMemories({String? userId});
   Future<void> markAsSynced(String serverId);
   Future<void> updateMemoryFromRemote(MemoryModel memory);
 }
@@ -21,7 +21,14 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
   }
 
   @override
-  Future<List<MemoryModel>> getCachedMemories() async {
+  Future<List<MemoryModel>> getCachedMemories({String? userId}) async {
+    if (userId != null && userId.isNotEmpty) {
+      return await isar.memoryModels
+          .filter()
+          .userIdEqualTo(userId)
+          .sortByClientCreatedAtDesc()
+          .findAll();
+    }
     return await isar.memoryModels
         .where()
         .sortByClientCreatedAtDesc()
@@ -29,7 +36,15 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
   }
 
   @override
-  Future<List<MemoryModel>> getUnsyncedMemories() async {
+  Future<List<MemoryModel>> getUnsyncedMemories({String? userId}) async {
+    if (userId != null && userId.isNotEmpty) {
+      return await isar.memoryModels
+          .filter()
+          .userIdEqualTo(userId)
+          .and()
+          .isSyncedEqualTo(false)
+          .findAll();
+    }
     return await isar.memoryModels.filter().isSyncedEqualTo(false).findAll();
   }
 

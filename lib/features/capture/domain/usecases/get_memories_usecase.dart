@@ -6,7 +6,7 @@ class GetMemoriesUseCase {
 
   GetMemoriesUseCase(this.repository);
 
-  Future<List<MemoryEntity>> call() async {
-    return await repository.getMemories();
+  Future<List<MemoryEntity>> call([String? userId]) async {
+    return await repository.getMemories(userId: userId);
   }
 }

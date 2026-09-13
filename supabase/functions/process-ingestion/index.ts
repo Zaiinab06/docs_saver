@@ -102,6 +102,8 @@ interface IngestionRecord {
   user_id: string;
   title?: string | null;
   content: string;
+  image_base64?: string | null;
+  mime_type?: string | null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -123,6 +125,7 @@ Deno.serve(async (req: Request) => {
 
   const startTime = performance.now();
   let recordToProcess: IngestionRecord | null = null;
+  let saveToDb = true;
 
   // Timeout guardrail: 25 seconds execution deadline
   const timeoutController = new AbortController();
@@ -131,7 +134,7 @@ Deno.serve(async (req: Request) => {
   }, 25_000);
 
   try {
-    // 2. Parse Payload (supports pg_net webhook payload or direct POST payload)
+    // 2. Parse Payload (supports pg_net webhook payload, direct POST payload, or memoryId)
     let body: any;
     try {
       body = await req.json();
@@ -147,38 +150,44 @@ Deno.serve(async (req: Request) => {
 
     // Extract record from { record: { ... } } or top-level object
     const rawRecord = body.record ?? body;
+    saveToDb = body.save_to_db !== false && rawRecord.save_to_db !== false;
 
-    if (!rawRecord || typeof rawRecord !== "object") {
-      return new Response(
-        JSON.stringify({
-          error: "Missing payload record. Expected { record: { id, user_id, title, content } }",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let targetId = rawRecord.id ?? body.memoryId ?? body.id;
+    let targetUserId = rawRecord.user_id ?? body.user_id;
+    let targetTitle = rawRecord.title ?? body.title;
+    let targetContent = rawRecord.content ?? body.content;
+    const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
+    const targetMimeType = rawRecord.mime_type ?? body.mime_type;
+
+    // If memoryId passed from background sync/bloc and content not in body, fetch from DB
+    if (targetId && (!targetContent || !targetUserId)) {
+      try {
+        const { data: dbMem } = await supabaseAdmin
+          .from("memories")
+          .select("id, user_id, title, content")
+          .eq("id", targetId)
+          .maybeSingle();
+
+        if (dbMem) {
+          targetUserId = targetUserId || dbMem.user_id;
+          targetTitle = targetTitle || dbMem.title;
+          targetContent = targetContent || dbMem.content;
         }
-      );
+      } catch (_) {
+        // Fall through
+      }
     }
 
-    const { id, user_id, title, content } = rawRecord;
-
-    if (!id || !user_id) {
-      return new Response(
-        JSON.stringify({
-          error: "Validation failed: 'id' and 'user_id' are required fields.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    targetId = targetId ? String(targetId) : crypto.randomUUID();
+    targetUserId = targetUserId ? String(targetUserId) : "anonymous_client";
 
     recordToProcess = {
-      id: String(id),
-      user_id: String(user_id),
-      title: title ? String(title) : null,
-      content: content ? String(content) : "",
+      id: targetId,
+      user_id: targetUserId,
+      title: targetTitle ? String(targetTitle) : null,
+      content: targetContent ? String(targetContent) : "",
+      image_base64: targetImageBase64 ? String(targetImageBase64) : null,
+      mime_type: targetMimeType ? String(targetMimeType) : null,
     };
 
     // 3. Token-Bucket Rate Limit Check
@@ -204,10 +213,10 @@ Deno.serve(async (req: Request) => {
     }
 
     console.info(
-      `[Ingestion Started] Processing memory ${recordToProcess.id} for user ${recordToProcess.user_id}`
+      `[Ingestion Started] Processing memory ${recordToProcess.id} for user ${recordToProcess.user_id} (saveToDb: ${saveToDb})`
     );
 
-    // 4. Run Ingestion Prompt and Embedding Generation concurrently / sequentially with timeout signal
+    // 4. Run Ingestion Prompt and Embedding Generation
     const signal = timeoutController.signal;
 
     // Fast Ingestion LLM (gemini-3.5-flash-lite)
@@ -215,6 +224,8 @@ Deno.serve(async (req: Request) => {
       {
         title: recordToProcess.title,
         content: recordToProcess.content,
+        imageBase64: recordToProcess.image_base64,
+        mimeType: recordToProcess.mime_type,
       },
       signal
     );
@@ -222,35 +233,45 @@ Deno.serve(async (req: Request) => {
     const finalTitle = analysisResult.metadata.title;
     const finalCategory = analysisResult.metadata.category;
     const finalTags = analysisResult.metadata.tags;
+    const finalSummary = analysisResult.metadata.summary;
+    const finalEntities = analysisResult.metadata.entities;
 
-    // Primary/Fallback Embedding Generation (768 dimensions)
-    const embeddingResult = await generateEmbedding(
-      finalTitle,
-      recordToProcess.content,
-      signal
-    );
+    let embeddingValues: number[] | null = null;
+    let embeddingModel: string | null = null;
 
-    // 5. Update public.memories row via Supabase Admin Client
-    const serverUpdatedAt = new Date().toISOString();
-    const { error: updateError } = await supabaseAdmin
-      .from("memories")
-      .update({
-        title: finalTitle,
-        category: finalCategory,
-        tags: finalTags,
-        embedding: embeddingResult.embedding,
-        ai_status: "processed",
-        server_updated_at: serverUpdatedAt,
-      })
-      .eq("id", recordToProcess.id);
+    // If saving to DB, generate 768-d embedding and update public.memories
+    if (saveToDb) {
+      const embeddingResult = await generateEmbedding(
+        finalTitle,
+        recordToProcess.content,
+        signal
+      );
+      embeddingValues = embeddingResult.embedding;
+      embeddingModel = embeddingResult.modelUsed;
 
-    if (updateError) {
-      throw new Error(`Failed to update public.memories: ${updateError.message}`);
+      const serverUpdatedAt = new Date().toISOString();
+      const { error: updateError } = await supabaseAdmin
+        .from("memories")
+        .update({
+          title: finalTitle,
+          category: finalCategory,
+          tags: finalTags,
+          embedding: embeddingResult.embedding,
+          ai_status: "processed",
+          server_updated_at: serverUpdatedAt,
+        })
+        .eq("id", recordToProcess.id);
+
+      if (updateError) {
+        console.warn(
+          `[Ingestion DB Notice] public.memories update skipped or row not found for ${recordToProcess.id}: ${updateError.message}`
+        );
+      }
     }
 
     const executionTimeMs = Math.round(performance.now() - startTime);
 
-    // 6. Telemetry Logging into public.ai_usage_logs
+    // 5. Telemetry Logging into public.ai_usage_logs
     try {
       const { error: telemetryError } = await supabaseAdmin
         .from("ai_usage_logs")
@@ -284,8 +305,10 @@ Deno.serve(async (req: Request) => {
         title: finalTitle,
         category: finalCategory,
         tags: finalTags,
-        embedding_dimensions: embeddingResult.embedding.length,
-        embedding_model: embeddingResult.modelUsed,
+        summary: finalSummary,
+        entities: finalEntities,
+        embedding_dimensions: embeddingValues ? embeddingValues.length : null,
+        embedding_model: embeddingModel,
         ai_status: "processed",
         execution_time_ms: executionTimeMs,
       }),
@@ -307,8 +330,8 @@ Deno.serve(async (req: Request) => {
       error
     );
 
-    // Gracefully mark ai_status = 'failed' in public.memories
-    if (recordToProcess?.id) {
+    // If saveToDb was requested and record id is present, gracefully mark ai_status = 'failed'
+    if (saveToDb && recordToProcess?.id) {
       try {
         await supabaseAdmin
           .from("memories")
@@ -317,10 +340,6 @@ Deno.serve(async (req: Request) => {
             server_updated_at: new Date().toISOString(),
           })
           .eq("id", recordToProcess.id);
-
-        console.info(
-          `[Status Fallback] Successfully set ai_status = 'failed' for memory ${recordToProcess.id}`
-        );
       } catch (dbFallbackErr) {
         console.error(
           `[Status Fallback Error] Could not update ai_status to 'failed' for ${recordToProcess.id}:`,

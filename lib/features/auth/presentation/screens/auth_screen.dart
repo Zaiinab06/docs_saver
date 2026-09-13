@@ -1,8 +1,9 @@
+// ignore_for_file: avoid_print
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../capture/presentation/screens/capture_screen.dart';
+import '../../../home/presentation/screens/home_screen.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
@@ -56,28 +57,70 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _onSubmit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      FocusScope.of(context).unfocus();
-      final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
+    print('DEBUG: Sign Up button clicked');
+    final isValid = _formKey.currentState?.validate() ?? false;
+    print('DEBUG: Form validated: $isValid');
 
-      if (_currentMode == AuthMode.signIn) {
-        context.read<AuthBloc>().add(
-              SignInRequested(
-                email: email,
-                password: password,
+    if (!isValid) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: AppColors.errorBorder.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+          backgroundColor: AppColors.snackBarBackground,
+          content: const Row(
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: AppColors.errorBorder,
+                size: 20,
               ),
-            );
-      } else {
-        final fullName = _nameController.text.trim();
-        context.read<AuthBloc>().add(
-              SignUpRequested(
-                email: email,
-                password: password,
-                fullName: fullName.isNotEmpty ? fullName : null,
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Please fill in all required fields properly.',
+                  style: TextStyle(
+                    color: AppColors.textWhite,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
               ),
-            );
-      }
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (_currentMode == AuthMode.signIn) {
+      context.read<AuthBloc>().add(
+            SignInRequested(
+              email: email,
+              password: password,
+            ),
+          );
+    } else {
+      print('DEBUG: Dispatching SignUpEvent with email: ${_emailController.text}');
+      final fullName = _nameController.text.trim();
+      context.read<AuthBloc>().add(
+            SignUpRequested(
+              email: email,
+              password: password,
+              fullName: fullName.isNotEmpty ? fullName : null,
+            ),
+          );
     }
   }
 
@@ -163,14 +206,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
             );
-          } else if (state is Authenticated) {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const CaptureScreen()),
-              );
-            }
+          } else if (state is Authenticated || state is AuthSuccess) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
+            );
           }
         },
         builder: (context, state) {

@@ -5,7 +5,7 @@ import '../models/memory_model.dart';
 
 abstract class CaptureRemoteDataSource {
   Future<void> upsertMemory(MemoryEntity memory);
-  Future<List<Map<String, dynamic>>> fetchRemoteMemories();
+  Future<List<Map<String, dynamic>>> fetchRemoteMemories({String? userId});
   Stream<MemoryModel> subscribeToMemoryUpdates(String userId);
 }
 
@@ -36,11 +36,13 @@ class CaptureRemoteDataSourceImpl implements CaptureRemoteDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchRemoteMemories() async {
-    final response = await supabase
-        .from('memories')
-        .select()
-        .order('client_created_at', ascending: false);
+  Future<List<Map<String, dynamic>>> fetchRemoteMemories({String? userId}) async {
+    var query = supabase.from('memories').select();
+    if (userId != null && userId.isNotEmpty) {
+      query = query.eq('user_id', userId);
+    }
+    final response =
+        await query.order('client_created_at', ascending: false);
     return List<Map<String, dynamic>>.from(response);
   }
 

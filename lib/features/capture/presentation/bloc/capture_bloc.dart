@@ -32,7 +32,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   }
 
   void _initRealtimeSubscription() {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    String? currentUserId;
+    try {
+      currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    } catch (_) {
+      return;
+    }
     if (currentUserId == null) return;
     if (_subscribedUserId == currentUserId && _realtimeSubscription != null) {
       return;
@@ -60,7 +65,11 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     _initRealtimeSubscription();
     emit(CaptureLoading());
     try {
-      final memories = await getMemoriesUseCase();
+      String? currentUserId;
+      try {
+        currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      } catch (_) {}
+      final memories = await getMemoriesUseCase(currentUserId);
       emit(CaptureLoaded(memories));
     } catch (e) {
       emit(CaptureFailure(e.toString()));
@@ -72,10 +81,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     Emitter<CaptureState> emit,
   ) async {
     try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) {
-        throw Exception('User is not authenticated');
-      }
+      String currentUserId = 'local_user';
+      try {
+        currentUserId =
+            Supabase.instance.client.auth.currentUser?.id ?? 'local_user';
+      } catch (_) {}
+
       final now = DateTime.now();
 
       final newMemory = MemoryEntity(
@@ -84,7 +95,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         title: event.title.trim().isEmpty ? 'Quick Note' : event.title.trim(),
         content: event.content.trim(),
         tags: event.tags,
+        category: event.category,
         mediaUrl: event.mediaUrl,
+        aiStatus: event.aiStatus,
         clientCreatedAt: now,
         clientUpdatedAt: now,
         serverUpdatedAt: now,
@@ -93,6 +106,22 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       await saveMemoryUseCase(newMemory);
       emit(const CaptureSuccess('Memory saved locally!'));
       add(LoadMemoriesEvent());
+
+      // If aiStatus is pending and user is authenticated with Supabase, trigger background ingestion enrichment asynchronously
+      bool isSupabaseAvailable = false;
+      try {
+        isSupabaseAvailable =
+            Supabase.instance.client.auth.currentUser != null;
+      } catch (_) {}
+
+      if (newMemory.aiStatus == 'pending' && isSupabaseAvailable) {
+        unawaited(
+          Supabase.instance.client.functions
+              .invoke('process-ingestion', body: {'memoryId': newMemory.id})
+              .then((_) => add(LoadMemoriesEvent()))
+              .catchError((_) {}),
+        );
+      }
     } catch (e) {
       emit(CaptureFailure(e.toString()));
     }
@@ -103,7 +132,11 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     Emitter<CaptureState> emit,
   ) async {
     try {
-      await repository.syncPendingMemories();
+      String? currentUserId;
+      try {
+        currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      } catch (_) {}
+      await repository.syncPendingMemories(userId: currentUserId);
       add(LoadMemoriesEvent());
     } catch (_) {}
   }
@@ -112,6 +145,18 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     MemoryUpdatedEvent event,
     Emitter<CaptureState> emit,
   ) async {
+    String? currentUserId;
+    try {
+      currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    } catch (_) {}
+
+    // Enforce data isolation: ignore update if it doesn't belong to current user
+    if (currentUserId != null &&
+        event.updatedMemory.userId != currentUserId &&
+        event.updatedMemory.userId != 'local_user') {
+      return;
+    }
+
     if (state is CaptureLoaded) {
       final currentMemories = (state as CaptureLoaded).memories;
       final index =
@@ -122,11 +167,11 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         updatedList[index] = event.updatedMemory;
         emit(CaptureLoaded(updatedList));
       } else {
-        final memories = await getMemoriesUseCase();
+        final memories = await getMemoriesUseCase(currentUserId);
         emit(CaptureLoaded(memories));
       }
     } else {
-      final memories = await getMemoriesUseCase();
+      final memories = await getMemoriesUseCase(currentUserId);
       emit(CaptureLoaded(memories));
     }
   }

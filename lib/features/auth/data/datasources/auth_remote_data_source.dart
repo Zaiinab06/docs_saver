@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract class AuthRemoteDataSource {
@@ -31,17 +32,31 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String password,
     String? fullName,
   }) async {
-    final response = await supabase.auth.signUp(
-      email: email,
-      password: password,
-      data: (fullName != null && fullName.trim().isNotEmpty)
-          ? {'full_name': fullName.trim()}
-          : null,
-    );
-    if (response.user == null) {
-      throw const AuthException('Sign up failed: User is null');
+    try {
+      print('DEBUG: Calling supabase.auth.signUp with email: $email, fullName: $fullName');
+      final response = await supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: (fullName != null && fullName.trim().isNotEmpty)
+            ? {'full_name': fullName.trim()}
+            : null,
+      );
+      print('DEBUG: Supabase signUp response: user=${response.user?.id}, session=${response.session != null}');
+
+      if (response.user == null) {
+        print('DEBUG: Supabase signUp failed: User is null in response');
+        throw const AuthException('Sign up failed: User is null');
+      }
+      return response.user!;
+    } on AuthException catch (e, stack) {
+      print('DEBUG: AuthException in supabase.auth.signUp: ${e.message} (status: ${e.statusCode})');
+      print('DEBUG: Stack trace: $stack');
+      rethrow;
+    } catch (e, stack) {
+      print('DEBUG: Generic Exception in supabase.auth.signUp: $e');
+      print('DEBUG: Stack trace: $stack');
+      rethrow;
     }
-    return response.user!;
   }
 
   @override

@@ -7,14 +7,40 @@
  */
 
 export const INGESTION_MODEL = "gemini-3.5-flash-lite";
+export const SYNTHESIS_MODEL = "gemini-3.8-flash";
+export const SYNTHESIS_FALLBACK_MODEL = "gemini-2.5-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
+
+export interface GroundedMemoryItem {
+  id: string;
+  title?: string | null;
+  content: string;
+  category?: string | null;
+  tags?: string[] | null;
+  client_created_at?: string | null;
+  similarity?: number | null;
+}
+
+export interface SynthesisResult {
+  answer: string;
+  modelUsed: string;
+  usage: TokenUsage;
+}
+
+export interface LivingEntityItem {
+  name: string;
+  type: string;
+  attributes?: string;
+}
 
 export interface IngestionMetadata {
   title: string;
   category: string;
   tags: string[];
+  summary: string;
+  entities: LivingEntityItem[];
 }
 
 export interface TokenUsage {
@@ -48,41 +74,78 @@ export function getGeminiApiKey(): string {
   return apiKey.trim();
 }
 
+export interface AnalyzeMemoryInput {
+  title?: string | null;
+  content: string;
+  imageBase64?: string | null;
+  mimeType?: string | null;
+}
+
 /**
  * Analyzes note content using the fast ingestion model (gemini-3.5-flash-lite)
- * with structured JSON extraction for title, category, and tags.
+ * with structured JSON extraction for title, category, tags, summary, and living memory entities.
  */
 export async function analyzeMemoryContent(
-  input: { title?: string | null; content: string },
+  input: AnalyzeMemoryInput,
   signal?: AbortSignal
 ): Promise<IngestionAnalysis> {
   const apiKey = getGeminiApiKey();
   const trimmedContent = (input.content || "").trim();
   const existingTitle = (input.title || "").trim();
 
-  const systemInstruction = `You are a high-speed ingestion and categorization engine for a "Second Brain" knowledge system.
-Analyze the user's note/memory and extract clean structured JSON:
-- "title": A concise, descriptive title (3 to 8 words).
-  * If the user provided a specific, non-generic title (not empty, "Untitled", "New Note", etc.), preserve or lightly polish it.
-  * If the note is untitled or has a generic title, synthesize a smart, descriptive title capturing the core subject.
-- "category": Select the single best matching category from:
-  ["Work", "Personal", "Ideas", "Learning", "Technical", "Finance", "Health", "Meeting", "Journal", "Reference", "Projects", "Tasks", "General"].
-- "tags": An array of 3 to 7 relevant, lowercase keyword tags (e.g. ["flutter", "architecture", "supabase", "sqlite"]).`;
+  const systemInstruction = `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
+You will receive an image and any supporting OCR extracted text.
+Visually inspect the image carefully, read any visible text, and output clean structured JSON:
+- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject.
+  * If the user provided an explicit non-empty title, keep that title unchanged.
+  * If no title is provided, generate a specific, factual title based on the visual subject matter. Never use "Untitled" or "Captured Memory" or "Photo".
+- "category": Select the single best matching category from the 8 official app categories:
+  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+  * Decision criteria:
+    - "Food": Dishes, pizza, sushi, meals, cooking ingredients, groceries, coffee, restaurants, drinks, snacks.
+    - "Work": Code/programming screenshots, IDEs, software architecture, technical documentation, office tasks, company projects, spreadsheets, professional emails.
+    - "Study": Handwritten/printed lecture notes, academic textbooks, science/math formulas, whiteboards, flashcards, certificates, research papers.
+    - "Fashion": Outfits, clothing, shoes, sneakers, bags, jewelry, accessories, cosmetics, skincare.
+    - "Finance": Receipts, invoices, bills, credit cards, bank statements, cryptocurrency charts, stock market graphs, expenses.
+    - "Travel": Scenery, landmarks, monuments, hotels, flights, boarding passes, maps, nature/hiking, travel itineraries.
+    - "Health & Fitness": Gym equipment, workouts, athletic training, vitamins, medicine/prescriptions, medical reports, healthy habits.
+    - "Personal": Personal everyday items, human body/hand, selfies, pets, home moments, hobbies, casual snapshots.
+  * Do NOT default to "Personal" unless it is genuinely personal/everyday life.
+- "tags": An array of 2 to 6 specific, relevant, lowercase keyword tags describing what is actually visible or discussed (e.g. ["pizza", "mozzarella", "lunch"] or ["flutter", "bloc", "dart"]).
+  * ABSOLUTELY FORBIDDEN TAGS: "photo", "image", "empty", "untitled", "general", "memory", "note".
+  * If you cannot determine specific meaningful tags, return [].
+- "summary": A concise 1-2 sentence description of what the image visually portrays and its key takeaway. Be concrete and objective. Never output generic filler like "Visual memory captured via camera".
+- "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
+  * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
+  * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
+  * "attributes": Concise contextual detail`;
 
   const userPrompt = `[INPUT]
-Original Title: ${existingTitle ? `"${existingTitle}"` : "(Untitled)"}
-Content:
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
+OCR Extracted Text:
 """
-${trimmedContent || "(No content provided)"}
-"""`;
+${trimmedContent || "(No text detected by OCR. Rely entirely on visual image analysis.)"}
+"""
+Please visually analyze the attached image and OCR text, and return the structured JSON.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${INGESTION_MODEL}:generateContent`;
+  const parts: any[] = [];
+  if (input.imageBase64 && input.imageBase64.trim().length > 0) {
+    parts.push({
+      inlineData: {
+        mimeType: input.mimeType || "image/jpeg",
+        data: input.imageBase64.trim(),
+      },
+    });
+  }
+  parts.push({
+    text: `${systemInstruction}\n\n${userPrompt}`,
+  });
 
   const payload = {
     contents: [
       {
         role: "user",
-        parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
+        parts,
       },
     ],
     generationConfig: {
@@ -97,41 +160,82 @@ ${trimmedContent || "(No content provided)"}
           },
           category: {
             type: "STRING",
-            description: "High-level classification category",
+            description:
+              "Must be one of: Work, Personal, Study, Travel, Fashion, Food, Finance, Health & Fitness",
           },
           tags: {
             type: "ARRAY",
             items: { type: "STRING" },
-            description: "3-7 lowercase keyword tags",
+            description: "2-6 lowercase keyword tags without #",
+          },
+          summary: {
+            type: "STRING",
+            description: "1-2 sentence concrete visual summary",
+          },
+          entities: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                name: { type: "STRING" },
+                type: { type: "STRING" },
+                attributes: { type: "STRING" },
+              },
+              required: ["name", "type"],
+            },
+            description: "Key entities extracted for Living Memory",
           },
         },
-        required: ["title", "category", "tags"],
+        required: ["title", "category", "tags", "summary"],
       },
     },
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const candidateModels = [
+    INGESTION_MODEL,
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+  ];
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `Gemini ingestion LLM (${INGESTION_MODEL}) failed with status ${response.status}: ${errorBody}`
-    );
+  let lastError: Error | null = null;
+  let data: any = null;
+  let modelUsed = INGESTION_MODEL;
+
+  for (const model of candidateModels) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Model ${model} failed HTTP ${response.status}: ${errorBody}`);
+      }
+
+      data = await response.json();
+      modelUsed = model;
+      break;
+    } catch (err: any) {
+      console.warn(`[Ingestion Vision Warning] Model ${model} failed: ${err.message}. Trying next model...`);
+      lastError = err;
+    }
   }
 
-  const data = await response.json();
+  if (!data) {
+    throw lastError || new Error("All Gemini ingestion models failed.");
+  }
+
   const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!candidateText) {
-    throw new Error(`Gemini ingestion LLM (${INGESTION_MODEL}) returned empty text candidate.`);
+    throw new Error(`Gemini ingestion LLM (${modelUsed}) returned empty text candidate.`);
   }
 
   let parsed: any;
@@ -151,24 +255,70 @@ ${trimmedContent || "(No content provided)"}
 
   // Validate and sanitize extracted fields
   const resolvedTitle =
-    typeof parsed.title === "string" && parsed.title.trim().length > 0
+    existingTitle.length > 0
+      ? existingTitle
+      : typeof parsed.title === "string" && parsed.title.trim().length > 0
       ? parsed.title.trim()
-      : existingTitle || "Untitled Memory";
+      : "Visual Memory";
 
-  const resolvedCategory =
+  const validCategories = [
+    "Work",
+    "Personal",
+    "Study",
+    "Travel",
+    "Fashion",
+    "Food",
+    "Finance",
+    "Health & Fitness",
+  ];
+  let resolvedCategory =
     typeof parsed.category === "string" && parsed.category.trim().length > 0
       ? parsed.category.trim()
-      : "General";
+      : "Personal";
+
+  if (!validCategories.includes(resolvedCategory)) {
+    const match = validCategories.find(
+      (c) => c.toLowerCase() === resolvedCategory.toLowerCase()
+    );
+    resolvedCategory = match || "Personal";
+  }
+
+  const bannedTags = new Set([
+    "photo",
+    "image",
+    "empty",
+    "untitled",
+    "general",
+    "memory",
+    "note",
+    "picture",
+    "capture",
+    "camera",
+  ]);
 
   let resolvedTags: string[] = [];
   if (Array.isArray(parsed.tags)) {
     resolvedTags = parsed.tags
       .filter((t: unknown) => typeof t === "string" && (t as string).trim().length > 0)
-      .map((t: string) => t.trim().toLowerCase());
+      .map((t: string) => t.trim().toLowerCase().replace(/^#/, ""))
+      .filter((t: string) => !bannedTags.has(t) && t.length > 1);
     resolvedTags = Array.from(new Set(resolvedTags));
   }
-  if (resolvedTags.length === 0) {
-    resolvedTags = ["memory", resolvedCategory.toLowerCase()];
+
+  const resolvedSummary =
+    typeof parsed.summary === "string" && parsed.summary.trim().length > 0
+      ? parsed.summary.trim()
+      : "";
+
+  let resolvedEntities: LivingEntityItem[] = [];
+  if (Array.isArray(parsed.entities)) {
+    resolvedEntities = parsed.entities
+      .filter((e: any) => e && typeof e.name === "string" && e.name.trim().length > 0)
+      .map((e: any) => ({
+        name: String(e.name).trim(),
+        type: e.type ? String(e.type).trim() : "Topic",
+        attributes: e.attributes ? String(e.attributes).trim() : "",
+      }));
   }
 
   const usageMetadata = data.usageMetadata;
@@ -182,8 +332,10 @@ ${trimmedContent || "(No content provided)"}
       title: resolvedTitle,
       category: resolvedCategory,
       tags: resolvedTags,
+      summary: resolvedSummary,
+      entities: resolvedEntities,
     },
-    modelUsed: INGESTION_MODEL,
+    modelUsed,
     usage: {
       promptTokens,
       completionTokens,
@@ -348,3 +500,184 @@ export async function generateEmbedding(
     throw err;
   }
 }
+
+/**
+ * Calls Gemini text generation API for RAG synthesis.
+ */
+async function callSynthesisApi(
+  model: string,
+  systemInstruction: string,
+  userPrompt: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<{ text: string; usage: TokenUsage }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    const err = new Error(
+      `Gemini synthesis LLM (${model}) failed with status ${response.status}: ${errorBody}`
+    );
+    (err as any).status = response.status;
+    throw err;
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error(`Gemini synthesis LLM (${model}) returned an empty response candidate.`);
+  }
+
+  const usageMetadata = data.usageMetadata;
+  const promptTokens = usageMetadata?.promptTokenCount ?? 0;
+  const completionTokens = usageMetadata?.candidatesTokenCount ?? 0;
+  const totalTokens =
+    usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
+
+  return {
+    text: text.trim(),
+    usage: {
+      promptTokens,
+      completionTokens,
+      totalTokens,
+    },
+  };
+}
+
+/**
+ * Synthesizes a grounded answer from matched memories using Gemini 3.8 Flash
+ * with fallback to Gemini 2.5 Flash.
+ */
+export async function synthesizeAnswer(
+  query: string,
+  memories: GroundedMemoryItem[],
+  signal?: AbortSignal
+): Promise<SynthesisResult> {
+  const apiKey = getGeminiApiKey();
+
+  const formattedMemories = memories
+    .map((m, index) => {
+      const memoryNumber = index + 1;
+      const title = (m.title || "").trim() || "Untitled Note";
+      const dateStr = m.client_created_at
+        ? new Date(m.client_created_at).toISOString().split("T")[0]
+        : "Unknown Date";
+      const categoryStr = m.category || "General";
+      const tagsStr =
+        Array.isArray(m.tags) && m.tags.length > 0
+          ? m.tags.join(", ")
+          : "none";
+
+      return `[Memory ${memoryNumber}] (ID: ${m.id})
+Title: ${title}
+Date: ${dateStr} | Category: ${categoryStr} | Tags: ${tagsStr}
+Content:
+"""
+${m.content}
+"""`;
+    })
+    .join("\n\n");
+
+  const systemInstruction = `You are the personal AI knowledge assistant for the user's "Second Brain".
+Your goal is to answer the user's question accurately, concisely, and factually based EXCLUSIVELY on their personal memories provided below.
+
+Strict Grounding & Citation Rules:
+1. Base your answer strictly on the provided context memories. Do NOT hallucinate, extrapolate, or invent facts that are not explicitly present in the memories.
+2. If the memories do not contain enough relevant information to answer the question, state clearly and politely: "Based on your stored notes and memories, I don't have sufficient information to answer this question."
+3. Cite your sources inline using brackets like [1], [2], etc., corresponding to the [Memory X] source numbers from which facts were gathered.
+4. Keep the answer clear, helpful, and concise (typically 2-5 sentences unless greater detail is needed).`;
+
+  const userPrompt = `[RETRIEVED MEMORIES]
+${formattedMemories}
+
+[USER QUESTION]
+${query.trim()}
+
+Answer:`;
+
+  try {
+    const result = await callSynthesisApi(
+      SYNTHESIS_MODEL,
+      systemInstruction,
+      userPrompt,
+      apiKey,
+      signal
+    );
+    return {
+      answer: result.text,
+      modelUsed: SYNTHESIS_MODEL,
+      usage: result.usage,
+    };
+  } catch (err: any) {
+    const status = err?.status;
+    const isRetryable =
+      status === 404 ||
+      status === 400 ||
+      status === 429 ||
+      (typeof status === "number" && status >= 500);
+
+    if (isRetryable && !signal?.aborted) {
+      console.warn(
+        `[Synthesis Fallback] Primary model "${SYNTHESIS_MODEL}" failed with status ${status}: ${err?.message}. Falling back to "${SYNTHESIS_FALLBACK_MODEL}"...`
+      );
+
+      try {
+        const fallbackResult = await callSynthesisApi(
+          SYNTHESIS_FALLBACK_MODEL,
+          systemInstruction,
+          userPrompt,
+          apiKey,
+          signal
+        );
+        return {
+          answer: fallbackResult.text,
+          modelUsed: SYNTHESIS_FALLBACK_MODEL,
+          usage: fallbackResult.usage,
+        };
+      } catch (fallbackErr: any) {
+        console.warn(
+          `[Synthesis Safety Fallback] Fallback model "${SYNTHESIS_FALLBACK_MODEL}" also failed. Falling back to "${INGESTION_MODEL}"...`
+        );
+        const lastResortResult = await callSynthesisApi(
+          INGESTION_MODEL,
+          systemInstruction,
+          userPrompt,
+          apiKey,
+          signal
+        );
+        return {
+          answer: lastResortResult.text,
+          modelUsed: INGESTION_MODEL,
+          usage: lastResortResult.usage,
+        };
+      }
+    }
+
+    throw err;
+  }
+}
+

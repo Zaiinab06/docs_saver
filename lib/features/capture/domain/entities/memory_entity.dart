@@ -31,6 +31,10 @@ class MemoryEntity extends Equatable {
     required this.serverUpdatedAt,
   });
 
+  bool get isPinned =>
+      tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+      category.toLowerCase() == 'pinned';
+
   @override
   List<Object?> get props => [
     id,

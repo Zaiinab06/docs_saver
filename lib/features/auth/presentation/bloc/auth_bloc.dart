@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
@@ -56,15 +57,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
+      print('DEBUG: AuthBloc handling SignUpRequested for email: ${event.email}');
       final user = await signUpUseCase(
         email: event.email,
         password: event.password,
         fullName: event.fullName,
       );
+      print('DEBUG: SignUp successful in AuthBloc for user: ${user.id}, email: ${user.email}');
+      emit(AuthSuccess(user));
       emit(Authenticated(user));
-    } catch (e) {
+    } on AuthException catch (e, stack) {
+      print('DEBUG: AuthException in AuthBloc _onSignUpRequested: ${e.message} (status: ${e.statusCode})');
+      print('DEBUG: Stack trace: $stack');
+      emit(AuthFailure(e.message));
+    } catch (e, stack) {
+      print('DEBUG: Generic exception in AuthBloc _onSignUpRequested: $e');
+      print('DEBUG: Stack trace: $stack');
       emit(AuthFailure(_cleanErrorMessage(e)));
-      emit(Unauthenticated());
     }
   }
 

@@ -14,9 +14,6 @@ import 'features/auth/domain/usecases/sign_out_usecase.dart';
 import 'features/auth/domain/usecases/sign_up_usecase.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
-import 'features/auth/presentation/bloc/auth_state.dart';
-import 'features/auth/presentation/screens/auth_screen.dart';
-import 'features/auth/presentation/screens/sign_in_screen.dart';
 import 'features/capture/data/datasources/capture_local_data_source.dart';
 import 'features/capture/data/datasources/capture_remote_data_source.dart';
 import 'features/capture/domain/repositories/capture_repository_impl.dart';
@@ -25,8 +22,7 @@ import 'features/capture/domain/usecases/save_memory_usecase.dart';
 import 'features/capture/domain/usecases/subscribe_to_memories_usecase.dart';
 import 'features/capture/presentation/bloc/capture_bloc.dart';
 import 'features/capture/presentation/bloc/capture_event.dart';
-import 'features/capture/presentation/screens/capture_screen.dart';
-import 'features/onboarding/presentation/screens/onboarding_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -128,8 +124,17 @@ class SecondBrainApp extends StatelessWidget {
       child: MaterialApp(
         title: '2nd Brain',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark(useMaterial3: true),
-        home: const OnboardingScreen(),
+        theme: ThemeData(
+          useMaterial3: true,
+          scaffoldBackgroundColor: AppColors.background,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.primary,
+            primary: AppColors.primary,
+            surface: AppColors.cardBackground,
+          ),
+        ),
+        // Temporary Development Bypass: Land directly on HomeScreen
+        home: const HomeScreen(),
       ),
     );
   }
@@ -140,28 +145,7 @@ class AuthSessionGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<AuthBloc, AuthState>(
-      listener: (context, state) {
-        if (state is Authenticated) {
-          context.read<CaptureBloc>().add(LoadMemoriesEvent());
-        }
-      },
-      builder: (context, state) {
-        if (state is Authenticated) {
-          return const CaptureScreen();
-        } else if (state is AuthLoading || state is AuthInitial) {
-          return const Scaffold(
-            backgroundColor: AppColors.background,
-            body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-            ),
-          );
-        } else {
-          return const AuthScreen();
-        }
-      },
-    );
+    // Temporary Development Bypass: Direct to HomeScreen
+    return const HomeScreen();
   }
 }
