@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>2nd Brain needs camera access to scan documents and extract text.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>2nd Brain needs photo library access to import documents.</string>
 </dict>
 </plist>

@@ -18,6 +18,7 @@ import '../../../capture/presentation/screens/memory_detail_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 
 class _CategoryItem {
   final String name;
@@ -739,6 +740,51 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleScanDocument() async {
+    try {
+      final pictures = await CunningDocumentScanner.getPictures(
+        noOfPages: 1,
+        scannerSource: ScannerSource.camera,
+        androidScannerMode: AndroidScannerMode.full,
+      );
+
+      if (pictures == null || pictures.isEmpty) {
+        return; // User cancelled scanning safely
+      }
+
+      if (!mounted) return;
+
+      final scannedFile = File(pictures.first);
+      if (!scannedFile.existsSync()) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PhotoReviewScreen(
+            imageFile: scannedFile,
+            isDocumentScan: true,
+          ),
+        ),
+      );
+
+      if (mounted) {
+        context.read<CaptureBloc>().add(LoadMemoriesEvent());
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().toLowerCase();
+        final message = errorMsg.contains('permission') || errorMsg.contains('denied')
+            ? 'Camera permission denied. Please enable camera access in Settings.'
+            : 'Unable to scan document: ${e.toString()}';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildCaptureOption({
     required BuildContext context,
     required IconData icon,
@@ -752,6 +798,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.of(context).pop();
           if (isTakePhoto) {
             await _handleTakePhoto();
+          } else if (title == 'Scan Document') {
+            await _handleScanDocument();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

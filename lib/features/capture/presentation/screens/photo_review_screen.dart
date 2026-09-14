@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
@@ -15,12 +17,14 @@ class PhotoReviewScreen extends StatefulWidget {
   final File imageFile;
   final IngestMemoryUseCase? ingestMemoryUseCase;
   final bool? isOffline;
+  final bool isDocumentScan;
 
   const PhotoReviewScreen({
     super.key,
     required this.imageFile,
     this.ingestMemoryUseCase,
     this.isOffline,
+    this.isDocumentScan = false,
   });
 
   @override
@@ -48,6 +52,32 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   }
 
   Future<void> _retakePhoto() async {
+    if (widget.isDocumentScan) {
+      try {
+        final pictures = await CunningDocumentScanner.getPictures(
+          noOfPages: 1,
+          scannerSource: ScannerSource.camera,
+          androidScannerMode: AndroidScannerMode.full,
+        );
+
+        if (pictures != null && pictures.isNotEmpty) {
+          setState(() {
+            _currentImage = File(pictures.first);
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Document scanner failed. Please verify camera permissions in Settings.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
     try {
       final newPhoto = await _picker.pickImage(
         source: ImageSource.camera,
@@ -75,7 +105,9 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   Future<void> _usePhoto() async {
     setState(() {
       _isProcessing = true;
-      _processingStatus = 'Understanding your memory...';
+      _processingStatus = widget.isDocumentScan
+          ? 'Understanding your document...'
+          : 'Understanding your memory...';
     });
 
     String extractedOcrText = '';
@@ -158,18 +190,29 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           _isProcessing = false;
         });
 
+        final initialTags = List<String>.from(aiResult.tags);
+        if (widget.isDocumentScan && !initialTags.contains('document')) {
+          initialTags.add('document');
+        }
+
+        final initialTitle = aiResult.title.isNotEmpty
+            ? aiResult.title
+            : (widget.isDocumentScan
+                ? 'Scanned Document (${DateFormat('MMM d').format(DateTime.now())})'
+                : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})');
+
         // Navigate to Memory Review / Edit Screen
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => MemoryReviewScreen(
               imageFile: _currentImage,
-              initialTitle: aiResult.title,
+              initialTitle: initialTitle,
               initialContent: aiResult.summary.isNotEmpty
                   ? aiResult.summary
                   : '',
               rawOcrText: extractedOcrText,
               initialCategory: aiResult.category,
-              initialTags: aiResult.tags,
+              initialTags: initialTags,
               initialSummary: aiResult.summary,
               entities: aiResult.entities,
               aiStatus: aiResult.aiStatus,
@@ -194,9 +237,9 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Review Photo',
-          style: TextStyle(
+        title: Text(
+          widget.isDocumentScan ? 'Review Document' : 'Review Photo',
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -260,9 +303,11 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'AI is scanning and organizing',
-                        style: TextStyle(
+                      Text(
+                        widget.isDocumentScan
+                            ? 'AI is scanning and organizing document'
+                            : 'AI is scanning and organizing',
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w400,
@@ -322,14 +367,14 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
 
                         const SizedBox(width: 14),
 
-                        // Use Photo Button
+                        // Use Photo / Use Document Button
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _usePhoto,
                             icon: const Icon(Icons.check_rounded, size: 20, color: AppColors.textWhite),
-                            label: const Text(
-                              'Use Photo',
-                              style: TextStyle(
+                            label: Text(
+                              widget.isDocumentScan ? 'Use Document' : 'Use Photo',
+                              style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textWhite,
