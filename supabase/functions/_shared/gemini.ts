@@ -82,6 +82,44 @@ export interface AnalyzeMemoryInput {
 }
 
 /**
+ * Sanitizes the semantic summary to guarantee a maximum of 1-2 concise points/lines,
+ * filtering out raw URLs, status bar noise, and UI button text.
+ */
+export function sanitizeSemanticSummary(raw: string): string {
+  if (!raw || typeof raw !== "string") return "";
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (line.length === 0) return false;
+      // Filter out raw URLs
+      if (/^https?:\/\//i.test(line) || /^www\./i.test(line)) return false;
+      // Filter out status bar patterns (e.g. 7:45 PM, 100%, 5G)
+      if (/^\d{1,2}:\d{2}/.test(line) && line.length < 20) return false;
+      if (/^\d{1,3}%\s*$/.test(line)) return false;
+      // Filter out common UI chrome buttons / labels
+      const clean = line.replace(/^[•\-\*]\s*/, "").trim().toLowerCase();
+      const noise = [
+        "back", "next", "done", "cancel", "close", "search", "home",
+        "share", "menu", "more", "less ai", "settings", "profile",
+      ];
+      if (noise.includes(clean)) return false;
+      return true;
+    });
+
+  if (lines.length === 0) return "";
+  const maxLines = lines.slice(0, 2);
+  const formatted = maxLines.map((line) => {
+    if (line.startsWith("•") || line.startsWith("-") || line.startsWith("*")) {
+      return `• ${line.replace(/^[•\-\*]\s*/, "").trim()}`;
+    }
+    return `• ${line.trim()}`;
+  });
+
+  return formatted.join("\n");
+}
+
+/**
  * Analyzes note content using the fast ingestion model (gemini-3.5-flash-lite)
  * with structured JSON extraction for title, category, tags, summary, and living memory entities.
  */
@@ -114,7 +152,12 @@ Visually inspect the image carefully, read any visible text, and output clean st
 - "tags": An array of 2 to 6 specific, relevant, lowercase keyword tags describing what is actually visible or discussed (e.g. ["pizza", "mozzarella", "lunch"] or ["flutter", "bloc", "dart"]).
   * ABSOLUTELY FORBIDDEN TAGS: "photo", "image", "empty", "untitled", "general", "memory", "note".
   * If you cannot determine specific meaningful tags, return [].
-- "summary": A concise 1-2 sentence description of what the image visually portrays and its key takeaway. Be concrete and objective. Never output generic filler like "Visual memory captured via camera".
+- "summary": A SHORT semantic description containing ONLY the most important information visible and relevant in the image and OCR together.
+  * MAXIMUM 1 to 2 concise points or lines. Format as bullet points (e.g. "• ") or 1-2 concise lines.
+  * The description must communicate the core meaningful context (for example: identifying the app, platform, or source if visible, and the core subject, concept, or purpose).
+  * CRITICAL: The AI must NOT use the raw OCR dump as the memory description. NEVER output long OCR sentences, full paragraphs, URLs, or unrelated detected text.
+  * CRITICAL: Completely IGNORE and EXCLUDE irrelevant OCR clutter such as status bar text, battery/signal/time indicators, weather text, browser chrome, search URLs, buttons ("Back", "Next", "Done", "Cancel", "Search"), navigation labels, timestamps, ads, "Less AI", and random UI noise.
+  * Dynamically determine these points from the image; do not fabricate or hardcode.
 - "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
   * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
   * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
@@ -170,7 +213,8 @@ Please visually analyze the attached image and OCR text, and return the structur
           },
           summary: {
             type: "STRING",
-            description: "1-2 sentence concrete visual summary",
+            description:
+              "Maximum 1-2 concise points/lines of semantic description (e.g. • App/Platform • Core subject). No raw OCR dumps, URLs, or UI noise.",
           },
           entities: {
             type: "ARRAY",
@@ -307,7 +351,7 @@ Please visually analyze the attached image and OCR text, and return the structur
 
   const resolvedSummary =
     typeof parsed.summary === "string" && parsed.summary.trim().length > 0
-      ? parsed.summary.trim()
+      ? sanitizeSemanticSummary(parsed.summary)
       : "";
 
   let resolvedEntities: LivingEntityItem[] = [];

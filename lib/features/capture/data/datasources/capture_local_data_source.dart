@@ -22,17 +22,31 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
 
   @override
   Future<List<MemoryModel>> getCachedMemories({String? userId}) async {
+    List<MemoryModel> models;
     if (userId != null && userId.isNotEmpty) {
-      return await isar.memoryModels
+      models = await isar.memoryModels
           .filter()
           .userIdEqualTo(userId)
           .sortByClientCreatedAtDesc()
           .findAll();
+    } else {
+      models = await isar.memoryModels
+          .where()
+          .sortByClientCreatedAtDesc()
+          .findAll();
     }
-    return await isar.memoryModels
-        .where()
-        .sortByClientCreatedAtDesc()
-        .findAll();
+    models.sort((a, b) {
+      final aPinned = a.tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+          a.category.toLowerCase() == 'pinned';
+      final bPinned = b.tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+          b.category.toLowerCase() == 'pinned';
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      final dateComp = b.clientCreatedAt.compareTo(a.clientCreatedAt);
+      if (dateComp != 0) return dateComp;
+      return b.serverId.compareTo(a.serverId);
+    });
+    return models;
   }
 
   @override

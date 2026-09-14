@@ -63,9 +63,9 @@ void main() {
       expect(find.text('#architecture'), findsOneWidget);
       expect(find.text('#bloc'), findsOneWidget);
 
-      // Verify living memory / AI metadata section is present
+      // Verify living memory card is present, and user-facing AI metadata engine card is removed
       expect(find.text('Living Memory Knowledge Graph'), findsOneWidget);
-      expect(find.text('AI Metadata & Semantic Engine'), findsOneWidget);
+      expect(find.text('AI Metadata & Semantic Engine'), findsNothing);
     });
 
     testWidgets('collapses extracted content back when Hide extracted text is tapped',
@@ -337,6 +337,101 @@ F = ma''';
         findsOneWidget,
       );
       expect(find.text('Back to Home'), findsOneWidget);
+    });
+
+    testWidgets(
+        'verifies exact layout order: Extracted Content -> Living Memory Knowledge Graph card -> Tags (last)',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final memory = MemoryEntity(
+        id: 'order-test-id',
+        userId: 'user-order',
+        title: 'Layout Order Verification Memory',
+        content: 'Extracted OCR text body from the camera snapshot.',
+        category: 'Work',
+        tags: const ['strategy', 'roadmap'],
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime(2026, 9, 14, 14, 0),
+        clientUpdatedAt: DateTime(2026, 9, 14, 14, 0),
+        serverUpdatedAt: DateTime(2026, 9, 14, 14, 0),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Verify Extracted Content is present
+      final extractedContentFinder = find.text('Extracted Content');
+      expect(extractedContentFinder, findsOneWidget);
+
+      // 2. Verify Living Memory Knowledge Graph is collapsed by default with right chevron
+      final knowledgeGraphFinder = find.text('Living Memory Knowledge Graph');
+      expect(knowledgeGraphFinder, findsOneWidget);
+      expect(find.text('Category & Topic relationships'), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsAtLeastNWidgets(1));
+
+      // Collapsed by default: category & topic entity chips are NOT visible initially
+      expect(find.text('CATEGORY'), findsNothing);
+      expect(find.text('TOPIC'), findsNothing);
+
+      // Tap Knowledge Graph card to expand (chevron switches to down chevron)
+      await tester.tap(knowledgeGraphFinder);
+      await tester.pumpAndSettle();
+
+      // Expanded: category & topic entity chips are now revealed and down chevron is shown
+      expect(find.text('CATEGORY'), findsOneWidget);
+      expect(find.text('TOPIC'), findsNWidgets(2));
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+
+      // Tap again to collapse (chevron returns to right chevron)
+      await tester.tap(knowledgeGraphFinder);
+      await tester.pumpAndSettle();
+      expect(find.text('CATEGORY'), findsNothing);
+
+      // 3. Verify Tags section is inside its own card and ALWAYS EXPANDED (no collapse control)
+      final tagsHeaderFinder = find.text('Tags');
+      expect(tagsHeaderFinder, findsOneWidget);
+      expect(find.text('Associated memory tags'), findsOneWidget);
+
+      // Tags are immediately visible by default
+      expect(find.text('#strategy'), findsOneWidget);
+      expect(find.text('#roadmap'), findsOneWidget);
+
+      // Tapping Tags header does NOT collapse tags (no open/close control or chevron)
+      await tester.tap(tagsHeaderFinder);
+      await tester.pumpAndSettle();
+      expect(find.text('#strategy'), findsOneWidget);
+      expect(find.text('#roadmap'), findsOneWidget);
+
+      // 4. Verify AI Metadata & Semantic Engine card is completely removed
+      expect(find.text('AI Metadata & Semantic Engine'), findsNothing);
+      expect(find.text('Vector Embeddings: '), findsNothing);
+
+      // 5. Verify the exact vertical layout ordering: Extracted Content -> Knowledge Graph -> Tags (last)
+      final extractedY = tester.getTopLeft(extractedContentFinder).dy;
+      final graphY = tester.getTopLeft(knowledgeGraphFinder).dy;
+      final tagsY = tester.getTopLeft(tagsHeaderFinder).dy;
+
+      expect(
+        extractedY < graphY,
+        isTrue,
+        reason: 'Extracted Content must appear above Living Memory Knowledge Graph',
+      );
+      expect(
+        graphY < tagsY,
+        isTrue,
+        reason: 'Living Memory Knowledge Graph card must appear above Tags',
+      );
     });
   });
 }

@@ -53,6 +53,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   bool _notFound = false;
   bool _isPinned = false;
   bool _isExtractedContentExpanded = false;
+  bool _isKnowledgeGraphExpanded = false;
   String? _summary;
   List<LivingEntityItem> _entities = [];
   StreamSubscription? _blocSubscription;
@@ -279,6 +280,31 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     final currentlyPinned = _isPinned;
     setState(() => _isPinned = !currentlyPinned);
 
+    final newTags = List<String>.from(_memory!.tags);
+    if (currentlyPinned) {
+      newTags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
+    } else {
+      if (!newTags.contains('pinned')) {
+        newTags.add('pinned');
+      }
+    }
+
+    _memory = MemoryEntity(
+      id: _memory!.id,
+      userId: _memory!.userId,
+      title: _memory!.title,
+      content: _memory!.content,
+      mediaUrl: _memory!.mediaUrl,
+      tags: newTags,
+      category: _memory!.category,
+      embedding: _memory!.embedding,
+      aiStatus: _memory!.aiStatus,
+      isConflictCopy: _memory!.isConflictCopy,
+      clientCreatedAt: _memory!.clientCreatedAt,
+      clientUpdatedAt: DateTime.now(),
+      serverUpdatedAt: _memory!.serverUpdatedAt,
+    );
+
     try {
       final isar = IsarService.instance;
       final model = await isar.memoryModels
@@ -286,18 +312,23 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           .serverIdEqualTo(_memory!.id)
           .findFirst();
       if (model != null) {
-        final tags = List<String>.from(model.tags);
-        if (currentlyPinned) {
-          tags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
-        } else {
-          if (!tags.contains('pinned')) {
-            tags.add('pinned');
-          }
-        }
-        model.tags = tags;
+        model.tags = newTags;
+        model.isSynced = false;
+        model.clientUpdatedAt = DateTime.now();
         await isar.writeTxn(() async {
           await isar.memoryModels.put(model);
         });
+
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'tags': newTags,
+            'client_updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', _memory!.id);
+          model.isSynced = true;
+          await isar.writeTxn(() async {
+            await isar.memoryModels.put(model);
+          });
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -816,27 +847,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // 5. Extracted Content (Collapsible / Compact)
+                    // 5. Extracted Content (Collapsible / Compact Card)
                     if (hasExtractedContent) ...[
-                      const Text(
-                        'Extracted Content',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      const Text(
-                        'See what was extracted from your memory',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
@@ -878,6 +890,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                             vertical: 14,
                                           ),
                                           child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Container(
                                                 width: 36,
@@ -894,19 +907,49 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                               ),
                                               const SizedBox(width: 12),
                                               const Expanded(
-                                                child: Text(
-                                                  'Hide extracted text',
-                                                  style: TextStyle(
-                                                    fontSize: 14.5,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: AppColors.textPrimary,
-                                                  ),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'Extracted Content',
+                                                      style: TextStyle(
+                                                        fontSize: 14.5,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: AppColors.textPrimary,
+                                                        letterSpacing: -0.2,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 2),
+                                                    Text(
+                                                      'See what was extracted from your memory',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w400,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 6),
+                                                    Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          'Hide extracted text',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: AppColors.primary,
+                                                          ),
+                                                        ),
+                                                        SizedBox(width: 2),
+                                                         Icon(
+                                                          Icons.keyboard_arrow_up_rounded,
+                                                          color: AppColors.primary,
+                                                          size: 18,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
                                                 ),
-                                              ),
-                                              const Icon(
-                                                Icons.keyboard_arrow_up_rounded,
-                                                color: AppColors.primary,
-                                                size: 22,
                                               ),
                                             ],
                                           ),
@@ -945,6 +988,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                         vertical: 14,
                                       ),
                                       child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Container(
                                             width: 36,
@@ -961,13 +1005,284 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                           ),
                                           const SizedBox(width: 12),
                                           const Expanded(
-                                            child: Text(
-                                              'View extracted text',
-                                              style: TextStyle(
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textPrimary,
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Extracted Content',
+                                                  style: TextStyle(
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.textPrimary,
+                                                    letterSpacing: -0.2,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 2),
+                                                Text(
+                                                  'See what was extracted from your memory',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w400,
+                                                    color: AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 6),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      'View extracted text',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: AppColors.primary,
+                                                      ),
+                                                    ),
+                                                    SizedBox(width: 2),
+                                                    Icon(
+                                                      Icons.chevron_right_rounded,
+                                                      color: AppColors.primary,
+                                                      size: 18,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 6. Living Memory Knowledge Graph Card (Immediately below Extracted Content, collapsed by default)
+                    if (_entities.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.chipInactiveBorder,
+                            width: 1.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: AnimatedSize(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeInOut,
+                            child: _isKnowledgeGraphExpanded
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      InkWell(
+                                        borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(16),
+                                        ),
+                                        onTap: () {
+                                          setState(() {
+                                            _isKnowledgeGraphExpanded = false;
+                                          });
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.lightCyanTint,
+                                                  borderRadius: BorderRadius.circular(10),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.hub_outlined,
+                                                  color: AppColors.primary,
+                                                  size: 18,
+                                                ),
                                               ),
+                                              const SizedBox(width: 12),
+                                              const Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'Living Memory Knowledge Graph',
+                                                      style: TextStyle(
+                                                        fontSize: 14.5,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: AppColors.textPrimary,
+                                                        letterSpacing: -0.2,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 2),
+                                                    Text(
+                                                      'Category & Topic relationships',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w400,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const Icon(
+                                                Icons.keyboard_arrow_down_rounded,
+                                                color: AppColors.primary,
+                                                size: 22,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const Divider(
+                                        height: 1,
+                                        thickness: 1,
+                                        color: AppColors.chipInactiveBorder,
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                                        child: LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            return Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: _entities.map((entity) {
+                                                return Container(
+                                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.background,
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    border: Border.all(
+                                                      color: AppColors.chipInactiveBorder,
+                                                      width: 1.0,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors.primary.withValues(alpha: 0.12),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Text(
+                                                          entity.type.toUpperCase(),
+                                                          style: const TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: AppColors.primary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Flexible(
+                                                        child: Text.rich(
+                                                          TextSpan(
+                                                            children: [
+                                                              TextSpan(
+                                                                text: entity.name,
+                                                                style: const TextStyle(
+                                                                  fontSize: 12.5,
+                                                                  fontWeight: FontWeight.w600,
+                                                                  color: AppColors.textPrimary,
+                                                                ),
+                                                              ),
+                                                              if (entity.attributes.isNotEmpty)
+                                                                TextSpan(
+                                                                  text: ' (${entity.attributes})',
+                                                                  style: const TextStyle(
+                                                                    fontSize: 11,
+                                                                    color: AppColors.textSecondary,
+                                                                    fontStyle: FontStyle.italic,
+                                                                    fontWeight: FontWeight.normal,
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
+                                                          maxLines: 1,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () {
+                                      setState(() {
+                                        _isKnowledgeGraphExpanded = true;
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.lightCyanTint,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.hub_outlined,
+                                              color: AppColors.primary,
+                                              size: 18,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Living Memory Knowledge Graph',
+                                                  style: TextStyle(
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.textPrimary,
+                                                    letterSpacing: -0.2,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 2),
+                                                Text(
+                                                  'Category & Topic relationships',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w400,
+                                                    color: AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                           const Icon(
@@ -982,227 +1297,114 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 20),
                     ],
 
-                    // 6. Tags Section
+                    // 7. Tags Card (VERY LAST section, always expanded)
                     if (memory.tags.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.tag_rounded,
-                            size: 16,
-                            color: AppColors.primary,
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.chipInactiveBorder,
+                            width: 1.0,
                           ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Tags',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: memory.tags.map((tag) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightCyanTint,
-                              borderRadius: BorderRadius.circular(100),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-                            ),
-                            child: Text(
-                              '#$tag',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
                               ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-
-                    // 7. Living Memory Knowledge Graph Section
-                    if (_entities.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.hub_outlined,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Living Memory Knowledge Graph',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _entities.map((entity) {
-                              return Container(
-                                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cardBackground,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppColors.chipInactiveBorder,
-                                    width: 1.0,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.lightCyanTint,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.tag_rounded,
+                                      color: AppColors.primary,
+                                      size: 18,
+                                    ),
                                   ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        entity.type.toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.primary,
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Tags',
+                                          style: TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                            letterSpacing: -0.2,
+                                          ),
                                         ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          'Associated memory tags',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: AppColors.chipInactiveBorder,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: memory.tags.map((tag) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.lightCyanTint,
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Text(
+                                      '#$tag',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primary,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text.rich(
-                                        TextSpan(
-                                          children: [
-                                            TextSpan(
-                                              text: entity.name,
-                                              style: const TextStyle(
-                                                fontSize: 12.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                            ),
-                                            if (entity.attributes.isNotEmpty)
-                                              TextSpan(
-                                                text: ' (${entity.attributes})',
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: AppColors.textSecondary,
-                                                  fontStyle: FontStyle.italic,
-                                                  fontWeight: FontWeight.normal,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        },
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-
-                    // 8. AI Metadata & Semantic Vector Card
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.0),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.primary),
-                              SizedBox(width: 6),
-                              Text(
-                                'AI Metadata & Semantic Engine',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              const Text(
-                                'Vector Embeddings: ',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              Text(
-                                memory.embedding != null
-                                    ? '${memory.embedding!.length}-dimensional pgvector'
-                                    : (memory.aiStatus == 'processed' ? '768-d Multimodal Vector' : 'Pending embedding'),
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Text(
-                                'Status: ',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              Text(
-                                memory.aiStatus == 'processed'
-                                    ? 'Indexed & Ready for Search'
-                                    : (memory.aiStatus == 'failed' ? 'Analysis Incomplete' : 'Awaiting Ingestion Queue'),
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: memory.aiStatus == 'processed'
-                                      ? AppColors.primary
-                                      : (memory.aiStatus == 'failed' ? AppColors.errorText : AppColors.statusPending),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),

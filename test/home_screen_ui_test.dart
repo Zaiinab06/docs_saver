@@ -303,5 +303,38 @@ void main() {
       expect(find.text('Take Photo'), findsOneWidget);
       expect(find.text('Scan Document'), findsOneWidget);
     });
+
+    testWidgets('Category Icons: all category chips use consistent filled icons',
+        (tester) async {
+      tester.view.physicalSize = const Size(2400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(createTestApp([]));
+      await tester.pumpAndSettle();
+
+      // Verify each category uses its corresponding filled rounded icon
+      expect(find.byIcon(Icons.grid_view_rounded), findsOneWidget); // All
+      expect(find.byIcon(Icons.work_rounded), findsOneWidget); // Work
+      expect(find.byIcon(Icons.favorite_rounded), findsOneWidget); // Personal
+      expect(find.byIcon(Icons.school_rounded), findsOneWidget); // Study
+      expect(find.byIcon(Icons.flight_takeoff_rounded), findsOneWidget); // Travel
+      expect(find.byIcon(Icons.shopping_bag_rounded), findsOneWidget); // Fashion
+      expect(find.byIcon(Icons.restaurant_rounded), findsOneWidget); // Food
+      expect(find.byIcon(Icons.account_balance_wallet_rounded), findsOneWidget); // Finance
+      expect(find.byIcon(Icons.fitness_center_rounded), findsOneWidget); // Health
+
+      // Verify no outline icons are used for categories
+      expect(find.byIcon(Icons.work_outline_rounded), findsNothing);
+      expect(find.byIcon(Icons.shopping_bag_outlined), findsNothing);
+      expect(find.byIcon(Icons.account_balance_wallet_outlined), findsNothing);
+
+      // Tap on Work category (to select it) and verify the icon remains filled
+      await tester.tap(find.text(AppStrings.categoryWork));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.work_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.work_outline_rounded), findsNothing);
+    });
   });
 }

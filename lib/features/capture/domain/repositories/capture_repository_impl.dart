@@ -45,7 +45,9 @@ class CaptureRepositoryImpl implements CaptureRepository {
     final effectiveUserId = userId ?? _getCurrentUserId();
     final cachedModels =
         await localDataSource.getCachedMemories(userId: effectiveUserId);
-    return cachedModels.map((m) => m.toEntity()).toList();
+    final entities = cachedModels.map((m) => m.toEntity()).toList();
+    entities.sort(MemoryEntity.compareByPinnedAndDate);
+    return entities;
   }
 
   @override

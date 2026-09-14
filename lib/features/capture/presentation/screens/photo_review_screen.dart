@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../core/network/network_checker.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -12,10 +13,14 @@ import 'memory_review_screen.dart';
 
 class PhotoReviewScreen extends StatefulWidget {
   final File imageFile;
+  final IngestMemoryUseCase? ingestMemoryUseCase;
+  final bool? isOffline;
 
   const PhotoReviewScreen({
     super.key,
     required this.imageFile,
+    this.ingestMemoryUseCase,
+    this.isOffline,
   });
 
   @override
@@ -34,11 +39,12 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   void initState() {
     super.initState();
     _currentImage = widget.imageFile;
-    _ingestMemoryUseCase = IngestMemoryUseCase(
-      AiRepositoryImpl(
-        remoteDataSource: AiRemoteDataSourceImpl(),
-      ),
-    );
+    _ingestMemoryUseCase = widget.ingestMemoryUseCase ??
+        IngestMemoryUseCase(
+          AiRepositoryImpl(
+            remoteDataSource: AiRemoteDataSourceImpl(),
+          ),
+        );
   }
 
   Future<void> _retakePhoto() async {
@@ -84,43 +90,56 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
 
       extractedOcrText = recognizedText.text.trim();
 
-      if (mounted) {
-        setState(() {
-          _processingStatus = 'Organizing...';
-        });
-      }
+      // Check network connectivity before attempting remote Gemini AI call
+      final isOnline = widget.isOffline != null
+          ? !widget.isOffline!
+          : await NetworkChecker.isConnected();
 
-      // 2. Prepare multimodal image representation if size is within reasonable bounds
-      String? imageBase64;
-      String? mimeType;
-      try {
-        final fileSize = await _currentImage.length();
-        // Send base64 if image is under 8MB
-        if (fileSize < 8 * 1024 * 1024) {
-          final imageBytes = await _currentImage.readAsBytes();
-          imageBase64 = base64Encode(imageBytes);
-          final extension = _currentImage.path.split('.').last.toLowerCase();
-          mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      if (isOnline) {
+        if (mounted) {
+          setState(() {
+            _processingStatus = 'Organizing...';
+          });
         }
-      } catch (_) {
-        // Fallback to text-only if image reading fails
-      }
 
-      if (mounted) {
-        setState(() {
-          _processingStatus = 'Almost there...';
-        });
-      }
+        // 2. Prepare multimodal image representation if size is within reasonable bounds
+        String? imageBase64;
+        String? mimeType;
+        try {
+          final fileSize = await _currentImage.length();
+          // Send base64 if image is under 8MB
+          if (fileSize < 8 * 1024 * 1024) {
+            final imageBytes = await _currentImage.readAsBytes();
+            imageBase64 = base64Encode(imageBytes);
+            final extension = _currentImage.path.split('.').last.toLowerCase();
+            mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+          }
+        } catch (_) {
+          // Fallback to text-only if image reading fails
+        }
 
-      // 3. Process with IngestMemoryUseCase (Supabase Edge Function + Gemini)
-      // Only call AI if we have OCR text or valid image representation
-      if (extractedOcrText.isNotEmpty || (imageBase64 != null && imageBase64.isNotEmpty)) {
-        aiResult = await _ingestMemoryUseCase(
-          ocrText: extractedOcrText,
-          imageBase64: imageBase64,
-          mimeType: mimeType,
-        );
+        if (mounted) {
+          setState(() {
+            _processingStatus = 'Almost there...';
+          });
+        }
+
+        // 3. Process with IngestMemoryUseCase (Supabase Edge Function + Gemini)
+        // Only call AI if we have OCR text or valid image representation
+        if (extractedOcrText.isNotEmpty || (imageBase64 != null && imageBase64.isNotEmpty)) {
+          aiResult = await _ingestMemoryUseCase(
+            ocrText: extractedOcrText,
+            imageBase64: imageBase64,
+            mimeType: mimeType,
+          );
+        } else {
+          aiResult = AiIngestionResult.empty(
+            rawOcrText: extractedOcrText,
+            aiStatus: 'pending',
+          );
+        }
       } else {
+        // Device is offline: do NOT attempt Gemini / Edge Function call
         aiResult = AiIngestionResult.empty(
           rawOcrText: extractedOcrText,
           aiStatus: 'pending',
@@ -133,6 +152,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
         aiStatus: 'pending',
       );
     } finally {
+      final isOffline = widget.isOffline ?? !(await NetworkChecker.isConnected());
       if (mounted) {
         setState(() {
           _isProcessing = false;
@@ -144,13 +164,18 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
             builder: (_) => MemoryReviewScreen(
               imageFile: _currentImage,
               initialTitle: aiResult.title,
-              initialContent: extractedOcrText,
+              initialContent: aiResult.summary.isNotEmpty
+                  ? aiResult.summary
+                  : '',
+              rawOcrText: extractedOcrText,
               initialCategory: aiResult.category,
               initialTags: aiResult.tags,
               initialSummary: aiResult.summary,
               entities: aiResult.entities,
               aiStatus: aiResult.aiStatus,
               createdAt: DateTime.now(),
+              isOffline: isOffline,
+              ingestMemoryUseCase: widget.ingestMemoryUseCase,
             ),
           ),
         );
@@ -189,6 +214,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
               child: Image.file(
                 _currentImage,
                 fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
           ),
@@ -253,7 +279,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
             Align(
               alignment: Alignment.bottomCenter,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
@@ -264,57 +290,64 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                     ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    // Retake Button
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _retakePhoto,
-                        icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
-                        label: const Text(
-                          'Retake',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                child: SafeArea(
+                  top: false,
+                  maintainBottomViewPadding: true,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                    child: Row(
+                      children: [
+                        // Retake Button
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _retakePhoto,
+                            icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
+                            label: const Text(
+                              'Retake',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: Colors.white54, width: 1.2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                            ),
                           ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Colors.white54, width: 1.2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(width: 14),
+                        const SizedBox(width: 14),
 
-                    // Use Photo Button
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _usePhoto,
-                        icon: const Icon(Icons.check_rounded, size: 20, color: AppColors.textWhite),
-                        label: const Text(
-                          'Use Photo',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textWhite,
+                        // Use Photo Button
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _usePhoto,
+                            icon: const Icon(Icons.check_rounded, size: 20, color: AppColors.textWhite),
+                            label: const Text(
+                              'Use Photo',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textWhite,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                            ),
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

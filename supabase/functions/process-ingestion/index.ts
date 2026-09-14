@@ -250,16 +250,21 @@ Deno.serve(async (req: Request) => {
       embeddingModel = embeddingResult.modelUsed;
 
       const serverUpdatedAt = new Date().toISOString();
+      const updatePayload: Record<string, any> = {
+        title: finalTitle,
+        category: finalCategory,
+        tags: finalTags,
+        embedding: embeddingResult.embedding,
+        ai_status: "processed",
+        server_updated_at: serverUpdatedAt,
+      };
+      if (finalSummary && finalSummary.trim().length > 0) {
+        updatePayload.content = finalSummary.trim();
+      }
+
       const { error: updateError } = await supabaseAdmin
         .from("memories")
-        .update({
-          title: finalTitle,
-          category: finalCategory,
-          tags: finalTags,
-          embedding: embeddingResult.embedding,
-          ai_status: "processed",
-          server_updated_at: serverUpdatedAt,
-        })
+        .update(updatePayload)
         .eq("id", recordToProcess.id);
 
       if (updateError) {

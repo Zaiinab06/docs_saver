@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/network/network_checker.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -28,31 +30,38 @@ class MemoryReviewScreen extends StatefulWidget {
   final File imageFile;
   final String initialTitle;
   final String initialContent;
+  final String? rawOcrText;
   final String initialCategory;
   final List<String> initialTags;
   final String initialSummary;
   final List<LivingEntityItem> entities;
   final String aiStatus; // 'processed' or 'pending' or 'failed'
   final DateTime createdAt;
+  final bool? isOffline;
+  final IngestMemoryUseCase? ingestMemoryUseCase;
 
   const MemoryReviewScreen({
     super.key,
     required this.imageFile,
     required this.initialTitle,
     required this.initialContent,
+    this.rawOcrText,
     required this.initialCategory,
     required this.initialTags,
     this.initialSummary = '',
     this.entities = const [],
     required this.aiStatus,
     required this.createdAt,
+    this.isOffline,
+    this.ingestMemoryUseCase,
   });
 
   @override
   State<MemoryReviewScreen> createState() => _MemoryReviewScreenState();
 }
 
-class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
+class _MemoryReviewScreenState extends State<MemoryReviewScreen>
+    with WidgetsBindingObserver {
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   final TextEditingController _tagInputController = TextEditingController();
@@ -62,8 +71,14 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
   late String _currentAiStatus;
   String _currentSummary = '';
   List<LivingEntityItem> _currentEntities = [];
+  late String _rawOcrText;
+  bool _isExtractedExpanded = false;
   bool _isSaving = false;
   bool _isReanalyzing = false;
+  bool _isOffline = false;
+  bool _userEditedTitle = false;
+  StreamSubscription<bool>? _connectivitySubscription;
+  Timer? _localCheckTimer;
 
   static const List<_CategoryOption> _categories = [
     _CategoryOption(
@@ -103,14 +118,48 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentAiStatus = widget.aiStatus;
     _currentSummary = widget.initialSummary;
     _currentEntities = List.from(widget.entities);
+    _rawOcrText = widget.rawOcrText ?? widget.initialContent;
+
+    _isOffline = widget.isOffline ?? false;
+    if (widget.isOffline == null) {
+      _checkConnectivity();
+    }
+
+    _connectivitySubscription =
+        NetworkChecker.onConnectivityChanged.listen((connected) {
+      if (mounted && _isOffline != !connected) {
+        setState(() {
+          _isOffline = !connected;
+        });
+      }
+    });
+
+    NetworkChecker.startMonitoring();
+
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      _localCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        if (_isOffline && mounted) {
+          _checkConnectivity();
+        }
+      });
+    }
 
     _titleController = TextEditingController(text: widget.initialTitle);
-    final initialContentText = widget.initialContent.trim().isNotEmpty
-        ? widget.initialContent.trim()
-        : widget.initialSummary.trim();
+    _titleController.addListener(() {
+      if (_titleController.text.trim() != widget.initialTitle.trim()) {
+        _userEditedTitle = true;
+      }
+    });
+
+    final initialContentText = widget.initialSummary.trim().isNotEmpty
+        ? widget.initialSummary.trim()
+        : (widget.rawOcrText != null
+            ? widget.initialContent.trim()
+            : (widget.initialContent.trim() == _rawOcrText.trim() ? '' : widget.initialContent.trim()));
     _contentController = TextEditingController(text: initialContentText);
     _selectedCategory = widget.initialCategory.isNotEmpty
         ? widget.initialCategory
@@ -119,7 +168,27 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkConnectivity();
+    }
+  }
+
+  Future<void> _checkConnectivity() async {
+    final connected = await NetworkChecker.isConnected();
+    if (mounted && _isOffline != !connected) {
+      setState(() {
+        _isOffline = !connected;
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _connectivitySubscription?.cancel();
+    _localCheckTimer?.cancel();
+    NetworkChecker.stopMonitoring();
     _titleController.dispose();
     _contentController.dispose();
     _tagInputController.dispose();
@@ -137,29 +206,60 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
   }
 
   Future<void> _retryAiAnalysis() async {
+    if (_isOffline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI analysis unavailable offline. Please connect to the internet and try again.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final isConnected = await NetworkChecker.isConnected();
+    if (!isConnected) {
+      if (mounted) {
+        setState(() => _isOffline = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI analysis unavailable offline. Please connect to the internet and try again.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isReanalyzing = true);
 
     try {
       String? imageBase64;
       String? mimeType;
       try {
-        final fileSize = await widget.imageFile.length();
-        if (fileSize < 8 * 1024 * 1024) {
-          final imageBytes = await widget.imageFile.readAsBytes();
-          imageBase64 = base64Encode(imageBytes);
-          final extension = widget.imageFile.path.split('.').last.toLowerCase();
-          mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+        if (widget.imageFile.existsSync()) {
+          final fileSize = widget.imageFile.lengthSync();
+          if (fileSize < 8 * 1024 * 1024) {
+            final imageBytes = widget.imageFile.readAsBytesSync();
+            imageBase64 = base64Encode(imageBytes);
+            final extension = widget.imageFile.path.split('.').last.toLowerCase();
+            mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+          }
         }
-      } catch (_) {}
+      } catch (_) {
+        // Fallback to text-only if reading file fails
+      }
 
-      final useCase = IngestMemoryUseCase(
-        AiRepositoryImpl(
-          remoteDataSource: AiRemoteDataSourceImpl(),
-        ),
-      );
+      final useCase = widget.ingestMemoryUseCase ??
+          IngestMemoryUseCase(
+            AiRepositoryImpl(
+              remoteDataSource: AiRemoteDataSourceImpl(),
+            ),
+          );
 
       final result = await useCase(
-        ocrText: _contentController.text.trim(),
+        ocrText: _rawOcrText.trim(),
         imageBase64: imageBase64,
         mimeType: mimeType,
       );
@@ -171,13 +271,13 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
           _currentSummary = result.summary;
           _currentEntities = result.entities;
 
-          // Only set title if current title is empty
-          if (_titleController.text.trim().isEmpty && result.title.isNotEmpty) {
+          // Only set title if user has not manually edited it
+          if (!_userEditedTitle && result.title.isNotEmpty) {
             _titleController.text = result.title;
           }
 
-          // If content is empty and summary exists, prefill content with summary
-          if (_contentController.text.trim().isEmpty && result.summary.isNotEmpty) {
+          // If content is empty or unedited raw OCR, prefill content with summary
+          if ((_contentController.text.trim().isEmpty || _contentController.text.trim() == _rawOcrText.trim()) && result.summary.isNotEmpty) {
             _contentController.text = result.summary;
           }
 
@@ -199,11 +299,25 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
       } else {
         if (mounted) {
           setState(() => _currentAiStatus = 'failed');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('AI analysis failed. Tap Retry to try again.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       }
     } catch (_) {
       if (mounted) {
         setState(() => _currentAiStatus = 'failed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI analysis failed. Tap Retry to try again.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -217,30 +331,35 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
 
     try {
       // 1. Persist the actual captured image locally in app storage
-      final appDir = await getApplicationDocumentsDirectory();
-      final extension = widget.imageFile.path.split('.').last;
-      final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
-      final persistentFile = await widget.imageFile.copy('${appDir.path}/$fileName');
-      String persistentMediaUrl = persistentFile.path;
-
-      // Optional background upload to Supabase storage if reachable
+      String persistentMediaUrl = widget.imageFile.path;
       try {
-        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-        if (currentUserId != null) {
-          final bytes = await persistentFile.readAsBytes();
-          final storageKey = '$currentUserId/$fileName';
-          await Supabase.instance.client.storage.from('memories').uploadBinary(
-                storageKey,
-                bytes,
-                fileOptions: FileOptions(contentType: 'image/$extension'),
-              );
-          final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
-          if (publicUrl.isNotEmpty) {
-            persistentMediaUrl = publicUrl;
+        final appDir = await getApplicationDocumentsDirectory();
+        final extension = widget.imageFile.path.split('.').last;
+        final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
+        final persistentFile = await widget.imageFile.copy('${appDir.path}/$fileName');
+        persistentMediaUrl = persistentFile.path;
+
+        // Optional background upload to Supabase storage if reachable
+        try {
+          final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+          if (currentUserId != null) {
+            final bytes = await persistentFile.readAsBytes();
+            final storageKey = '$currentUserId/$fileName';
+            await Supabase.instance.client.storage.from('memories').uploadBinary(
+                  storageKey,
+                  bytes,
+                  fileOptions: FileOptions(contentType: 'image/$extension'),
+                );
+            final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+            if (publicUrl.isNotEmpty) {
+              persistentMediaUrl = publicUrl;
+            }
           }
+        } catch (_) {
+          // Fallback to local persistent path on network or bucket failure
         }
       } catch (_) {
-        // Fallback to local persistent path on network or bucket failure
+        // Fallback to widget.imageFile.path if app directory cannot be accessed
       }
 
       if (!mounted) return;
@@ -252,14 +371,12 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
               ? widget.initialTitle.trim()
               : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})');
 
-      // Preserve user-edited content, otherwise use AI summary, otherwise OCR text
-      final content = _contentController.text.trim().isNotEmpty
-          ? _contentController.text.trim()
-          : (_currentSummary.trim().isNotEmpty
-              ? _currentSummary.trim()
-              : (widget.initialContent.trim().isNotEmpty
-                  ? widget.initialContent.trim()
-                  : 'Captured Visual Memory'));
+      // Preserve user-edited content if customized and not raw OCR text, otherwise use concise AI summary (never raw OCR dump)
+      final content = _currentSummary.trim().isNotEmpty
+          ? _currentSummary.trim()
+          : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
+              ? _contentController.text.trim()
+              : 'Captured Visual Memory');
 
       // 2. Persist metadata through the existing repository and data layer
       context.read<CaptureBloc>().add(
@@ -346,105 +463,207 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
 
               const SizedBox(height: 16),
 
-              // 2. AI Status Banner & Timestamp
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+              // 2. AI Status Banner & Timestamp (Fully responsive without horizontal overflow)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: isAiProcessed
-                              ? AppColors.lightCyanTint
-                              : AppColors.cardBackground,
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: isAiProcessed
-                                ? AppColors.primary
-                                : (isAiFailed
-                                    ? AppColors.errorText.withValues(alpha: 0.6)
-                                    : AppColors.chipInactiveBorder),
-                            width: 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
-                            Icon(
-                              isAiProcessed
-                                  ? Icons.auto_awesome_rounded
-                                  : (isAiFailed
-                                      ? Icons.info_outline_rounded
-                                      : Icons.schedule_rounded),
-                              size: 14,
-                              color: isAiProcessed
-                                  ? AppColors.primary
-                                  : (isAiFailed
-                                      ? AppColors.errorText
-                                      : AppColors.textSecondary),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              isAiProcessed
-                                  ? 'AI Organized'
-                                  : (isAiFailed
-                                      ? 'AI Analysis Failed'
-                                      : 'AI Ingestion Pending'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
                                 color: isAiProcessed
-                                    ? AppColors.primary
-                                    : (isAiFailed
-                                        ? AppColors.errorText
-                                        : AppColors.textSecondary),
+                                    ? AppColors.lightCyanTint
+                                    : AppColors.cardBackground,
+                                borderRadius: BorderRadius.circular(100),
+                                border: Border.all(
+                                  color: isAiProcessed
+                                      ? AppColors.primary
+                                      : (isAiFailed
+                                          ? AppColors.errorText.withValues(alpha: 0.6)
+                                          : AppColors.chipInactiveBorder),
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isOffline && !isAiProcessed) ...[
+                                    Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFF59E0B),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ] else ...[
+                                    Icon(
+                                      isAiProcessed
+                                          ? Icons.auto_awesome_rounded
+                                          : (isAiFailed
+                                              ? Icons.info_outline_rounded
+                                              : Icons.schedule_rounded),
+                                      size: 14,
+                                      color: isAiProcessed
+                                          ? AppColors.primary
+                                          : (isAiFailed
+                                              ? AppColors.errorText
+                                              : AppColors.textSecondary),
+                                    ),
+                                    const SizedBox(width: 5),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      isAiProcessed
+                                          ? 'AI Organized'
+                                          : (isAiFailed
+                                              ? 'AI Analysis Failed'
+                                              : (_isOffline
+                                                  ? "You're offline"
+                                                  : 'AI Ingestion Pending')),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isAiProcessed
+                                            ? AppColors.primary
+                                            : (isAiFailed
+                                                ? AppColors.errorText
+                                                : AppColors.textSecondary),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                            if (!isAiProcessed && !_isOffline) ...[
+                              if (_isReanalyzing)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.0,
+                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                        ),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Analyzing...',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (isAiFailed)
+                                InkWell(
+                                  onTap: _retryAiAnalysis,
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.errorText.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(
+                                        color: AppColors.errorText.withValues(alpha: 0.3),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.refresh_rounded,
+                                          size: 13,
+                                          color: AppColors.errorText,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Retry AI',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.errorText,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              else
+                                InkWell(
+                                  onTap: _retryAiAnalysis,
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(
+                                        color: AppColors.primary.withValues(alpha: 0.3),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 13,
+                                          color: AppColors.primary,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Analyze with AI',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ],
                         ),
                       ),
-                      if (!isAiProcessed) ...[
-                        const SizedBox(width: 8),
-                        if (_isReanalyzing)
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                            ),
-                          )
-                        else
-                          InkWell(
-                            onTap: _retryAiAnalysis,
-                            borderRadius: BorderRadius.circular(6),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                              child: Text(
-                                'Analyze with AI',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+                      Text(
+                        formattedDate,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
-                  ),
-                  Text(
-                    formattedDate,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
 
               // AI Summary Card (if available)
@@ -615,45 +834,169 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen> {
 
               const SizedBox(height: 20),
 
-              // 5. Content / OCR Text
-              const Text(
-                'Content / Extracted Text',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
-                ),
-                child: TextField(
-                  controller: _contentController,
-                  minLines: 3,
-                  maxLines: 7,
-                  style: const TextStyle(
+              // 5. Extracted Content (Compact Card / Row, hidden by default)
+              if (_rawOcrText.trim().isNotEmpty) ...[
+                const Text(
+                  'Extracted Content',
+                  style: TextStyle(
                     fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
-                    height: 1.45,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Add notes or details about this photo...',
-                    hintStyle: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 20),
+                const SizedBox(height: 3),
+                const Text(
+                  'See what was extracted from your memory',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: _isExtractedExpanded
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                InkWell(
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(14),
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      _isExtractedExpanded = false;
+                                    });
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.lightCyanTint,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(
+                                            Icons.document_scanner_rounded,
+                                            color: AppColors.primary,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Expanded(
+                                          child: Text(
+                                            'Hide extracted text',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                        const Icon(
+                                          Icons.keyboard_arrow_up_rounded,
+                                          color: AppColors.primary,
+                                          size: 22,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: AppColors.chipInactiveBorder,
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                                  child: SelectableText(
+                                    _rawOcrText.trim(),
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      color: AppColors.textPrimary,
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () {
+                                setState(() {
+                                  _isExtractedExpanded = true;
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lightCyanTint,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.document_scanner_rounded,
+                                        color: AppColors.primary,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Text(
+                                        'View extracted text',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: AppColors.iconSecondary,
+                                      size: 22,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // 6. Tags
               const Text(

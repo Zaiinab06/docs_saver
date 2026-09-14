@@ -32,6 +32,7 @@ class AiRepositoryImpl implements AiRepository {
       final rawTitle = (data['title'] ?? '').toString().trim();
       final rawCategory = (data['category'] ?? '').toString().trim();
       final rawSummary = (data['summary'] ?? '').toString().trim();
+      final sanitizedSummary = _sanitizeSemanticSummary(rawSummary);
 
       // Normalize Category to the 8 official AppStrings categories
       final normalizedCategory = _normalizeCategory(rawCategory);
@@ -76,7 +77,7 @@ class AiRepositoryImpl implements AiRepository {
         title: rawTitle,
         category: normalizedCategory,
         tags: tags,
-        summary: rawSummary,
+        summary: sanitizedSummary,
         entities: entities,
         aiStatus: aiStatus.isEmpty ? 'processed' : aiStatus,
         rawOcrText: ocrText,
@@ -154,5 +155,48 @@ class AiRepositoryImpl implements AiRepository {
     }
     // Default to Personal
     return AppStrings.categoryPersonal;
+  }
+
+  String _sanitizeSemanticSummary(String raw) {
+    if (raw.trim().isEmpty) return '';
+    final lines = raw
+        .split(RegExp(r'\r?\n'))
+        .map((l) => l.trim())
+        .where((l) {
+          if (l.isEmpty) return false;
+          // Filter out raw URLs
+          if (l.startsWith('http://') ||
+              l.startsWith('https://') ||
+              l.startsWith('www.')) {
+            return false;
+          }
+          // Filter out status bar patterns (e.g. 7:45 PM, 100%, 5G)
+          if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(l) && l.length < 20) {
+            return false;
+          }
+          if (RegExp(r'^\d{1,3}%\s*$').hasMatch(l)) {
+            return false;
+          }
+          // Filter out common UI noise buttons / labels
+          final clean = l.replaceAll(RegExp(r'^[•\-\*]\s*'), '').trim().toLowerCase();
+          const noise = {
+            'back', 'next', 'done', 'cancel', 'close', 'search', 'home',
+            'share', 'menu', 'more', 'less ai', 'settings', 'profile'
+          };
+          if (noise.contains(clean)) return false;
+          return true;
+        })
+        .toList();
+
+    if (lines.isEmpty) return '';
+    final maxLines = lines.take(2).toList();
+    final formatted = maxLines.map((line) {
+      if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
+        return '• ${line.replaceAll(RegExp(r'^[•\-\*]\s*'), '').trim()}';
+      }
+      return '• ${line.trim()}';
+    });
+
+    return formatted.join('\n');
   }
 }

@@ -49,6 +49,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return memory.isPinned;
   }
 
+  int _compareMemories(MemoryEntity a, MemoryEntity b) {
+    final aPinned = _isMemoryPinned(a);
+    final bPinned = _isMemoryPinned(b);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    final dateComp = b.clientCreatedAt.compareTo(a.clientCreatedAt);
+    if (dateComp != 0) return dateComp;
+    return b.id.compareTo(a.id);
+  }
+
   Future<void> _togglePinMemory(MemoryEntity memory) async {
     final currentlyPinned = _isMemoryPinned(memory);
     setState(() {
@@ -61,6 +71,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
+    final newTags = List<String>.from(memory.tags);
+    if (currentlyPinned) {
+      newTags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
+    } else {
+      if (!newTags.contains('pinned')) {
+        newTags.add('pinned');
+      }
+    }
+
     try {
       final isar = IsarService.instance;
       final model = await isar.memoryModels
@@ -68,20 +87,50 @@ class _HomeScreenState extends State<HomeScreen> {
           .serverIdEqualTo(memory.id)
           .findFirst();
       if (model != null) {
-        final tags = List<String>.from(model.tags);
-        if (currentlyPinned) {
-          tags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
-        } else {
-          if (!tags.contains('pinned')) {
-            tags.add('pinned');
-          }
-        }
-        model.tags = tags;
+        model.tags = newTags;
+        model.isSynced = false;
+        model.clientUpdatedAt = DateTime.now();
         await isar.writeTxn(() async {
           await isar.memoryModels.put(model);
         });
+
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'tags': newTags,
+            'client_updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', memory.id);
+          model.isSynced = true;
+          await isar.writeTxn(() async {
+            await isar.memoryModels.put(model);
+          });
+        } catch (_) {}
       }
     } catch (_) {}
+
+    final updatedMemory = MemoryEntity(
+      id: memory.id,
+      userId: memory.userId,
+      title: memory.title,
+      content: memory.content,
+      mediaUrl: memory.mediaUrl,
+      tags: newTags,
+      category: memory.category,
+      embedding: memory.embedding,
+      aiStatus: memory.aiStatus,
+      isConflictCopy: memory.isConflictCopy,
+      clientCreatedAt: memory.clientCreatedAt,
+      clientUpdatedAt: DateTime.now(),
+      serverUpdatedAt: memory.serverUpdatedAt,
+    );
+
+    if (mounted) {
+      try {
+        await context.read<CaptureBloc>().saveMemoryUseCase(updatedMemory);
+      } catch (_) {}
+      if (mounted) {
+        context.read<CaptureBloc>().add(MemoryUpdatedEvent(updatedMemory));
+      }
+    }
   }
 
   void _shareMemory(MemoryEntity memory) {
@@ -189,6 +238,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (mounted) {
+      setState(() {
+        _locallyPinnedIds.remove(memory.id);
+        _locallyUnpinnedIds.remove(memory.id);
+      });
       context.read<CaptureBloc>().add(LoadMemoriesEvent());
     }
   }
@@ -200,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     _CategoryItem(
       name: AppStrings.categoryWork,
-      icon: Icons.work_outline_rounded,
+      icon: Icons.work_rounded,
     ),
     _CategoryItem(
       name: AppStrings.categoryPersonal,
@@ -216,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     _CategoryItem(
       name: AppStrings.categoryFashion,
-      icon: Icons.shopping_bag_outlined,
+      icon: Icons.shopping_bag_rounded,
     ),
     _CategoryItem(
       name: AppStrings.categoryFood,
@@ -224,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     _CategoryItem(
       name: AppStrings.categoryFinance,
-      icon: Icons.account_balance_wallet_outlined,
+      icon: Icons.account_balance_wallet_rounded,
     ),
     _CategoryItem(
       name: AppStrings.categoryHealth,
@@ -318,24 +371,24 @@ class _HomeScreenState extends State<HomeScreen> {
       return Icons.menu_book_rounded;
     }
     if (cat.contains('work') || tags.any((t) => t.contains('project') || t.contains('meeting'))) {
-      return Icons.work_outline_rounded;
+      return Icons.work_rounded;
     }
     if (cat.contains('travel') || tags.any((t) => t.contains('travel') || t.contains('trip') || t.contains('flight'))) {
       return Icons.flight_takeoff_rounded;
     }
     if (cat.contains('fashion') || tags.any((t) => t.contains('fashion') || t.contains('shopping') || t.contains('clothes') || t.contains('outfit'))) {
-      return Icons.shopping_bag_outlined;
+      return Icons.shopping_bag_rounded;
     }
     if (cat.contains('food') || tags.any((t) => t.contains('food') || t.contains('restaurant') || t.contains('recipe') || t.contains('cooking') || t.contains('meal'))) {
       return Icons.restaurant_rounded;
     }
     if (cat.contains('finance') || tags.any((t) => t.contains('finance') || t.contains('money') || t.contains('budget') || t.contains('wallet') || t.contains('expense'))) {
-      return Icons.account_balance_wallet_outlined;
+      return Icons.account_balance_wallet_rounded;
     }
     if (cat.contains('health') || cat.contains('fitness') || tags.any((t) => t.contains('health') || t.contains('fitness') || t.contains('gym') || t.contains('workout'))) {
       return Icons.fitness_center_rounded;
     }
-    return Icons.article_outlined;
+    return Icons.article_rounded;
   }
 
   Widget _buildMemoryThumbnail(MemoryEntity memory) {
@@ -445,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
             final allMemories = state is CaptureLoaded ? state.memories : <MemoryEntity>[];
             final filteredMemories = _filterMemories(allMemories);
             final sortedMemories = List<MemoryEntity>.from(filteredMemories)
-              ..sort((a, b) => b.clientCreatedAt.compareTo(a.clientCreatedAt));
+              ..sort(_compareMemories);
             final isLoading = state is CaptureLoading && allMemories.isEmpty;
 
             return RefreshIndicator(
@@ -1197,10 +1250,46 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatSnippet(String content) {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return '';
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if ((trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
+        !trimmed.contains('\n') &&
+        !trimmed.contains(' ')) {
       return trimmed;
     }
-    return trimmed.replaceAll(RegExp(r'\s+'), ' ');
+
+    final lines = trimmed
+        .split(RegExp(r'\r?\n'))
+        .map((l) => l.trim())
+        .where((l) {
+          if (l.isEmpty) return false;
+          // Filter out raw URLs
+          if (l.startsWith('http://') ||
+              l.startsWith('https://') ||
+              l.startsWith('www.')) {
+            return false;
+          }
+          // Filter out status bar patterns (e.g. 7:45 PM, 100%, 5G)
+          if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(l) && l.length < 20) {
+            return false;
+          }
+          if (RegExp(r'^\d{1,3}%\s*$').hasMatch(l)) {
+            return false;
+          }
+          // Filter out common UI noise buttons / labels
+          final clean = l.replaceAll(RegExp(r'^[•\-\*]\s*'), '').trim().toLowerCase();
+          const noise = {
+            'back', 'next', 'done', 'cancel', 'close', 'search', 'home',
+            'share', 'menu', 'more', 'less ai', 'settings', 'profile'
+          };
+          if (noise.contains(clean)) return false;
+          return true;
+        })
+        .toList();
+
+    if (lines.isEmpty) return '';
+
+    // Take at most 2 concise points/lines
+    final maxLines = lines.take(2).toList();
+    return maxLines.join('\n');
   }
 
   // Recent Memory Card

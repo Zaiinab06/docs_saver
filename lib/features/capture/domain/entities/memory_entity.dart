@@ -35,6 +35,16 @@ class MemoryEntity extends Equatable {
       tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
       category.toLowerCase() == 'pinned';
 
+  static int compareByPinnedAndDate(MemoryEntity a, MemoryEntity b) {
+    final aPinned = a.isPinned;
+    final bPinned = b.isPinned;
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    final dateComp = b.clientCreatedAt.compareTo(a.clientCreatedAt);
+    if (dateComp != 0) return dateComp;
+    return b.id.compareTo(a.id);
+  }
+
   @override
   List<Object?> get props => [
     id,
