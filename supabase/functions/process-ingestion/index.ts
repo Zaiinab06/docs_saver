@@ -158,13 +158,16 @@ Deno.serve(async (req: Request) => {
     let targetContent = rawRecord.content ?? body.content;
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
     const targetMimeType = rawRecord.mime_type ?? body.mime_type;
+    let isEmbeddingOnly = Boolean(body.embedding_only);
+    let existingEmbedding: any = null;
+    let existingAiStatus: string | null = null;
 
     // If memoryId passed from background sync/bloc and content not in body, fetch from DB
-    if (targetId && (!targetContent || !targetUserId)) {
+    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly)) {
       try {
         const { data: dbMem } = await supabaseAdmin
           .from("memories")
-          .select("id, user_id, title, content")
+          .select("id, user_id, title, content, embedding, ai_status")
           .eq("id", targetId)
           .maybeSingle();
 
@@ -172,10 +175,40 @@ Deno.serve(async (req: Request) => {
           targetUserId = targetUserId || dbMem.user_id;
           targetTitle = targetTitle || dbMem.title;
           targetContent = targetContent || dbMem.content;
+          existingEmbedding = dbMem.embedding;
+          existingAiStatus = dbMem.ai_status;
+          // If memory was already analyzed and approved by user, switch to embedding_only mode
+          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64) {
+            isEmbeddingOnly = true;
+          }
         }
       } catch (_) {
         // Fall through
       }
+    }
+
+    // Avoid duplicate embedding generation if a valid embedding already exists
+    if (
+      existingEmbedding &&
+      (Array.isArray(existingEmbedding)
+        ? existingEmbedding.length > 0
+        : String(existingEmbedding).length > 10)
+    ) {
+      console.info(
+        `[Ingestion] Memory ${targetId} already has valid embedding. Skipping duplicate generation.`
+      );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: targetId,
+          already_embedded: true,
+          ai_status: existingAiStatus || "processed",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     targetId = targetId ? String(targetId) : crypto.randomUUID();
@@ -213,11 +246,74 @@ Deno.serve(async (req: Request) => {
     }
 
     console.info(
-      `[Ingestion Started] Processing memory ${recordToProcess.id} for user ${recordToProcess.user_id} (saveToDb: ${saveToDb})`
+      `[Ingestion Started] Processing memory ${recordToProcess.id} for user ${recordToProcess.user_id} (saveToDb: ${saveToDb}, embeddingOnly: ${isEmbeddingOnly})`
     );
 
     // 4. Run Ingestion Prompt and Embedding Generation
     const signal = timeoutController.signal;
+
+    // If embedding_only mode is requested (e.g. MemoryReviewScreen save where user already reviewed metadata),
+    // skip LLM re-analysis to preserve user's custom title, tags, category, and summary!
+    if (isEmbeddingOnly && saveToDb) {
+      const embeddingResult = await generateEmbedding(
+        recordToProcess.title,
+        recordToProcess.content,
+        signal
+      );
+
+      const serverUpdatedAt = new Date().toISOString();
+      const { error: updateError } = await supabaseAdmin
+        .from("memories")
+        .update({
+          embedding: embeddingResult.embedding,
+          ai_status: "processed",
+          server_updated_at: serverUpdatedAt,
+        })
+        .eq("id", recordToProcess.id);
+
+      if (updateError) {
+        console.warn(
+          `[Ingestion DB Error] Failed to update embedding for ${recordToProcess.id}: ${updateError.message}`
+        );
+      }
+
+      const executionTimeMs = Math.round(performance.now() - startTime);
+
+      try {
+        await supabaseAdmin.from("ai_usage_logs").insert({
+          user_id: recordToProcess.user_id,
+          feature_name: "ingestion_embedding",
+          model_used: embeddingResult.modelUsed,
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          execution_time_ms: executionTimeMs,
+        });
+      } catch (_) {}
+
+      console.info(
+        `[Ingestion Success] Memory ${recordToProcess.id} embedded in ${executionTimeMs}ms (model: ${embeddingResult.modelUsed})`
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: recordToProcess.id,
+          title: recordToProcess.title,
+          embedding_dimensions: embeddingResult.embedding.length,
+          embedding_model: embeddingResult.modelUsed,
+          ai_status: "processed",
+          execution_time_ms: executionTimeMs,
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
 
     // Fast Ingestion LLM (gemini-3.5-flash-lite)
     const analysisResult = await analyzeMemoryContent(
@@ -258,7 +354,11 @@ Deno.serve(async (req: Request) => {
         ai_status: "processed",
         server_updated_at: serverUpdatedAt,
       };
-      if (finalSummary && finalSummary.trim().length > 0) {
+      const existingContent = (recordToProcess.content || "").trim();
+      const isLinkContent =
+        existingContent.startsWith("http://") ||
+        existingContent.startsWith("https://");
+      if (!isLinkContent && finalSummary && finalSummary.trim().length > 0) {
         updatePayload.content = finalSummary.trim();
       }
 

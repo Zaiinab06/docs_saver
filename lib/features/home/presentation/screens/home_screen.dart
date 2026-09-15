@@ -15,10 +15,18 @@ import '../../../capture/presentation/bloc/capture_bloc.dart';
 import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../capture/presentation/screens/memory_detail_screen.dart';
+import '../../../capture/presentation/screens/memory_review_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
+import '../../../capture/presentation/widgets/add_link_dialog.dart';
+import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
+import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
+import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
+import '../../../brain_ai/domain/usecases/ingest_memory_usecase.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
+import '../../../../core/network/network_checker.dart';
+import '../../../../core/utils/link_metadata_extractor.dart';
 
 class _CategoryItem {
   final String name;
@@ -30,10 +38,29 @@ class _CategoryItem {
   });
 }
 
+class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
+  @override
+  Future<Map<String, dynamic>> invokeIngestion({
+    required String content,
+    String? title,
+    String? imageBase64,
+    String? mimeType,
+  }) async {
+    return {};
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   final String? userName;
+  final IngestMemoryUseCase? ingestMemoryUseCase;
+  final LinkMetadataExtractor? linkMetadataExtractor;
 
-  const HomeScreen({super.key, this.userName});
+  const HomeScreen({
+    super.key,
+    this.userName,
+    this.ingestMemoryUseCase,
+    this.linkMetadataExtractor,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -43,6 +70,26 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = 'All';
   final Set<String> _locallyPinnedIds = {};
   final Set<String> _locallyUnpinnedIds = {};
+  late final LinkMetadataExtractor _linkMetadataExtractor;
+
+  IngestMemoryUseCase get _effectiveIngestMemoryUseCase {
+    if (widget.ingestMemoryUseCase != null) {
+      return widget.ingestMemoryUseCase!;
+    }
+    try {
+      return IngestMemoryUseCase(
+        AiRepositoryImpl(
+          remoteDataSource: AiRemoteDataSourceImpl(),
+        ),
+      );
+    } catch (_) {
+      return IngestMemoryUseCase(
+        AiRepositoryImpl(
+          remoteDataSource: _FallbackAiRemoteDataSource(),
+        ),
+      );
+    }
+  }
 
   bool _isMemoryPinned(MemoryEntity memory) {
     if (_locallyUnpinnedIds.contains(memory.id)) return false;
@@ -291,6 +338,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _linkMetadataExtractor =
+        widget.linkMetadataExtractor ?? LinkMetadataExtractor();
     context.read<CaptureBloc>().add(LoadMemoriesEvent());
     try {
       _authSubscription =
@@ -785,6 +834,215 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleAddLink() async {
+    final url = await AddLinkBottomSheet.show(context);
+    if (url == null || url.isEmpty || !mounted) return;
+
+    final isOnline = await NetworkChecker.isConnected();
+    final parsedUri = Uri.tryParse(url) ?? Uri();
+    final detectedProvider = LinkProviderDetector.detect(parsedUri);
+
+    LinkMetadata metadata = LinkMetadata(
+      url: url,
+      provider: detectedProvider,
+    );
+    AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+
+    if (isOnline) {
+      if (!mounted) return;
+      String loadingStatus = 'Fetching link details...';
+      StateSetter? dialogSetState;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              dialogSetState = setModalState;
+              return PopScope(
+                canPop: false,
+                child: AlertDialog(
+                  backgroundColor: AppColors.background,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  content: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          loadingStatus,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      try {
+        metadata = await _linkMetadataExtractor.extract(url);
+      } catch (_) {
+        // Graceful fallback: original URL remains usable
+      }
+
+      if (dialogSetState != null && mounted) {
+        dialogSetState!(() {
+          loadingStatus = 'Analyzing with AI...';
+        });
+      }
+
+      try {
+        final buffer = StringBuffer();
+        buffer.writeln('URL: ${metadata.url}');
+        if (metadata.provider == LinkProvider.youtube) {
+          buffer.writeln('Platform: YouTube');
+          if (metadata.creator != null && metadata.creator!.isNotEmpty) {
+            buffer.writeln('Channel: ${metadata.creator}');
+          }
+        } else if (metadata.provider == LinkProvider.tiktok) {
+          buffer.writeln('Platform: TikTok');
+          if (metadata.creator != null && metadata.creator!.isNotEmpty) {
+            buffer.writeln('Creator: ${metadata.creator}');
+          }
+        } else if (metadata.provider == LinkProvider.instagram) {
+          buffer.writeln('Platform: Instagram');
+          if (metadata.creator != null && metadata.creator!.isNotEmpty) {
+            buffer.writeln('Creator: ${metadata.creator}');
+          }
+        }
+        if (metadata.title != null && metadata.title!.isNotEmpty) {
+          if (metadata.provider == LinkProvider.tiktok ||
+              metadata.provider == LinkProvider.instagram) {
+            buffer.writeln('Caption: ${metadata.title}');
+          } else {
+            buffer.writeln('Title: ${metadata.title}');
+          }
+        }
+        if (metadata.description != null &&
+            metadata.description!.isNotEmpty &&
+            metadata.description != metadata.title) {
+          buffer.writeln('Description: ${metadata.description}');
+        }
+        if (metadata.transcript != null && metadata.transcript!.isNotEmpty) {
+          buffer.writeln('\nTranscript:\n${metadata.transcript}');
+        } else if (metadata.readableContent != null && metadata.readableContent!.isNotEmpty) {
+          if (metadata.provider == LinkProvider.genericWeb) {
+            buffer.writeln('\nContent:\n${metadata.readableContent}');
+          }
+        }
+        final contentForAi = buffer.toString().trim();
+
+        aiResult = await _effectiveIngestMemoryUseCase(ocrText: contentForAi);
+      } catch (_) {
+        aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+      }
+
+      if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+
+    if (!mounted) return;
+
+    final initialTitle = aiResult.title.isNotEmpty
+        ? aiResult.title
+        : (metadata.title?.isNotEmpty == true
+            ? metadata.title!
+            : (metadata.provider == LinkProvider.youtube
+                ? 'YouTube Video (${DateFormat('MMM d').format(DateTime.now())})'
+                : (metadata.provider == LinkProvider.tiktok
+                    ? 'TikTok Video (${DateFormat('MMM d').format(DateTime.now())})'
+                    : (metadata.provider == LinkProvider.instagram
+                        ? (metadata.extraMetadata?['postType'] == 'reel'
+                            ? 'Instagram Reel (${DateFormat('MMM d').format(DateTime.now())})'
+                            : 'Instagram Post (${DateFormat('MMM d').format(DateTime.now())})')
+                        : (metadata.siteName?.isNotEmpty == true
+                            ? '${metadata.siteName} Link'
+                            : 'Web Link (${DateFormat('MMM d').format(DateTime.now())})')))));
+
+    final initialTags = List<String>.from(aiResult.tags);
+    if (!initialTags.contains('link')) {
+      initialTags.add('link');
+    }
+    if (metadata.provider == LinkProvider.youtube && !initialTags.contains('youtube')) {
+      initialTags.add('youtube');
+    }
+    if (metadata.provider == LinkProvider.tiktok && !initialTags.contains('tiktok')) {
+      initialTags.add('tiktok');
+    }
+    if (metadata.provider == LinkProvider.instagram && !initialTags.contains('instagram')) {
+      initialTags.add('instagram');
+    }
+
+    final rawTextBuffer = StringBuffer();
+    rawTextBuffer.writeln(metadata.url);
+    if (metadata.creator != null && metadata.creator!.isNotEmpty) {
+      if (metadata.provider == LinkProvider.youtube) {
+        rawTextBuffer.writeln('\nChannel: ${metadata.creator}');
+      } else {
+        rawTextBuffer.writeln('\nCreator: ${metadata.creator}');
+      }
+    }
+    if (metadata.title != null && metadata.title!.isNotEmpty) {
+      rawTextBuffer.writeln('\n${metadata.title}');
+    }
+    if (metadata.description != null &&
+        metadata.description!.isNotEmpty &&
+        metadata.description != metadata.title) {
+      rawTextBuffer.writeln('\n${metadata.description}');
+    }
+    if (metadata.readableContent != null && metadata.readableContent!.isNotEmpty) {
+      rawTextBuffer.writeln('\n\n${metadata.readableContent}');
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MemoryReviewScreen(
+          imageFile: null,
+          linkUrl: metadata.url,
+          readableContent: metadata.readableContent,
+          previewImageUrl: metadata.imageUrl,
+          initialTitle: initialTitle,
+          initialContent: metadata.url,
+          rawOcrText: metadata.readableContent?.isNotEmpty == true
+              ? metadata.readableContent!
+              : rawTextBuffer.toString().trim(),
+          initialCategory: aiResult.category,
+          initialTags: initialTags,
+          initialSummary: aiResult.summary.isNotEmpty
+              ? aiResult.summary
+              : (metadata.description ?? ''),
+          entities: aiResult.entities,
+          aiStatus: aiResult.aiStatus,
+          createdAt: DateTime.now(),
+          isOffline: !isOnline,
+          ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      context.read<CaptureBloc>().add(LoadMemoriesEvent());
+    }
+  }
+
   Widget _buildCaptureOption({
     required BuildContext context,
     required IconData icon,
@@ -800,6 +1058,8 @@ class _HomeScreenState extends State<HomeScreen> {
             await _handleTakePhoto();
           } else if (title == 'Scan Document') {
             await _handleScanDocument();
+          } else if (title == 'Add Link') {
+            await _handleAddLink();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

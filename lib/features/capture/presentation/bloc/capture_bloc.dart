@@ -107,17 +107,27 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       emit(const CaptureSuccess('Memory saved locally!'));
       add(LoadMemoriesEvent());
 
-      // If aiStatus is pending and user is authenticated with Supabase, trigger background ingestion enrichment asynchronously
+      // If memory requires AI analysis or is missing an embedding, trigger background enrichment/embedding
       bool isSupabaseAvailable = false;
       try {
         isSupabaseAvailable =
             Supabase.instance.client.auth.currentUser != null;
       } catch (_) {}
 
-      if (newMemory.aiStatus == 'pending' && isSupabaseAvailable) {
+      final needsEmbedding =
+          newMemory.embedding == null || newMemory.embedding!.isEmpty;
+      final hasMeaningfulContent =
+          newMemory.content.trim().isNotEmpty || newMemory.title.trim().isNotEmpty;
+
+      if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
+          hasMeaningfulContent &&
+          isSupabaseAvailable) {
         unawaited(
           Supabase.instance.client.functions
-              .invoke('process-ingestion', body: {'memoryId': newMemory.id})
+              .invoke('process-ingestion', body: {
+                'memoryId': newMemory.id,
+                if (newMemory.aiStatus == 'processed') 'embedding_only': true,
+              })
               .then((_) => add(LoadMemoriesEvent()))
               .catchError((_) {}),
         );
@@ -138,6 +148,31 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       } catch (_) {}
       await repository.syncPendingMemories(userId: currentUserId);
       add(LoadMemoriesEvent());
+
+      // Trigger background enrichment/embedding for synced memories lacking embeddings
+      if (currentUserId != null && currentUserId != 'local_user') {
+        try {
+          final memories = await repository.getMemories(userId: currentUserId);
+          for (final mem in memories) {
+            final needsEmbedding =
+                mem.embedding == null || mem.embedding!.isEmpty;
+            final hasMeaningfulContent =
+                mem.content.trim().isNotEmpty || mem.title.trim().isNotEmpty;
+            if ((mem.aiStatus == 'pending' || needsEmbedding) &&
+                hasMeaningfulContent) {
+              unawaited(
+                Supabase.instance.client.functions
+                    .invoke('process-ingestion', body: {
+                      'memoryId': mem.id,
+                      if (mem.aiStatus == 'processed') 'embedding_only': true,
+                    })
+                    .then((_) => add(LoadMemoriesEvent()))
+                    .catchError((_) {}),
+              );
+            }
+          }
+        } catch (_) {}
+      }
     } catch (_) {}
   }
 

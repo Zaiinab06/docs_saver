@@ -489,7 +489,21 @@ export async function generateEmbedding(
 
   // Combine title and content for rich semantic representation
   const cleanTitle = (title || "").trim();
-  const cleanContent = (content || "").trim();
+  let cleanContent = (content || "").trim();
+
+  // If content begins with a URL line followed by article/readable content,
+  // strip the bare URL from the embedding input so the 768-d vector focuses
+  // strictly on the high-signal semantic text.
+  if (
+    (cleanContent.startsWith("http://") || cleanContent.startsWith("https://")) &&
+    cleanContent.includes("\n")
+  ) {
+    const afterUrl = cleanContent.substring(cleanContent.indexOf("\n")).trim();
+    if (afterUrl.length > 0) {
+      cleanContent = afterUrl;
+    }
+  }
+
   const textToEmbed = cleanTitle
     ? `${cleanTitle}\n\n${cleanContent}`
     : cleanContent;

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/isar_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -630,12 +631,24 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           final isLink = trimmedContent.startsWith('http://') ||
               trimmedContent.startsWith('https://') ||
               memory.tags.any((t) => t.toLowerCase() == 'link');
+          final linkUrl = isLink
+              ? (trimmedContent.contains('\n')
+                  ? trimmedContent.split('\n').first.trim()
+                  : trimmedContent)
+              : null;
           final isPureUrl = (trimmedContent.startsWith('http://') ||
                   trimmedContent.startsWith('https://')) &&
               !trimmedContent.contains(' ') &&
               !trimmedContent.contains('\n');
-          final hasExtractedContent = trimmedContent.isNotEmpty &&
-              trimmedContent != '(No additional text content recorded)' &&
+          final String extractedBody;
+          if ((trimmedContent.startsWith('http://') || trimmedContent.startsWith('https://')) &&
+              trimmedContent.contains('\n')) {
+            extractedBody = trimmedContent.substring(trimmedContent.indexOf('\n')).trim();
+          } else {
+            extractedBody = trimmedContent;
+          }
+          final hasExtractedContent = extractedBody.isNotEmpty &&
+              extractedBody != '(No additional text content recorded)' &&
               !isPureUrl;
 
           return Scaffold(
@@ -766,32 +779,74 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                     const SizedBox(height: 20),
 
                     // 4. Link Action Banner (if link detected)
-                    if (isLink) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightCyanTint,
+                    if (isLink && linkUrl != null && linkUrl.isNotEmpty) ...[
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            final uri = Uri.tryParse(linkUrl);
+                            if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+                              try {
+                                final launched = await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                                if (!launched && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Could not open link in browser.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Could not open link in browser.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          },
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.link_rounded, color: AppColors.primary, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                memory.content.trim(),
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.lightCyanTint,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                const Icon(Icons.link_rounded, color: AppColors.primary, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    linkUrl,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.open_in_new_rounded,
+                                  color: AppColors.primary,
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -963,7 +1018,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                       Padding(
                                         padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
                                         child: SelectableText(
-                                          _formatOcrTextForPresentation(memory.content),
+                                          _formatOcrTextForPresentation(extractedBody),
                                           style: const TextStyle(
                                             fontSize: 15.5,
                                             color: AppColors.textPrimary,

@@ -1,10 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import {
-  generateEmbedding,
-  synthesizeAnswer,
-  GroundedMemoryItem,
-} from "../_shared/gemini.ts";
+import { generateEmbedding } from "../_shared/gemini.ts";
 
 /**
  * Token-Bucket In-Memory Rate Limiter
@@ -88,10 +84,21 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   },
 });
 
-interface AskBrainRequest {
+interface SemanticSearchRequest {
   query: string;
-  matchThreshold?: number;
-  matchCount?: number;
+  match_threshold?: number;
+  match_count?: number;
+}
+
+export interface SemanticSearchResultItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  media_url: string | null;
+  client_created_at: string | null;
+  similarity: number;
 }
 
 Deno.serve(async (req: Request) => {
@@ -190,7 +197,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // 4. Validate and Parse Input Payload
-    let body: AskBrainRequest;
+    let body: SemanticSearchRequest;
     try {
       body = await req.json();
     } catch (_parseErr) {
@@ -216,153 +223,122 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Match threshold defaults to 0.3 (lower bound 0.0, upper bound 1.0)
-    const matchThreshold =
-      typeof body.matchThreshold === "number"
-        ? Math.max(0, Math.min(1, body.matchThreshold))
-        : 0.3;
-
-    // Match count defaults to 5 (capped between 1 and 20)
-    const matchCount =
-      typeof body.matchCount === "number"
-        ? Math.max(1, Math.min(20, Math.round(body.matchCount)))
-        : 5;
-
-    console.info(
-      `[Ask Brain] Processing query for user ${authenticatedUserId}: "${query.slice(0, 50)}..." (threshold: ${matchThreshold}, count: ${matchCount})`
-    );
-
-    // 5. Generate Query Dense Embedding (768 dimensions)
-    const signal = timeoutController.signal;
-    const embeddingResult = await generateEmbedding(null, query, signal);
-
-    // 6. Vector Similarity Search via PostgreSQL RPC `match_memories_v2` with fallback
-    let rawMatches: any[] | null = null;
-    let rpcError: any = null;
-
-    const rpcV2 = await userClient.rpc("match_memories_v2", {
-      query_embedding: embeddingResult.embedding,
-      match_threshold: matchThreshold,
-      match_count: matchCount,
-    });
-
-    if (!rpcV2.error) {
-      rawMatches = rpcV2.data;
-    } else {
-      console.warn(
-        `[Ask Brain Notice] match_memories_v2 failed: ${rpcV2.error.message}. Falling back to match_memories...`
-      );
-      const rpcV1 = await userClient.rpc("match_memories", {
-        query_embedding: embeddingResult.embedding,
-        match_threshold: matchThreshold,
-        match_count: matchCount,
-      });
-      rawMatches = rpcV1.data;
-      rpcError = rpcV1.error;
-    }
-
-    if (rpcError) {
-      console.error(
-        `[Ask Brain RPC Error] Failed to execute vector search: ${rpcError.message}`
-      );
-      throw new Error(`Database similarity search failed: ${rpcError.message}`);
-    }
-
-    // Enforce multi-tenant user isolation defense-in-depth
-    const matchedMemories: GroundedMemoryItem[] = (rawMatches || [])
-      .filter((rec: any) => !rec.user_id || rec.user_id === authenticatedUserId)
-      .map((rec: any) => ({
-        id: String(rec.id),
-        title: rec.title ? String(rec.title) : "Untitled Note",
-        content: String(rec.content ?? ""),
-        category: rec.category ? String(rec.category) : undefined,
-        tags: Array.isArray(rec.tags) ? rec.tags : undefined,
-        client_created_at: rec.client_created_at
-          ? String(rec.client_created_at)
-          : undefined,
-        similarity:
-          typeof rec.similarity === "number" ? rec.similarity : undefined,
-      }));
-
-    // 7. Guardrail: If no relevant memories match the threshold
-    if (matchedMemories.length === 0) {
-      const executionTimeMs = Math.round(performance.now() - startTime);
-
-      try {
-        await supabaseAdmin.from("ai_usage_logs").insert({
-          user_id: authenticatedUserId,
-          feature_name: "ask_brain",
-          model_used: embeddingResult.modelUsed,
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0,
-          execution_time_ms: executionTimeMs,
-        });
-      } catch (telemetryErr) {
-        console.warn(
-          "[Telemetry Warning] Failed to log zero-match usage:",
-          telemetryErr
-        );
-      }
-
+    if (query.length > 1000) {
       return new Response(
         JSON.stringify({
-          answer:
-            "I couldn't find any relevant memories or notes in your Second Brain related to your question.",
-          sources: [],
+          error: "Validation failed: Query exceeds maximum allowed length of 1000 characters.",
         }),
         {
-          status: 200,
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    // 8. RAG Grounding & Answer Synthesis via Gemini 3.8 Flash
-    const synthesisResult = await synthesizeAnswer(
-      query,
-      matchedMemories,
-      signal
+    // Match threshold defaults to 0.3 (lower bound 0.0, upper bound 1.0)
+    const matchThreshold =
+      typeof body.match_threshold === "number"
+        ? Math.max(0, Math.min(1, body.match_threshold))
+        : 0.3;
+
+    // Match count defaults to 10 (capped between 1 and 50)
+    const matchCount =
+      typeof body.match_count === "number"
+        ? Math.max(1, Math.min(50, Math.round(body.match_count)))
+        : 10;
+
+    console.info(
+      `[Semantic Search] Processing query for user ${authenticatedUserId}: "${query.slice(0, 50)}..." (threshold: ${matchThreshold}, count: ${matchCount})`
     );
+
+    // 5. Generate Query Dense Embedding (768 dimensions) via Gemini API
+    const signal = timeoutController.signal;
+    const embeddingResult = await generateEmbedding(null, query, signal);
+
+    // 6. Vector Similarity Search via PostgreSQL RPC `match_memories_v2`
+    // with fallback to legacy `match_memories` if needed
+    let rawMatches: any[] | null = null;
+    let rpcError: any = null;
+
+    const rpcV2Response = await userClient.rpc("match_memories_v2", {
+      query_embedding: embeddingResult.embedding,
+      match_threshold: matchThreshold,
+      match_count: matchCount,
+    });
+
+    if (!rpcV2Response.error) {
+      rawMatches = rpcV2Response.data;
+    } else {
+      console.warn(
+        `[Semantic Search Notice] match_memories_v2 error: ${rpcV2Response.error.message}. Attempting legacy fallback...`
+      );
+      const rpcV1Response = await userClient.rpc("match_memories", {
+        query_embedding: embeddingResult.embedding,
+        match_threshold: matchThreshold,
+        match_count: matchCount,
+      });
+      rawMatches = rpcV1Response.data;
+      rpcError = rpcV1Response.error;
+    }
+
+    if (rpcError) {
+      console.error(
+        `[Semantic Search RPC Error] Failed to execute vector search: ${rpcError.message}`
+      );
+      throw new Error(`Database vector search failed: ${rpcError.message}`);
+    }
+
+    // 7. Enforce multi-tenant user isolation defense-in-depth and format results
+    const results: SemanticSearchResultItem[] = (rawMatches || [])
+      .filter((rec: any) => !rec.user_id || rec.user_id === authenticatedUserId)
+      .map((rec: any) => ({
+        id: String(rec.id),
+        title: rec.title ? String(rec.title) : "Untitled Memory",
+        content: String(rec.content ?? ""),
+        category: rec.category ? String(rec.category) : "General",
+        tags: Array.isArray(rec.tags) ? rec.tags : [],
+        media_url: rec.media_url ? String(rec.media_url) : null,
+        client_created_at: rec.client_created_at
+          ? String(rec.client_created_at)
+          : null,
+        similarity:
+          typeof rec.similarity === "number"
+            ? Math.round(rec.similarity * 10000) / 10000
+            : 0,
+      }));
 
     const executionTimeMs = Math.round(performance.now() - startTime);
 
-    // 9. Telemetry Logging into public.ai_usage_logs
+    // 8. Telemetry Logging into public.ai_usage_logs
     try {
       await supabaseAdmin.from("ai_usage_logs").insert({
         user_id: authenticatedUserId,
-        feature_name: "ask_brain",
-        model_used: synthesisResult.modelUsed,
-        prompt_tokens: synthesisResult.usage.promptTokens,
-        completion_tokens: synthesisResult.usage.completionTokens,
-        total_tokens: synthesisResult.usage.totalTokens,
+        feature_name: "semantic_search",
+        model_used: embeddingResult.modelUsed,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
         execution_time_ms: executionTimeMs,
       });
     } catch (telemetryErr) {
       console.warn(
-        `[Telemetry Warning] Failed to log AI usage for query "${query.slice(0, 30)}":`,
+        `[Telemetry Warning] Failed to log AI usage for search query "${query.slice(0, 30)}":`,
         telemetryErr
       );
     }
 
-    // 10. Format structured response
-    const sources = matchedMemories.map((m) => ({
-      id: m.id,
-      title: m.title || "Untitled Note",
-      similarity:
-        typeof m.similarity === "number"
-          ? Math.round(m.similarity * 1000) / 1000
-          : 0,
-    }));
-
     console.info(
-      `[Ask Brain Success] Query answered in ${executionTimeMs}ms with ${sources.length} sources. Model: ${synthesisResult.modelUsed}`
+      `[Semantic Search Success] Returned ${results.length} ranked memories in ${executionTimeMs}ms for user ${authenticatedUserId}. Model: ${embeddingResult.modelUsed}`
     );
 
     return new Response(
       JSON.stringify({
-        answer: synthesisResult.answer,
-        sources,
+        success: true,
+        query,
+        count: results.length,
+        threshold: matchThreshold,
+        results,
+        execution_time_ms: executionTimeMs,
       }),
       {
         status: 200,
@@ -374,12 +350,13 @@ Deno.serve(async (req: Request) => {
       error?.name === "AbortError" ||
       String(error?.message).toLowerCase().includes("timed out");
 
-    console.error("[Ask Brain Failure] Exception processing request:", error);
+    console.error("[Semantic Search Failure] Exception processing request:", error);
 
     const statusCode = isTimeout ? 504 : 500;
     return new Response(
       JSON.stringify({
-        error: error?.message || "Internal server error during ask-brain processing",
+        success: false,
+        error: error?.message || "Internal server error during semantic search",
         is_timeout: isTimeout,
       }),
       {

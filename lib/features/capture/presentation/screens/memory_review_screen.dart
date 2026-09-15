@@ -27,7 +27,10 @@ class _CategoryOption {
 }
 
 class MemoryReviewScreen extends StatefulWidget {
-  final File imageFile;
+  final File? imageFile;
+  final String? linkUrl;
+  final String? readableContent;
+  final String? previewImageUrl;
   final String initialTitle;
   final String initialContent;
   final String? rawOcrText;
@@ -42,7 +45,10 @@ class MemoryReviewScreen extends StatefulWidget {
 
   const MemoryReviewScreen({
     super.key,
-    required this.imageFile,
+    this.imageFile,
+    this.linkUrl,
+    this.readableContent,
+    this.previewImageUrl,
     required this.initialTitle,
     required this.initialContent,
     this.rawOcrText,
@@ -122,7 +128,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     _currentAiStatus = widget.aiStatus;
     _currentSummary = widget.initialSummary;
     _currentEntities = List.from(widget.entities);
-    _rawOcrText = widget.rawOcrText ?? widget.initialContent;
+    _rawOcrText = (widget.readableContent != null && widget.readableContent!.trim().isNotEmpty)
+        ? widget.readableContent!.trim()
+        : (widget.rawOcrText ?? widget.initialContent);
 
     _isOffline = widget.isOffline ?? false;
     if (widget.isOffline == null) {
@@ -238,12 +246,12 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       String? imageBase64;
       String? mimeType;
       try {
-        if (widget.imageFile.existsSync()) {
-          final fileSize = widget.imageFile.lengthSync();
+        if (widget.imageFile != null && widget.imageFile!.existsSync()) {
+          final fileSize = widget.imageFile!.lengthSync();
           if (fileSize < 8 * 1024 * 1024) {
-            final imageBytes = widget.imageFile.readAsBytesSync();
+            final imageBytes = widget.imageFile!.readAsBytesSync();
             imageBase64 = base64Encode(imageBytes);
-            final extension = widget.imageFile.path.split('.').last.toLowerCase();
+            final extension = widget.imageFile!.path.split('.').last.toLowerCase();
             mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
           }
         }
@@ -330,36 +338,39 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     setState(() => _isSaving = true);
 
     try {
-      // 1. Persist the actual captured image locally in app storage
-      String persistentMediaUrl = widget.imageFile.path;
-      try {
-        final appDir = await getApplicationDocumentsDirectory();
-        final extension = widget.imageFile.path.split('.').last;
-        final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
-        final persistentFile = await widget.imageFile.copy('${appDir.path}/$fileName');
-        persistentMediaUrl = persistentFile.path;
-
-        // Optional background upload to Supabase storage if reachable
+      // 1. Persist the actual captured image locally in app storage (if imageFile provided)
+      String? persistentMediaUrl = widget.previewImageUrl;
+      if (widget.imageFile != null) {
+        persistentMediaUrl = widget.imageFile!.path;
         try {
-          final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-          if (currentUserId != null) {
-            final bytes = await persistentFile.readAsBytes();
-            final storageKey = '$currentUserId/$fileName';
-            await Supabase.instance.client.storage.from('memories').uploadBinary(
-                  storageKey,
-                  bytes,
-                  fileOptions: FileOptions(contentType: 'image/$extension'),
-                );
-            final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
-            if (publicUrl.isNotEmpty) {
-              persistentMediaUrl = publicUrl;
+          final appDir = await getApplicationDocumentsDirectory();
+          final extension = widget.imageFile!.path.split('.').last;
+          final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
+          final persistentFile = await widget.imageFile!.copy('${appDir.path}/$fileName');
+          persistentMediaUrl = persistentFile.path;
+
+          // Optional background upload to Supabase storage if reachable
+          try {
+            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+            if (currentUserId != null) {
+              final bytes = await persistentFile.readAsBytes();
+              final storageKey = '$currentUserId/$fileName';
+              await Supabase.instance.client.storage.from('memories').uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: FileOptions(contentType: 'image/$extension'),
+                  );
+              final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+              if (publicUrl.isNotEmpty) {
+                persistentMediaUrl = publicUrl;
+              }
             }
+          } catch (_) {
+            // Fallback to local persistent path on network or bucket failure
           }
         } catch (_) {
-          // Fallback to local persistent path on network or bucket failure
+          // Fallback to widget.imageFile!.path if app directory cannot be accessed
         }
-      } catch (_) {
-        // Fallback to widget.imageFile.path if app directory cannot be accessed
       }
 
       if (!mounted) return;
@@ -369,14 +380,20 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           ? _titleController.text.trim()
           : (widget.initialTitle.trim().isNotEmpty
               ? widget.initialTitle.trim()
-              : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})');
+              : (widget.linkUrl != null
+                  ? 'Web Link (${DateFormat('MMM d').format(DateTime.now())})'
+                  : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})'));
 
-      // Preserve user-edited content if customized and not raw OCR text, otherwise use concise AI summary (never raw OCR dump)
-      final content = _currentSummary.trim().isNotEmpty
-          ? _currentSummary.trim()
-          : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
-              ? _contentController.text.trim()
-              : 'Captured Visual Memory');
+      // For links, preserve the raw URL on line 1, followed by readable content if available. For visual memories, preserve user-edited content or AI summary.
+      final content = widget.linkUrl != null && widget.linkUrl!.isNotEmpty
+          ? ((widget.readableContent != null && widget.readableContent!.trim().isNotEmpty)
+              ? '${widget.linkUrl!.trim()}\n\n${widget.readableContent!.trim()}'
+              : widget.linkUrl!)
+          : (_currentSummary.trim().isNotEmpty
+              ? _currentSummary.trim()
+              : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
+                  ? _contentController.text.trim()
+                  : 'Captured Visual Memory'));
 
       // 2. Persist metadata through the existing repository and data layer
       context.read<CaptureBloc>().add(
@@ -408,6 +425,123 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         );
       }
     }
+  }
+
+  Widget _buildHeaderPreview() {
+    if (widget.imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          height: 220,
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+          ),
+          child: Image.file(
+            widget.imageFile!,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+
+    if (widget.previewImageUrl != null && widget.previewImageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          height: 200,
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+          ),
+          child: Image.network(
+            widget.previewImageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildStyledLinkCard(),
+          ),
+        ),
+      );
+    }
+
+    return _buildStyledLinkCard();
+  }
+
+  Widget _buildStyledLinkCard() {
+    final domain = widget.linkUrl != null
+        ? (Uri.tryParse(widget.linkUrl!)?.host.isNotEmpty == true
+            ? Uri.tryParse(widget.linkUrl!)!.host
+            : widget.linkUrl!)
+        : 'Web Link';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.lightCyanTint,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                width: 1.0,
+              ),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.link_rounded,
+                color: AppColors.primary,
+                size: 28,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  domain,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (widget.linkUrl != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.linkUrl!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -444,22 +578,8 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Captured Photo Preview
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: double.infinity,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
-                  ),
-                  child: Image.file(
-                    widget.imageFile,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
+              // 1. Captured Photo or Link Preview
+              _buildHeaderPreview(),
 
               const SizedBox(height: 16),
 
