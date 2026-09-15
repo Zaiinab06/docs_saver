@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:isar_community/isar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/isar_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../capture/data/models/memory_model.dart';
 import '../../../capture/domain/entities/memory_entity.dart';
 import '../../../capture/presentation/bloc/capture_bloc.dart';
@@ -333,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
-  StreamSubscription<AuthState>? _authSubscription;
+  StreamSubscription<dynamic>? _authSubscription;
 
   @override
   void initState() {
@@ -363,10 +365,27 @@ class _HomeScreenState extends State<HomeScreen> {
       return widget.userName!.trim();
     }
     try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is Authenticated &&
+          authState.user.fullName != null &&
+          authState.user.fullName!.trim().isNotEmpty) {
+        return authState.user.fullName!.trim();
+      }
+      if (authState is AuthSuccess &&
+          authState.user.fullName != null &&
+          authState.user.fullName!.trim().isNotEmpty) {
+        return authState.user.fullName!.trim();
+      }
+    } catch (_) {}
+    try {
       final user = Supabase.instance.client.auth.currentUser;
       final metadataName = user?.userMetadata?['full_name'] as String?;
       if (metadataName != null && metadataName.trim().isNotEmpty) {
         return metadataName.trim();
+      }
+      final rawName = user?.userMetadata?['name'] as String?;
+      if (rawName != null && rawName.trim().isNotEmpty) {
+        return rawName.trim();
       }
       if (user?.email != null && user!.email!.isNotEmpty) {
         final emailPrefix = user.email!.split('@').first;

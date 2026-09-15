@@ -14,6 +14,8 @@ import 'features/auth/domain/usecases/sign_out_usecase.dart';
 import 'features/auth/domain/usecases/sign_up_usecase.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/auth/presentation/bloc/auth_state.dart';
+import 'features/auth/presentation/screens/auth_screen.dart';
 import 'features/capture/data/datasources/capture_local_data_source.dart';
 import 'features/capture/data/datasources/capture_remote_data_source.dart';
 import 'features/capture/domain/repositories/capture_repository_impl.dart';
@@ -23,6 +25,7 @@ import 'features/capture/domain/usecases/subscribe_to_memories_usecase.dart';
 import 'features/capture/presentation/bloc/capture_bloc.dart';
 import 'features/capture/presentation/bloc/capture_event.dart';
 import 'features/home/presentation/screens/home_screen.dart';
+import 'features/onboarding/presentation/screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +37,8 @@ void main() async {
 
   await IsarService.init();
 
-  // Reset/override has_seen_onboarding flag to ensure OnboardingScreen renders on launch
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('has_seen_onboarding', false);
+  final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
   // Auth feature dependencies
   final authRemoteDataSource = AuthRemoteDataSourceImpl();
@@ -71,6 +73,7 @@ void main() async {
       saveMemoryUseCase: saveMemoryUseCase,
       getMemoriesUseCase: getMemoriesUseCase,
       subscribeToMemoriesUseCase: subscribeToMemoriesUseCase,
+      hasSeenOnboarding: hasSeenOnboarding,
     ),
   );
 }
@@ -85,6 +88,7 @@ class SecondBrainApp extends StatelessWidget {
   final SaveMemoryUseCase saveMemoryUseCase;
   final GetMemoriesUseCase getMemoriesUseCase;
   final SubscribeToMemoriesUseCase subscribeToMemoriesUseCase;
+  final bool hasSeenOnboarding;
 
   const SecondBrainApp({
     super.key,
@@ -97,6 +101,7 @@ class SecondBrainApp extends StatelessWidget {
     required this.saveMemoryUseCase,
     required this.getMemoriesUseCase,
     required this.subscribeToMemoriesUseCase,
+    this.hasSeenOnboarding = false,
   });
 
   @override
@@ -133,19 +138,50 @@ class SecondBrainApp extends StatelessWidget {
             surface: AppColors.cardBackground,
           ),
         ),
-        // Temporary Development Bypass: Land directly on HomeScreen
-        home: const HomeScreen(),
+        home: AuthSessionGate(hasSeenOnboarding: hasSeenOnboarding),
       ),
     );
   }
 }
 
 class AuthSessionGate extends StatelessWidget {
-  const AuthSessionGate({super.key});
+  final bool hasSeenOnboarding;
+
+  const AuthSessionGate({
+    super.key,
+    this.hasSeenOnboarding = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Temporary Development Bypass: Direct to HomeScreen
-    return const HomeScreen();
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is Authenticated || state is AuthSuccess) {
+          context.read<CaptureBloc>().add(LoadMemoriesEvent());
+        }
+      },
+      builder: (context, state) {
+        if (state is Authenticated || state is AuthSuccess) {
+          final user = state is Authenticated
+              ? state.user
+              : (state as AuthSuccess).user;
+          return HomeScreen(userName: user.fullName);
+        } else if (state is AuthLoading || state is AuthInitial) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+          );
+        } else {
+          if (!hasSeenOnboarding) {
+            return const OnboardingScreen();
+          }
+          return const AuthScreen();
+        }
+      },
+    );
   }
 }

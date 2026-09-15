@@ -47,6 +47,21 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         print('DEBUG: Supabase signUp failed: User is null in response');
         throw const AuthException('Sign up failed: User is null');
       }
+
+      if (response.session == null) {
+        try {
+          final signInRes = await supabase.auth.signInWithPassword(
+            email: email,
+            password: password,
+          );
+          if (signInRes.user != null) {
+            return signInRes.user!;
+          }
+        } catch (_) {
+          // If email confirmation is required, response.user is still valid
+        }
+      }
+
       return response.user!;
     } on AuthException catch (e, stack) {
       print('DEBUG: AuthException in supabase.auth.signUp: ${e.message} (status: ${e.statusCode})');

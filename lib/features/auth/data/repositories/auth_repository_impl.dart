@@ -10,9 +10,16 @@ class AuthRepositoryImpl implements AuthRepository {
 
   UserEntity _toEntity(User user) {
     final meta = user.userMetadata;
-    final fullName = meta != null && meta.containsKey('full_name')
-        ? meta['full_name'] as String?
-        : null;
+    String? fullName;
+    if (meta != null) {
+      if (meta['full_name'] is String &&
+          (meta['full_name'] as String).trim().isNotEmpty) {
+        fullName = (meta['full_name'] as String).trim();
+      } else if (meta['name'] is String &&
+          (meta['name'] as String).trim().isNotEmpty) {
+        fullName = (meta['name'] as String).trim();
+      }
+    }
     return UserEntity(
       id: user.id,
       email: user.email,
