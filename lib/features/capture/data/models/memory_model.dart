@@ -100,12 +100,13 @@ extension MemoryModelMapper on MemoryModel {
       clientCreatedAt: clientCreatedAt,
       clientUpdatedAt: clientUpdatedAt,
       serverUpdatedAt: serverUpdatedAt,
+      isSynced: isSynced,
     );
   }
 }
 
 extension MemoryEntityMapper on MemoryEntity {
-  MemoryModel toModel({bool isSynced = false}) {
+  MemoryModel toModel({bool? isSynced}) {
     return MemoryModel()
       ..serverId = id
       ..userId = userId
@@ -120,6 +121,6 @@ extension MemoryEntityMapper on MemoryEntity {
       ..clientCreatedAt = clientCreatedAt
       ..clientUpdatedAt = clientUpdatedAt
       ..serverUpdatedAt = serverUpdatedAt
-      ..isSynced = isSynced;
+      ..isSynced = isSynced ?? this.isSynced;
   }
 }

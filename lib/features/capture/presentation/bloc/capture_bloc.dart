@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/services/isar_service.dart';
+import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
 import '../../domain/usecases/get_memories_usecase.dart';
 import '../../domain/usecases/save_memory_usecase.dart';
@@ -122,14 +126,13 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
           isSupabaseAvailable) {
+        final isNote = newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty;
         unawaited(
-          Supabase.instance.client.functions
-              .invoke('process-ingestion', body: {
-                'memoryId': newMemory.id,
-                if (newMemory.aiStatus == 'processed') 'embedding_only': true,
-              })
-              .then((_) => add(LoadMemoriesEvent()))
-              .catchError((_) {}),
+          _triggerBackgroundIngestion(
+            newMemory,
+            isNote: isNote,
+            isEmbeddingOnly: newMemory.aiStatus == 'processed',
+          ),
         );
       }
     } catch (e) {
@@ -158,16 +161,15 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                 mem.embedding == null || mem.embedding!.isEmpty;
             final hasMeaningfulContent =
                 mem.content.trim().isNotEmpty || mem.title.trim().isNotEmpty;
+            final isNote = mem.mediaUrl == null || mem.mediaUrl!.isEmpty;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
                 hasMeaningfulContent) {
               unawaited(
-                Supabase.instance.client.functions
-                    .invoke('process-ingestion', body: {
-                      'memoryId': mem.id,
-                      if (mem.aiStatus == 'processed') 'embedding_only': true,
-                    })
-                    .then((_) => add(LoadMemoriesEvent()))
-                    .catchError((_) {}),
+                _triggerBackgroundIngestion(
+                  mem,
+                  isNote: isNote,
+                  isEmbeddingOnly: mem.aiStatus == 'processed',
+                ),
               );
             }
           }
@@ -192,22 +194,160 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       return;
     }
 
-    if (state is CaptureLoaded) {
-      final currentMemories = (state as CaptureLoaded).memories;
-      final index =
-          currentMemories.indexWhere((m) => m.id == event.updatedMemory.id);
+    final currentMemories = state is CaptureLoaded
+        ? (state as CaptureLoaded).memories
+        : await getMemoriesUseCase(currentUserId);
 
-      if (index != -1) {
-        final updatedList = List<MemoryEntity>.from(currentMemories);
-        updatedList[index] = event.updatedMemory;
-        emit(CaptureLoaded(updatedList));
-      } else {
-        final memories = await getMemoriesUseCase(currentUserId);
-        emit(CaptureLoaded(memories));
-      }
+    final index =
+        currentMemories.indexWhere((m) => m.id == event.updatedMemory.id);
+
+    final updatedList = List<MemoryEntity>.from(currentMemories);
+    if (index != -1) {
+      updatedList[index] = event.updatedMemory;
     } else {
-      final memories = await getMemoriesUseCase(currentUserId);
-      emit(CaptureLoaded(memories));
+      updatedList.insert(0, event.updatedMemory);
+    }
+    emit(CaptureLoaded(updatedList));
+  }
+
+  Future<void> _triggerBackgroundIngestion(
+    MemoryEntity memory, {
+    required bool isNote,
+    required bool isEmbeddingOnly,
+  }) async {
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'process-ingestion',
+        body: {
+          'memoryId': memory.id,
+          if (isNote) 'preserve_content': true,
+          if (isEmbeddingOnly) 'embedding_only': true,
+        },
+      );
+
+      await _handleIngestionComplete(
+        memory.id,
+        response,
+        fallbackMemory: memory,
+      );
+    } catch (_) {
+      // Background ingestion failed or network dropped — note remains in pending queue
+    }
+  }
+
+  Future<void> _handleIngestionComplete(
+    String memoryId,
+    dynamic response, {
+    required MemoryEntity fallbackMemory,
+  }) async {
+    try {
+      // 1. Fetch freshly updated row directly from Supabase DB
+      Map<String, dynamic>? remoteRow;
+      try {
+        final res = await Supabase.instance.client
+            .from('memories')
+            .select()
+            .eq('id', memoryId)
+            .maybeSingle();
+        if (res != null) {
+          remoteRow = Map<String, dynamic>.from(res);
+        }
+      } catch (_) {}
+
+      // 2. Fallback to response.data if remote query didn't return
+      Map<String, dynamic>? resData;
+      if (response != null && response.data != null) {
+        if (response.data is Map) {
+          resData = Map<String, dynamic>.from(response.data as Map);
+        } else if (response.data is String) {
+          try {
+            resData =
+                Map<String, dynamic>.from(jsonDecode(response.data as String));
+          } catch (_) {}
+        }
+      }
+
+      // 3. Update local Isar database cache immediately
+      MemoryEntity? updatedEntity;
+      try {
+        final isar = IsarService.instance;
+        final existing = await isar.memoryModels
+            .filter()
+            .serverIdEqualTo(memoryId)
+            .findFirst();
+
+        if (existing != null) {
+          if (remoteRow != null) {
+            final remoteModel = MemoryModel.fromMap(remoteRow, isSynced: true);
+            existing.title = remoteModel.title;
+            existing.category = remoteModel.category;
+            existing.tags = remoteModel.tags;
+            existing.aiStatus = remoteModel.aiStatus;
+            if (remoteModel.embedding != null) {
+              existing.embedding = remoteModel.embedding;
+            }
+            existing.serverUpdatedAt = remoteModel.serverUpdatedAt;
+            existing.isSynced = true;
+          } else if (resData != null) {
+            if (resData['title'] != null) {
+              existing.title = resData['title'].toString();
+            }
+            if (resData['category'] != null) {
+              existing.category = resData['category'].toString();
+            }
+            if (resData['tags'] != null) {
+              existing.tags = List<String>.from(resData['tags'] as List);
+            }
+            existing.aiStatus =
+                (resData['ai_status'] ?? 'processed').toString();
+            existing.serverUpdatedAt = DateTime.now();
+            existing.isSynced = true;
+          }
+
+          await isar.writeTxn(() async {
+            await isar.memoryModels.put(existing);
+          });
+
+          updatedEntity = existing.toEntity();
+        }
+      } catch (_) {}
+
+      // 4. Construct updated MemoryEntity if Isar was not open
+      if (updatedEntity == null) {
+        if (remoteRow != null) {
+          updatedEntity =
+              MemoryModel.fromMap(remoteRow, isSynced: true).toEntity();
+        } else if (resData != null) {
+          updatedEntity = MemoryEntity(
+            id: memoryId,
+            userId: fallbackMemory.userId,
+            title: (resData['title'] ?? fallbackMemory.title).toString(),
+            content: fallbackMemory.content,
+            mediaUrl: fallbackMemory.mediaUrl,
+            tags: resData['tags'] != null
+                ? List<String>.from(resData['tags'] as List)
+                : fallbackMemory.tags,
+            category:
+                (resData['category'] ?? fallbackMemory.category).toString(),
+            embedding: fallbackMemory.embedding,
+            aiStatus: (resData['ai_status'] ?? 'processed').toString(),
+            isConflictCopy: fallbackMemory.isConflictCopy,
+            clientCreatedAt: fallbackMemory.clientCreatedAt,
+            clientUpdatedAt: fallbackMemory.clientUpdatedAt,
+            serverUpdatedAt: DateTime.now(),
+            isSynced: true,
+          );
+        }
+      }
+
+      // 5. Notify BLoC listeners immediately
+      if (updatedEntity != null) {
+        add(MemoryUpdatedEvent(updatedEntity));
+      } else {
+        add(LoadMemoriesEvent());
+      }
+    } catch (_) {
+      add(LoadMemoriesEvent());
     }
   }
 

@@ -61,6 +61,7 @@ class AppStrings {
   static const String categoryFood = 'Food';
   static const String categoryFinance = 'Finance';
   static const String categoryHealth = 'Health & Fitness';
+  static const String categoryGeneral = 'General';
   static const String categoryAll = 'All';
   static const String emptyBrainTitle = "Your brain is empty — let's fill it.";
   static const String emptyBrainSubtitle =

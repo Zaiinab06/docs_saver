@@ -252,6 +252,11 @@ Deno.serve(async (req: Request) => {
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
     const targetMimeType = rawRecord.mime_type ?? body.mime_type;
     let isEmbeddingOnly = Boolean(body.embedding_only);
+    const preserveContent = Boolean(
+      body.preserve_content ||
+      rawRecord.preserve_content ||
+      body.is_note
+    );
     let existingEmbedding: any = null;
     let existingAiStatus: string | null = null;
 
@@ -433,6 +438,41 @@ Deno.serve(async (req: Request) => {
     const finalSummary = analysisResult.metadata.summary;
     const finalEntities = analysisResult.metadata.entities;
 
+    const hasUserTitle = Boolean(
+      body.user_provided_title ||
+      (recordToProcess.title &&
+       recordToProcess.title.trim().length > 0 &&
+       !recordToProcess.title.startsWith("Note (") &&
+       recordToProcess.title !== "Quick Note")
+    );
+    const hasUserCategory = Boolean(
+      body.user_provided_category ||
+      (recordToProcess.category &&
+       recordToProcess.category.trim().length > 0 &&
+       recordToProcess.category !== "General")
+    );
+    const hasUserTags = Boolean(
+      body.user_provided_tags ||
+      (recordToProcess.tags &&
+       recordToProcess.tags.length > 0 &&
+       !(recordToProcess.tags.length === 1 && recordToProcess.tags[0] === "note"))
+    );
+
+    const resolvedTitle = hasUserTitle
+      ? recordToProcess.title
+      : (finalTitle || recordToProcess.title);
+    const resolvedCategory = hasUserCategory
+      ? recordToProcess.category
+      : (finalCategory || recordToProcess.category || "General");
+
+    let resolvedTags = recordToProcess.tags || [];
+    if (!hasUserTags) {
+      resolvedTags = finalTags || [];
+    } else if (finalTags && Array.isArray(finalTags)) {
+      const merged = new Set([...resolvedTags, ...finalTags]);
+      resolvedTags = Array.from(merged);
+    }
+
     let embeddingValues: number[] | null = null;
     let embeddingModel: string | null = null;
 
@@ -440,9 +480,9 @@ Deno.serve(async (req: Request) => {
     if (saveToDb) {
       const embeddingResult = await generateEmbedding(
         {
-          title: finalTitle,
-          category: finalCategory,
-          tags: finalTags,
+          title: resolvedTitle,
+          category: resolvedCategory,
+          tags: resolvedTags,
           content: recordToProcess.content,
         },
         undefined,
@@ -453,19 +493,21 @@ Deno.serve(async (req: Request) => {
 
       const serverUpdatedAt = new Date().toISOString();
       const updatePayload: Record<string, any> = {
-        title: finalTitle,
-        category: finalCategory,
-        tags: finalTags,
+        title: resolvedTitle,
+        category: resolvedCategory,
+        tags: resolvedTags,
         embedding: embeddingResult.embedding,
         ai_status: "processed",
         server_updated_at: serverUpdatedAt,
       };
-      const existingContent = (recordToProcess.content || "").trim();
-      const isLinkContent =
-        existingContent.startsWith("http://") ||
-        existingContent.startsWith("https://");
-      if (!isLinkContent && finalSummary && finalSummary.trim().length > 0) {
-        updatePayload.content = finalSummary.trim();
+      if (!preserveContent) {
+        const existingContent = (recordToProcess.content || "").trim();
+        const isLinkContent =
+          existingContent.startsWith("http://") ||
+          existingContent.startsWith("https://");
+        if (!isLinkContent && finalSummary && finalSummary.trim().length > 0) {
+          updatePayload.content = finalSummary.trim();
+        }
       }
 
       const { error: updateError } = await supabaseAdmin

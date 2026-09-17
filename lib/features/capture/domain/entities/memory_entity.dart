@@ -14,6 +14,7 @@ class MemoryEntity extends Equatable {
   final DateTime clientCreatedAt;
   final DateTime clientUpdatedAt;
   final DateTime serverUpdatedAt;
+  final bool isSynced;
 
   const MemoryEntity({
     required this.id,
@@ -29,6 +30,7 @@ class MemoryEntity extends Equatable {
     required this.clientCreatedAt,
     required this.clientUpdatedAt,
     required this.serverUpdatedAt,
+    this.isSynced = true,
   });
 
   bool get isPinned =>
@@ -60,5 +62,6 @@ class MemoryEntity extends Equatable {
     clientCreatedAt,
     clientUpdatedAt,
     serverUpdatedAt,
+    isSynced,
   ];
 }

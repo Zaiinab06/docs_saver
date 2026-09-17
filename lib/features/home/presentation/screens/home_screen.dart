@@ -19,6 +19,7 @@ import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../capture/presentation/screens/memory_detail_screen.dart';
 import '../../../capture/presentation/screens/memory_review_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
+import '../../../capture/presentation/screens/note_compose_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -1044,6 +1045,18 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleAddNote() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const NoteComposeScreen(),
+      ),
+    );
+
+    if (saved == true && mounted) {
+      context.read<CaptureBloc>().add(LoadMemoriesEvent());
+    }
+  }
+
   Widget _buildCaptureOption({
     required BuildContext context,
     required IconData icon,
@@ -1061,6 +1074,8 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleScanDocument();
           } else if (title == 'Add Link') {
             await _handleAddLink();
+          } else if (title == 'Add Note') {
+            await _handleAddNote();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

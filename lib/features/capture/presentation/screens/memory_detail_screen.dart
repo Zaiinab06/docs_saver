@@ -85,16 +85,36 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   void _subscribeToBloc() {
     try {
       final bloc = context.read<CaptureBloc>();
+      if (bloc.state is CaptureLoaded) {
+        final found = (bloc.state as CaptureLoaded)
+            .memories
+            .where((m) => m.id == widget.memoryId);
+        if (found.isNotEmpty) {
+          final current = found.first;
+          if (_memory == null ||
+              _memory!.aiStatus != current.aiStatus ||
+              _memory!.category != current.category ||
+              _memory!.tags.length != current.tags.length) {
+            _memory = current;
+            _isPinned = current.isPinned;
+            _isLoading = false;
+            _notFound = false;
+            _entities = _buildEntitiesFromMemory(current);
+          }
+        }
+      }
       _blocSubscription?.cancel();
       _blocSubscription = bloc.stream.listen((state) {
         if (state is CaptureLoaded && mounted) {
           final found = state.memories.where((m) => m.id == widget.memoryId);
           if (found.isNotEmpty) {
+            final updatedMemory = found.first;
             setState(() {
-              _memory = found.first;
-              _isPinned = found.first.isPinned;
+              _memory = updatedMemory;
+              _isPinned = updatedMemory.isPinned;
               _isLoading = false;
               _notFound = false;
+              _entities = _buildEntitiesFromMemory(updatedMemory);
             });
           }
         }
@@ -124,9 +144,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             _isPinned = entity.isPinned;
             _isLoading = false;
             _notFound = false;
-            if (_entities.isEmpty) {
-              _entities = _buildEntitiesFromMemory(entity);
-            }
+            _entities = _buildEntitiesFromMemory(entity);
           });
         } else if (_memory == null) {
           setState(() {
@@ -156,6 +174,10 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         ),
       );
     }
+    final isManualNote = (memory.mediaUrl == null || memory.mediaUrl!.isEmpty) &&
+        !memory.content.startsWith('http://') &&
+        !memory.content.startsWith('https://');
+
     for (final tag in memory.tags) {
       final lower = tag.toLowerCase();
       if (lower == 'photo' || lower == 'document' || lower == 'pinned' || lower == 'pin') {
@@ -165,7 +187,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         LivingEntityItem(
           name: tag,
           type: 'TOPIC',
-          attributes: 'Extracted memory entity',
+          attributes: isManualNote ? 'Note tag' : 'Extracted memory entity',
         ),
       );
     }
@@ -559,27 +581,37 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
-  Widget _buildAiStatusBadge(String status) {
+  Widget _buildAiStatusBadge(MemoryEntity memory) {
     Color bg;
     Color fg;
     IconData icon;
     String label;
 
-    if (status == 'processed') {
+    if (memory.aiStatus == 'processed') {
       bg = AppColors.lightCyanTint;
       fg = AppColors.primary;
       icon = Icons.auto_awesome_rounded;
       label = 'AI Organized';
-    } else if (status == 'failed') {
+    } else if (memory.aiStatus == 'failed') {
       bg = AppColors.categoryPersonalBackground;
       fg = AppColors.errorText;
       icon = Icons.error_outline_rounded;
       label = 'AI Analysis Failed';
+    } else if (memory.aiStatus == 'saved') {
+      bg = AppColors.lightCyanTint;
+      fg = AppColors.primary;
+      icon = Icons.check_circle_outline_rounded;
+      label = 'Saved';
+    } else if (!memory.isSynced) {
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFFD97706);
+      icon = Icons.cloud_off_rounded;
+      label = 'Saved offline — will organize when online';
     } else {
       bg = const Color(0xFFFEF3C7);
       fg = const Color(0xFFD97706);
-      icon = Icons.schedule_rounded;
-      label = 'AI Ingestion Pending';
+      icon = Icons.sync_rounded;
+      label = 'Organizing your memory...';
     }
 
     return Container(
@@ -751,7 +783,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                         ),
 
                         // AI Status Badge
-                        _buildAiStatusBadge(memory.aiStatus),
+                        _buildAiStatusBadge(memory),
 
                         // Timestamp
                         Row(
