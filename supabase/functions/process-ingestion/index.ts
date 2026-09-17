@@ -250,7 +250,8 @@ Deno.serve(async (req: Request) => {
     let targetCategory = rawRecord.category ?? body.category;
     let targetTags = rawRecord.tags ?? body.tags;
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
-    const targetMimeType = rawRecord.mime_type ?? body.mime_type;
+    let targetAudioBase64 = rawRecord.audio_base64 ?? body.audio_base64;
+    let targetMimeType = rawRecord.mime_type ?? body.mime_type;
     let isEmbeddingOnly = Boolean(body.embedding_only);
     const preserveContent = Boolean(
       body.preserve_content ||
@@ -261,11 +262,11 @@ Deno.serve(async (req: Request) => {
     let existingAiStatus: string | null = null;
 
     // If memoryId passed from background sync/bloc and content not in body, fetch from DB
-    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly)) {
+    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly || !targetAudioBase64)) {
       try {
         const { data: dbMem } = await supabaseAdmin
           .from("memories")
-          .select("id, user_id, title, content, category, tags, embedding, ai_status")
+          .select("id, user_id, title, content, category, tags, embedding, ai_status, media_url")
           .eq("id", targetId)
           .maybeSingle();
 
@@ -278,8 +279,39 @@ Deno.serve(async (req: Request) => {
           existingEmbedding = dbMem.embedding;
           existingAiStatus = dbMem.ai_status;
           // If memory was already analyzed and approved by user, switch to embedding_only mode
-          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64) {
+          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64 && !targetAudioBase64) {
             isEmbeddingOnly = true;
+          }
+
+          if (!targetAudioBase64 && dbMem.media_url && !targetImageBase64) {
+            const mediaUrl = String(dbMem.media_url);
+            const isAudioUrl =
+              mediaUrl.endsWith(".m4a") ||
+              mediaUrl.endsWith(".aac") ||
+              mediaUrl.endsWith(".mp3") ||
+              mediaUrl.endsWith(".wav") ||
+              (dbMem.tags && Array.isArray(dbMem.tags) && dbMem.tags.includes("voice"));
+            if (isAudioUrl) {
+              try {
+                let storagePath = mediaUrl;
+                if (storagePath.includes("/memories/")) {
+                  storagePath = storagePath.split("/memories/").pop() || storagePath;
+                }
+                const { data: fileData } = await supabaseAdmin.storage
+                  .from("memories")
+                  .download(storagePath);
+                if (fileData) {
+                  const arrayBuffer = await fileData.arrayBuffer();
+                  const bytes = new Uint8Array(arrayBuffer);
+                  let binary = "";
+                  for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                  }
+                  targetAudioBase64 = btoa(binary);
+                  targetMimeType = targetMimeType || "audio/m4a";
+                }
+              } catch (_) {}
+            }
           }
         }
       } catch (_) {
@@ -322,6 +354,7 @@ Deno.serve(async (req: Request) => {
       category: targetCategory ? String(targetCategory) : null,
       tags: Array.isArray(targetTags) ? targetTags : null,
       image_base64: targetImageBase64 ? String(targetImageBase64) : null,
+      audio_base64: targetAudioBase64 ? String(targetAudioBase64) : null,
       mime_type: targetMimeType ? String(targetMimeType) : null,
     };
 
@@ -427,6 +460,7 @@ Deno.serve(async (req: Request) => {
         title: recordToProcess.title,
         content: recordToProcess.content,
         imageBase64: recordToProcess.image_base64,
+        audioBase64: recordToProcess.audio_base64,
         mimeType: recordToProcess.mime_type,
       },
       signal
@@ -437,25 +471,54 @@ Deno.serve(async (req: Request) => {
     const finalTags = analysisResult.metadata.tags;
     const finalSummary = analysisResult.metadata.summary;
     const finalEntities = analysisResult.metadata.entities;
+    const finalTranscript = analysisResult.metadata.transcript;
+
+    const isVoiceMemory = Boolean(
+      recordToProcess.audio_base64 ||
+      (recordToProcess.tags && Array.isArray(recordToProcess.tags) && recordToProcess.tags.includes("voice")) ||
+      (recordToProcess.media_url && (
+        recordToProcess.media_url.endsWith(".m4a") ||
+        recordToProcess.media_url.endsWith(".aac") ||
+        recordToProcess.media_url.endsWith(".mp3") ||
+        recordToProcess.media_url.endsWith(".wav")
+      ))
+    );
+
+    let resolvedAiStatus = "processed";
+
+    if (isVoiceMemory) {
+      if (finalTranscript && finalTranscript.trim().length > 0) {
+        recordToProcess.content = finalTranscript.trim();
+        resolvedAiStatus = "processed";
+      } else {
+        // For voice/audio memories, NEVER use finalSummary as memories.content.
+        // If transcript is empty/missing, do NOT mark the memory processed.
+        recordToProcess.content = "";
+        resolvedAiStatus = "failed";
+      }
+    } else if (finalTranscript && finalTranscript.trim().length > 0) {
+      recordToProcess.content = finalTranscript.trim();
+    }
 
     const hasUserTitle = Boolean(
       body.user_provided_title ||
       (recordToProcess.title &&
        recordToProcess.title.trim().length > 0 &&
        !recordToProcess.title.startsWith("Note (") &&
+       !recordToProcess.title.startsWith("Voice Note (") &&
        recordToProcess.title !== "Quick Note")
     );
     const hasUserCategory = Boolean(
       body.user_provided_category ||
       (recordToProcess.category &&
        recordToProcess.category.trim().length > 0 &&
-       recordToProcess.category !== "General")
+       !["General", "Quick Notes", "All"].includes(recordToProcess.category))
     );
     const hasUserTags = Boolean(
       body.user_provided_tags ||
       (recordToProcess.tags &&
        recordToProcess.tags.length > 0 &&
-       !(recordToProcess.tags.length === 1 && recordToProcess.tags[0] === "note"))
+       !(recordToProcess.tags.length === 1 && (recordToProcess.tags[0] === "note" || recordToProcess.tags[0] === "voice")))
     );
 
     const resolvedTitle = hasUserTitle
@@ -471,6 +534,12 @@ Deno.serve(async (req: Request) => {
     } else if (finalTags && Array.isArray(finalTags)) {
       const merged = new Set([...resolvedTags, ...finalTags]);
       resolvedTags = Array.from(merged);
+    }
+
+    if (recordToProcess.audio_base64 || (recordToProcess.tags && recordToProcess.tags.includes("voice"))) {
+      if (!resolvedTags.includes("voice")) {
+        resolvedTags.push("voice");
+      }
     }
 
     let embeddingValues: number[] | null = null;
@@ -497,10 +566,19 @@ Deno.serve(async (req: Request) => {
         category: resolvedCategory,
         tags: resolvedTags,
         embedding: embeddingResult.embedding,
-        ai_status: "processed",
+        ai_status: resolvedAiStatus,
         server_updated_at: serverUpdatedAt,
       };
-      if (!preserveContent) {
+      if (isVoiceMemory) {
+        if (finalTranscript && finalTranscript.trim().length > 0) {
+          updatePayload.content = finalTranscript.trim();
+        } else {
+          // Never use finalSummary as memories.content for voice/audio memories
+          updatePayload.content = "";
+        }
+      } else if (finalTranscript && finalTranscript.trim().length > 0) {
+        updatePayload.content = finalTranscript.trim();
+      } else if (!preserveContent) {
         const existingContent = (recordToProcess.content || "").trim();
         const isLinkContent =
           existingContent.startsWith("http://") ||
@@ -555,14 +633,16 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         id: recordToProcess.id,
-        title: finalTitle,
-        category: finalCategory,
-        tags: finalTags,
+        title: resolvedTitle,
+        category: resolvedCategory,
+        tags: resolvedTags,
         summary: finalSummary,
+        transcript: finalTranscript,
+        content: recordToProcess.content,
         entities: finalEntities,
         embedding_dimensions: embeddingValues ? embeddingValues.length : null,
         embedding_model: embeddingModel,
-        ai_status: "processed",
+        ai_status: resolvedAiStatus,
         execution_time_ms: executionTimeMs,
       }),
       {

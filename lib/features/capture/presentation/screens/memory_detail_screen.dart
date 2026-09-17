@@ -15,6 +15,7 @@ import '../../domain/entities/memory_entity.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../bloc/capture_state.dart';
+import '../widgets/voice_audio_player_card.dart';
 
 class _CategoryTheme {
   final IconData icon;
@@ -587,16 +588,35 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     IconData icon;
     String label;
 
+    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice' || t.toLowerCase() == 'audio') ||
+        (memory.mediaUrl != null &&
+            (memory.mediaUrl!.endsWith('.m4a') ||
+             memory.mediaUrl!.endsWith('.aac') ||
+             memory.mediaUrl!.endsWith('.mp3') ||
+             memory.mediaUrl!.endsWith('.wav') ||
+             memory.mediaUrl!.endsWith('.ogg')));
+
+    final isVoiceWithoutTranscript = isVoice && memory.content.trim().isEmpty;
+
     if (memory.aiStatus == 'processed') {
-      bg = AppColors.lightCyanTint;
-      fg = AppColors.primary;
-      icon = Icons.auto_awesome_rounded;
-      label = 'AI Organized';
+      if (isVoiceWithoutTranscript) {
+        bg = AppColors.categoryPersonalBackground;
+        fg = AppColors.errorText;
+        icon = Icons.error_outline_rounded;
+        label = 'Transcription failed — audio preserved';
+      } else {
+        bg = AppColors.lightCyanTint;
+        fg = AppColors.primary;
+        icon = Icons.auto_awesome_rounded;
+        label = 'AI Organized';
+      }
     } else if (memory.aiStatus == 'failed') {
       bg = AppColors.categoryPersonalBackground;
       fg = AppColors.errorText;
       icon = Icons.error_outline_rounded;
-      label = 'AI Analysis Failed';
+      label = isVoice
+          ? 'Transcription failed — audio preserved'
+          : 'AI Analysis Failed';
     } else if (memory.aiStatus == 'saved') {
       bg = AppColors.lightCyanTint;
       fg = AppColors.primary;
@@ -679,9 +699,21 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           } else {
             extractedBody = trimmedContent;
           }
+          final isVoiceMemory = memory.tags.any((t) => t.toLowerCase() == 'voice' || t.toLowerCase() == 'audio') ||
+              (memory.mediaUrl != null &&
+                  (memory.mediaUrl!.endsWith('.m4a') ||
+                   memory.mediaUrl!.endsWith('.aac') ||
+                   memory.mediaUrl!.endsWith('.mp3') ||
+                   memory.mediaUrl!.endsWith('.wav') ||
+                   memory.mediaUrl!.endsWith('.ogg')));
+
+          // Voice Transcript only appears when real transcript content exists and is not an AI summary
           final hasExtractedContent = extractedBody.isNotEmpty &&
               extractedBody != '(No additional text content recorded)' &&
-              !isPureUrl;
+              !isPureUrl &&
+              (!isVoiceMemory ||
+                  (extractedBody.trim().isNotEmpty &&
+                      (_summary == null || extractedBody.trim() != _summary!.trim())));
 
           return Scaffold(
             backgroundColor: AppColors.background,
@@ -731,9 +763,14 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Attached Image / Media
+                    // 1. Attached Media (Audio Player for voice, Image Preview for photos/documents)
                     if (hasMedia) ...[
-                      _buildMediaPreview(memory.mediaUrl!),
+                      if (isVoiceMemory)
+                        VoiceAudioPlayerCard(
+                          audioSource: memory.mediaUrl!,
+                        )
+                      else
+                        _buildMediaPreview(memory.mediaUrl!),
                       const SizedBox(height: 16),
                     ],
 
@@ -884,8 +921,10 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // AI Summary Card (when available)
-                    if (_summary != null && _summary!.isNotEmpty) ...[
+                    // AI Summary Card (when available and meaningful)
+                    if (_summary != null &&
+                        _summary!.isNotEmpty &&
+                        (!isVoiceMemory || trimmedContent.isNotEmpty)) ...[
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
@@ -932,6 +971,85 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
+                    ],
+
+                    // Status banner for voice notes when transcript is empty
+                    if (isVoiceMemory && trimmedContent.isEmpty) ...[
+                      if (memory.aiStatus == 'failed' || memory.aiStatus == 'processed') ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.categoryPersonalBackground,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppColors.errorBorder,
+                              width: 1.0,
+                            ),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline_rounded,
+                                color: AppColors.errorText,
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Transcription failed — audio preserved',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.errorText,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.lightCyanTint.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.primary),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  memory.isSynced
+                                      ? 'Transcribing and organizing audio...'
+                                      : 'Audio saved offline. Transcription will begin when online.',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
 
                     // 5. Extracted Content (Collapsible / Compact Card)
@@ -986,37 +1104,43 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                   color: AppColors.lightCyanTint,
                                                   borderRadius: BorderRadius.circular(10),
                                                 ),
-                                                child: const Icon(
-                                                  Icons.document_scanner_rounded,
+                                                child: Icon(
+                                                  isVoiceMemory
+                                                      ? Icons.record_voice_over_rounded
+                                                      : Icons.document_scanner_rounded,
                                                   color: AppColors.primary,
                                                   size: 18,
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
-                                              const Expanded(
+                                              Expanded(
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     Text(
-                                                      'Extracted Content',
-                                                      style: TextStyle(
+                                                      isVoiceMemory
+                                                          ? 'Voice Transcript'
+                                                          : 'Extracted Content',
+                                                      style: const TextStyle(
                                                         fontSize: 14.5,
                                                         fontWeight: FontWeight.w700,
                                                         color: AppColors.textPrimary,
                                                         letterSpacing: -0.2,
                                                       ),
                                                     ),
-                                                    SizedBox(height: 2),
+                                                    const SizedBox(height: 2),
                                                     Text(
-                                                      'See what was extracted from your memory',
-                                                      style: TextStyle(
+                                                      isVoiceMemory
+                                                          ? 'Spoken words transcribed from audio'
+                                                          : 'See what was extracted from your memory',
+                                                      style: const TextStyle(
                                                         fontSize: 12,
                                                         fontWeight: FontWeight.w400,
                                                         color: AppColors.textSecondary,
                                                       ),
                                                     ),
-                                                    SizedBox(height: 6),
-                                                    Row(
+                                                    const SizedBox(height: 6),
+                                                    const Row(
                                                       mainAxisSize: MainAxisSize.min,
                                                       children: [
                                                         Text(
@@ -1028,7 +1152,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                           ),
                                                         ),
                                                         SizedBox(width: 2),
-                                                         Icon(
+                                                        Icon(
                                                           Icons.keyboard_arrow_up_rounded,
                                                           color: AppColors.primary,
                                                           size: 18,
@@ -1084,37 +1208,43 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                               color: AppColors.lightCyanTint,
                                               borderRadius: BorderRadius.circular(10),
                                             ),
-                                            child: const Icon(
-                                              Icons.document_scanner_rounded,
+                                            child: Icon(
+                                              isVoiceMemory
+                                                  ? Icons.record_voice_over_rounded
+                                                  : Icons.document_scanner_rounded,
                                               color: AppColors.primary,
                                               size: 18,
                                             ),
                                           ),
                                           const SizedBox(width: 12),
-                                          const Expanded(
+                                          Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  'Extracted Content',
-                                                  style: TextStyle(
+                                                  isVoiceMemory
+                                                      ? 'Voice Transcript'
+                                                      : 'Extracted Content',
+                                                  style: const TextStyle(
                                                     fontSize: 14.5,
                                                     fontWeight: FontWeight.w700,
                                                     color: AppColors.textPrimary,
                                                     letterSpacing: -0.2,
                                                   ),
                                                 ),
-                                                SizedBox(height: 2),
+                                                const SizedBox(height: 2),
                                                 Text(
-                                                  'See what was extracted from your memory',
-                                                  style: TextStyle(
+                                                  isVoiceMemory
+                                                      ? 'Spoken words transcribed from audio'
+                                                      : 'See what was extracted from your memory',
+                                                  style: const TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w400,
                                                     color: AppColors.textSecondary,
                                                   ),
                                                 ),
-                                                SizedBox(height: 6),
-                                                Row(
+                                                const SizedBox(height: 6),
+                                                const Row(
                                                   mainAxisSize: MainAxisSize.min,
                                                   children: [
                                                     Text(

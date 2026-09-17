@@ -138,6 +138,23 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildThumbnail(SearchResultItem item) {
     if (item.mediaUrl != null && item.mediaUrl!.isNotEmpty) {
       final url = item.mediaUrl!;
+      final isAudio = url.endsWith('.m4a') ||
+          url.endsWith('.aac') ||
+          url.endsWith('.mp3') ||
+          url.endsWith('.wav');
+      if (isAudio) {
+        return Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: AppColors.lightCyanTint,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Center(
+            child: Icon(Icons.mic_rounded, color: AppColors.primary, size: 22),
+          ),
+        );
+      }
       if (url.startsWith('http://') || url.startsWith('https://')) {
         return Image.network(
           url,

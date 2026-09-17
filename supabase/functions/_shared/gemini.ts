@@ -7,9 +7,27 @@
  */
 
 export const INGESTION_MODEL = "gemini-3.5-flash-lite";
+export const SYNTHESIS_MODEL = "gemini-3.8-flash";
+export const SYNTHESIS_FALLBACK_MODEL = "gemini-2.5-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
+
+export interface GroundedMemoryItem {
+  id: string;
+  title?: string | null;
+  content: string;
+  category?: string | null;
+  tags?: string[] | null;
+  client_created_at?: string | null;
+  similarity?: number | null;
+}
+
+export interface SynthesisResult {
+  answer: string;
+  modelUsed: string;
+  usage: TokenUsage;
+}
 
 export interface LivingEntityItem {
   name: string;
@@ -22,6 +40,7 @@ export interface IngestionMetadata {
   category: string;
   tags: string[];
   summary: string;
+  transcript?: string;
   entities: LivingEntityItem[];
 }
 
@@ -60,6 +79,7 @@ export interface AnalyzeMemoryInput {
   title?: string | null;
   content: string;
   imageBase64?: string | null;
+  audioBase64?: string | null;
   mimeType?: string | null;
 }
 
@@ -112,8 +132,20 @@ export async function analyzeMemoryContent(
   const apiKey = getGeminiApiKey();
   const trimmedContent = (input.content || "").trim();
   const existingTitle = (input.title || "").trim();
+  const isAudio = Boolean(input.audioBase64 && input.audioBase64.trim().length > 0);
 
-  const systemInstruction = `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
+  const systemInstruction = isAudio
+    ? `You are an expert speech recognition and audio transcription engine for a personal "Second Brain".
+You will receive an audio recording.
+Listen carefully to the audio and output clean structured JSON:
+- "transcript": The accurate, complete verbatim transcription of all spoken words in the audio. Transcribe the exact words spoken by the user. If the recording contains no speech, silence, background noise only, or is unintelligible, set "transcript" to "". Do NOT fabricate, invent, hallucinate, or guess words that were not spoken.
+- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject based on what was spoken. If the user provided an explicit non-empty title (not starting with "Voice Note (" or "Quick Note"), keep that title unchanged.
+- "category": Select the single best matching category from the 8 official app categories:
+  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2 to 6 lowercase keyword tags without # describing what was spoken. MUST include "voice".
+- "summary": Maximum 1-2 concise bullet points summarizing the core subject discussed in the speech.
+- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
+    : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
 You will receive an image and any supporting OCR extracted text.
 Visually inspect the image carefully, read any visible text, and output clean structured JSON:
 - "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject.
@@ -145,7 +177,11 @@ Visually inspect the image carefully, read any visible text, and output clean st
   * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
   * "attributes": Concise contextual detail`;
 
-  const userPrompt = `[INPUT]
+  const userPrompt = isAudio
+    ? `[INPUT]
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
+CRITICAL REQUIREMENT: Listen carefully to the attached audio and transcribe all spoken words verbatim into "transcript". If there is no speech, silence, or non-speech sounds, leave "transcript" as empty string "". Output clean structured JSON matching the schema.`
+    : `[INPUT]
 User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
 OCR Extracted Text:
 """
@@ -161,10 +197,25 @@ Please visually analyze the attached image and OCR text, and return the structur
         data: input.imageBase64.trim(),
       },
     });
+  } else if (input.audioBase64 && input.audioBase64.trim().length > 0) {
+    let audioMime = input.mimeType || "audio/mp4";
+    if (audioMime === "audio/m4a" || audioMime === "audio/x-m4a") {
+      audioMime = "audio/mp4";
+    }
+    parts.push({
+      inlineData: {
+        mimeType: audioMime,
+        data: input.audioBase64.trim(),
+      },
+    });
   }
   parts.push({
     text: `${systemInstruction}\n\n${userPrompt}`,
   });
+
+  const requiredFields = isAudio
+    ? ["title", "category", "tags", "summary", "transcript"]
+    : ["title", "category", "tags", "summary"];
 
   const payload = {
     contents: [
@@ -198,6 +249,10 @@ Please visually analyze the attached image and OCR text, and return the structur
             description:
               "Maximum 1-2 concise points/lines of semantic description (e.g. • App/Platform • Core subject). No raw OCR dumps, URLs, or UI noise.",
           },
+          transcript: {
+            type: "STRING",
+            description: "Verbatim transcript of the spoken audio",
+          },
           entities: {
             type: "ARRAY",
             items: {
@@ -212,7 +267,7 @@ Please visually analyze the attached image and OCR text, and return the structur
             description: "Key entities extracted for Living Memory",
           },
         },
-        required: ["title", "category", "tags", "summary"],
+        required: requiredFields,
       },
     },
   };
@@ -353,12 +408,16 @@ Please visually analyze the attached image and OCR text, and return the structur
   const totalTokens =
     usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
 
+  const resolvedTranscript =
+    typeof parsed.transcript === "string" ? parsed.transcript.trim() : "";
+
   return {
     metadata: {
       title: resolvedTitle,
       category: resolvedCategory,
       tags: resolvedTags,
       summary: resolvedSummary,
+      transcript: resolvedTranscript,
       entities: resolvedEntities,
     },
     modelUsed,
@@ -593,4 +652,375 @@ export async function generateEmbedding(
     // Re-throw non-retryable errors (e.g., 401 Unauthorized, aborts)
     throw err;
   }
+}
+
+/**
+ * Calls Gemini text generation API for RAG synthesis.
+ */
+async function callSynthesisApi(
+  model: string,
+  systemInstruction: string,
+  userPrompt: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<{ text: string; usage: TokenUsage }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    const err = new Error(
+      `Gemini synthesis LLM (${model}) failed with status ${response.status}: ${errorBody}`
+    );
+    (err as any).status = response.status;
+    throw err;
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error(`Gemini synthesis LLM (${model}) returned an empty response candidate.`);
+  }
+
+  const usageMetadata = data.usageMetadata;
+  const promptTokens = usageMetadata?.promptTokenCount ?? 0;
+  const completionTokens = usageMetadata?.candidatesTokenCount ?? 0;
+  const totalTokens =
+    usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
+
+  return {
+    text: text.trim(),
+    usage: {
+      promptTokens,
+      completionTokens,
+      totalTokens,
+    },
+  };
+}
+
+/**
+ * Synthesizes a grounded answer from matched memories using Gemini 3.8 Flash
+ * with fallback to Gemini 2.5 Flash.
+ */
+export async function synthesizeAnswer(
+  query: string,
+  memories: GroundedMemoryItem[],
+  signal?: AbortSignal
+): Promise<SynthesisResult> {
+  const apiKey = getGeminiApiKey();
+
+  const formattedMemories = memories
+    .map((m, index) => {
+      const memoryNumber = index + 1;
+      const title = (m.title || "").trim() || "Untitled Note";
+      const dateStr = m.client_created_at
+        ? new Date(m.client_created_at).toISOString().split("T")[0]
+        : "Unknown Date";
+      const categoryStr = m.category || "General";
+      const tagsStr =
+        Array.isArray(m.tags) && m.tags.length > 0
+          ? m.tags.join(", ")
+          : "none";
+
+      return `[Memory ${memoryNumber}] (ID: ${m.id})
+Title: ${title}
+Date: ${dateStr} | Category: ${categoryStr} | Tags: ${tagsStr}
+Content:
+"""
+${m.content}
+"""`;
+    })
+    .join("\n\n");
+
+  const systemInstruction = `You are the personal AI knowledge assistant for the user's "Second Brain".
+Your goal is to answer the user's question accurately, concisely, and factually based EXCLUSIVELY on their personal memories provided below.
+
+Strict Grounding & Citation Rules:
+1. Base your answer strictly on the provided context memories. Do NOT hallucinate, extrapolate, or invent facts that are not explicitly present in the memories.
+2. If the memories do not contain enough relevant information to answer the question, state clearly and politely: "Based on your stored notes and memories, I don't have sufficient information to answer this question."
+3. Cite your sources inline using brackets like [1], [2], etc., corresponding to the [Memory X] source numbers from which facts were gathered.
+4. Keep the answer clear, helpful, and concise (typically 2-5 sentences unless greater detail is needed).`;
+
+  const userPrompt = `[RETRIEVED MEMORIES]
+${formattedMemories}
+
+[USER QUESTION]
+${query.trim()}
+
+Answer:`;
+
+  try {
+    const result = await callSynthesisApi(
+      SYNTHESIS_MODEL,
+      systemInstruction,
+      userPrompt,
+      apiKey,
+      signal
+    );
+    return {
+      answer: result.text,
+      modelUsed: SYNTHESIS_MODEL,
+      usage: result.usage,
+    };
+  } catch (err: any) {
+    const status = err?.status;
+    const isRetryable =
+      status === 404 ||
+      status === 400 ||
+      status === 429 ||
+      (typeof status === "number" && status >= 500);
+
+    if (isRetryable && !signal?.aborted) {
+      console.warn(
+        `[Synthesis Fallback] Primary model "${SYNTHESIS_MODEL}" failed with status ${status}: ${err?.message}. Falling back to "${SYNTHESIS_FALLBACK_MODEL}"...`
+      );
+
+      try {
+        const fallbackResult = await callSynthesisApi(
+          SYNTHESIS_FALLBACK_MODEL,
+          systemInstruction,
+          userPrompt,
+          apiKey,
+          signal
+        );
+        return {
+          answer: fallbackResult.text,
+          modelUsed: SYNTHESIS_FALLBACK_MODEL,
+          usage: fallbackResult.usage,
+        };
+      } catch (fallbackErr: any) {
+        console.warn(
+          `[Synthesis Safety Fallback] Fallback model "${SYNTHESIS_FALLBACK_MODEL}" also failed. Falling back to "${INGESTION_MODEL}"...`
+        );
+        const lastResortResult = await callSynthesisApi(
+          INGESTION_MODEL,
+          systemInstruction,
+          userPrompt,
+          apiKey,
+          signal
+        );
+        return {
+          answer: lastResortResult.text,
+          modelUsed: INGESTION_MODEL,
+          usage: lastResortResult.usage,
+        };
+      }
+    }
+
+    throw err;
+  }
+}
+
+export interface CandidateForRerank {
+  id: string;
+  title?: string | null;
+  content: string;
+  category?: string | null;
+  tags?: string[] | null;
+}
+
+export interface RerankedCandidateResult {
+  id: string;
+  isRelevant: boolean;
+  confidence: "high" | "medium" | "low";
+  reason?: string;
+}
+
+export interface BatchRerankResult {
+  evaluations: RerankedCandidateResult[];
+  modelUsed: string;
+  usage: TokenUsage;
+}
+
+/**
+ * Batched semantic reranking of candidate memories using Gemini.
+ * Determines whether each candidate memory is genuinely relevant to the user query.
+ * Evaluates candidates in a single prompt and filters out unrelated items.
+ */
+export async function rerankCandidates(
+  query: string,
+  candidates: CandidateForRerank[],
+  signal?: AbortSignal
+): Promise<BatchRerankResult> {
+  if (!candidates || candidates.length === 0) {
+    return {
+      evaluations: [],
+      modelUsed: "none",
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    };
+  }
+
+  const apiKey = getGeminiApiKey();
+
+  const formattedCandidates = candidates
+    .map((c, i) => {
+      const num = i + 1;
+      const title = (c.title || "").trim() || "Untitled Note";
+      const cat = c.category || "General";
+      const tags =
+        Array.isArray(c.tags) && c.tags.length > 0 ? c.tags.join(", ") : "none";
+      const contentSnippet =
+        c.content.length > 350 ? c.content.slice(0, 350) + "..." : c.content;
+      return `[Candidate ${num}] ID: ${c.id}
+Title: ${title} | Category: ${cat} | Tags: ${tags}
+Content: "${contentSnippet}"`;
+    })
+    .join("\n\n");
+
+  const systemInstruction = `You are an expert retrieval relevance evaluator for a personal "Second Brain" assistant.
+Your task is to determine whether each retrieved candidate memory is GENUINELY RELEVANT to the user's question.
+
+Evaluation Guidelines:
+1. Set "is_relevant": true IF the candidate memory directly or semantically relates to what the user is asking about, including domain synonyms and related items (e.g. clothing, dress, fabric, garments, and lace are relevant to fashion/clothing queries; code, IDEs, programming reels, bugs, and algorithms are relevant to software development queries).
+2. Set "is_relevant": false IF the candidate is completely unrelated or only shares superficial metadata (e.g. an underexposed dark photo, a mouse, or a dining table is NOT relevant to a clothing query; a dress or fabric note is NOT relevant to a programming query).
+3. Provide "confidence": "high", "medium", or "low".
+4. Do NOT hallucinate facts not present in the candidate memory.`;
+
+  const userPrompt = `[USER QUESTION]
+${query.trim()}
+
+[CANDIDATE MEMORIES]
+${formattedCandidates}
+
+Evaluate each candidate memory's relevance to the question.`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          evaluations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                id: { type: "STRING" },
+                is_relevant: { type: "BOOLEAN" },
+                confidence: { type: "STRING" },
+                reason: { type: "STRING" },
+              },
+              required: ["id", "is_relevant"],
+            },
+          },
+        },
+        required: ["evaluations"],
+      },
+    },
+  };
+
+  const candidateModels = [
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
+    INGESTION_MODEL,
+    "gemini-2.5-flash",
+  ];
+
+  for (const model of candidateModels) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(
+          `[Reranker Warning] Model ${model} returned ${response.status}: ${errorText}`
+        );
+        continue;
+      }
+
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      const parsed = JSON.parse(rawText);
+      const evaluationsList: RerankedCandidateResult[] = [];
+
+      if (Array.isArray(parsed?.evaluations)) {
+        for (const ev of parsed.evaluations) {
+          evaluationsList.push({
+            id: String(ev.id),
+            isRelevant: Boolean(ev.is_relevant),
+            confidence:
+              ev.confidence === "high" ||
+              ev.confidence === "medium" ||
+              ev.confidence === "low"
+                ? ev.confidence
+                : "medium",
+            reason: ev.reason ? String(ev.reason) : undefined,
+          });
+        }
+      }
+
+      const usageMetadata = data.usageMetadata;
+      const promptTokens = usageMetadata?.promptTokenCount ?? 0;
+      const completionTokens = usageMetadata?.candidatesTokenCount ?? 0;
+      const totalTokens =
+        usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
+
+      return {
+        evaluations: evaluationsList,
+        modelUsed: model,
+        usage: { promptTokens, completionTokens, totalTokens },
+      };
+    } catch (err: any) {
+      console.warn(
+        `[Reranker Attempt Error] Model ${model} failed:`,
+        err?.message
+      );
+    }
+  }
+
+  // Graceful fallback: if reranker failed, return all candidates as accepted with medium confidence
+  console.warn(
+    "[Reranker Fallback] Reranking models exhausted. Defaulting to hybrid rank fusion scores."
+  );
+  return {
+    evaluations: candidates.map((c) => ({
+      id: c.id,
+      isRelevant: true,
+      confidence: "medium" as const,
+      reason: "Fallback: deterministic hybrid rank",
+    })),
+    modelUsed: "deterministic-fallback",
+    usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+  };
 }

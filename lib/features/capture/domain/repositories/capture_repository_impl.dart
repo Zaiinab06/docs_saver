@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
@@ -57,7 +58,37 @@ class CaptureRepositoryImpl implements CaptureRepository {
         await localDataSource.getUnsyncedMemories(userId: effectiveUserId);
     for (final model in pendingModels) {
       try {
-        final entity = model.toEntity();
+        var entity = model.toEntity();
+        if (entity.mediaUrl != null &&
+            !entity.mediaUrl!.startsWith('http://') &&
+            !entity.mediaUrl!.startsWith('https://') &&
+            effectiveUserId != null &&
+            effectiveUserId != 'local_user') {
+          try {
+            final file = File(entity.mediaUrl!);
+            if (file.existsSync()) {
+              final bytes = await file.readAsBytes();
+              final ext = entity.mediaUrl!.split('.').last;
+              final fileName = 'media_${DateTime.now().millisecondsSinceEpoch}.$ext';
+              final storageKey = '$effectiveUserId/$fileName';
+              final mime = ext == 'm4a' ? 'audio/m4a' : 'image/$ext';
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: FileOptions(contentType: mime),
+                  );
+              final publicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
+              if (publicUrl.isNotEmpty) {
+                model.mediaUrl = publicUrl;
+                entity = model.toEntity();
+              }
+            }
+          } catch (_) {}
+        }
         await remoteDataSource.upsertMemory(entity);
         await localDataSource.markAsSynced(model.serverId);
       } catch (_) {

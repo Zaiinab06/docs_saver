@@ -53,6 +53,27 @@ class _SavedScreenState extends State<SavedScreen> {
 
   Widget _buildThumbnail(MemoryEntity memory) {
     final media = memory.mediaUrl;
+    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
+        (media != null &&
+            (media.endsWith('.m4a') ||
+             media.endsWith('.aac') ||
+             media.endsWith('.mp3') ||
+             media.endsWith('.wav')));
+
+    if (isVoice) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AppColors.lightCyanTint,
+        child: const Center(
+          child: Icon(
+            Icons.mic_rounded,
+            color: AppColors.primary,
+            size: 22,
+          ),
+        ),
+      );
+    }
     if (media == null || media.isEmpty) {
       return Icon(
         _getCategoryIcon(memory.category),

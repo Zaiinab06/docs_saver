@@ -20,6 +20,7 @@ import '../../../capture/presentation/screens/memory_detail_screen.dart';
 import '../../../capture/presentation/screens/memory_review_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
+import '../../../capture/presentation/screens/voice_record_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -434,7 +435,16 @@ class HomeScreenState extends State<HomeScreen> {
     final cat = memory.category.toLowerCase();
     final tags = memory.tags.map((t) => t.toLowerCase()).toList();
     final content = memory.content.toLowerCase();
+    final isVoice = tags.contains('voice') ||
+        (memory.mediaUrl != null &&
+            (memory.mediaUrl!.endsWith('.m4a') ||
+             memory.mediaUrl!.endsWith('.aac') ||
+             memory.mediaUrl!.endsWith('.mp3') ||
+             memory.mediaUrl!.endsWith('.wav')));
 
+    if (isVoice) {
+      return Icons.mic_rounded;
+    }
     if (memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
       return Icons.image_outlined;
     }
@@ -470,6 +480,27 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMemoryThumbnail(MemoryEntity memory) {
     final media = memory.mediaUrl;
+    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
+        (media != null &&
+            (media.endsWith('.m4a') ||
+             media.endsWith('.aac') ||
+             media.endsWith('.mp3') ||
+             media.endsWith('.wav')));
+
+    if (isVoice) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AppColors.lightCyanTint,
+        child: const Center(
+          child: Icon(
+            Icons.mic_rounded,
+            color: AppColors.primary,
+            size: 22,
+          ),
+        ),
+      );
+    }
     if (media == null || media.isEmpty) {
       return Icon(
         _getMemoryIcon(memory),
@@ -1057,6 +1088,18 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleRecordVoice() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const VoiceRecordScreen(),
+      ),
+    );
+
+    if (saved == true && mounted) {
+      context.read<CaptureBloc>().add(LoadMemoriesEvent());
+    }
+  }
+
   Widget _buildCaptureOption({
     required BuildContext context,
     required IconData icon,
@@ -1076,6 +1119,8 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleAddLink();
           } else if (title == 'Add Note') {
             await _handleAddNote();
+          } else if (title == 'Record Voice') {
+            await _handleRecordVoice();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

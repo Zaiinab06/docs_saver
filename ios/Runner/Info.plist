@@ -70,5 +70,7 @@
 	<string>2nd Brain needs camera access to scan documents and extract text.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>2nd Brain needs photo library access to import documents.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>2nd Brain needs microphone access to record voice notes.</string>
 </dict>
 </plist>

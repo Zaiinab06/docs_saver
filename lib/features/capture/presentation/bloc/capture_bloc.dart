@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -120,17 +121,26 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
 
       final needsEmbedding =
           newMemory.embedding == null || newMemory.embedding!.isEmpty;
+      final isVoice = newMemory.tags.any((t) => t.toLowerCase() == 'voice') ||
+          (newMemory.mediaUrl != null &&
+              (newMemory.mediaUrl!.endsWith('.m4a') ||
+               newMemory.mediaUrl!.endsWith('.aac') ||
+               newMemory.mediaUrl!.endsWith('.mp3') ||
+               newMemory.mediaUrl!.endsWith('.wav')));
       final hasMeaningfulContent =
-          newMemory.content.trim().isNotEmpty || newMemory.title.trim().isNotEmpty;
+          newMemory.content.trim().isNotEmpty ||
+          newMemory.title.trim().isNotEmpty ||
+          isVoice;
 
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
           isSupabaseAvailable) {
-        final isNote = newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty;
+        final isNote = (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) && !isVoice;
         unawaited(
           _triggerBackgroundIngestion(
             newMemory,
             isNote: isNote,
+            isVoice: isVoice,
             isEmbeddingOnly: newMemory.aiStatus == 'processed',
           ),
         );
@@ -159,15 +169,24 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           for (final mem in memories) {
             final needsEmbedding =
                 mem.embedding == null || mem.embedding!.isEmpty;
+            final isVoice = mem.tags.any((t) => t.toLowerCase() == 'voice') ||
+                (mem.mediaUrl != null &&
+                    (mem.mediaUrl!.endsWith('.m4a') ||
+                     mem.mediaUrl!.endsWith('.aac') ||
+                     mem.mediaUrl!.endsWith('.mp3') ||
+                     mem.mediaUrl!.endsWith('.wav')));
             final hasMeaningfulContent =
-                mem.content.trim().isNotEmpty || mem.title.trim().isNotEmpty;
-            final isNote = mem.mediaUrl == null || mem.mediaUrl!.isEmpty;
+                mem.content.trim().isNotEmpty ||
+                mem.title.trim().isNotEmpty ||
+                isVoice;
+            final isNote = (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) && !isVoice;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
                 hasMeaningfulContent) {
               unawaited(
                 _triggerBackgroundIngestion(
                   mem,
                   isNote: isNote,
+                  isVoice: isVoice,
                   isEmbeddingOnly: mem.aiStatus == 'processed',
                 ),
               );
@@ -213,15 +232,65 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   Future<void> _triggerBackgroundIngestion(
     MemoryEntity memory, {
     required bool isNote,
+    bool isVoice = false,
     required bool isEmbeddingOnly,
   }) async {
     try {
+      String? audioBase64;
+      String? mimeType;
+
+      if (isVoice && memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
+        try {
+          final file = File(memory.mediaUrl!);
+          if (file.existsSync()) {
+            final bytes = await file.readAsBytes();
+            audioBase64 = base64Encode(bytes);
+            mimeType = 'audio/m4a';
+
+            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+            if (currentUserId != null && currentUserId != 'local_user') {
+              final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+              final storageKey = '$currentUserId/$fileName';
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: const FileOptions(contentType: 'audio/m4a'),
+                  );
+              final publicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
+              if (publicUrl.isNotEmpty) {
+                final isar = IsarService.instance;
+                final existing = await isar.memoryModels
+                    .filter()
+                    .serverIdEqualTo(memory.id)
+                    .findFirst();
+                if (existing != null) {
+                  existing.mediaUrl = publicUrl;
+                  await isar.writeTxn(() async {
+                    await isar.memoryModels.put(existing);
+                  });
+                }
+                await Supabase.instance.client
+                    .from('memories')
+                    .update({'media_url': publicUrl})
+                    .eq('id', memory.id);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       final response = await Supabase.instance.client.functions.invoke(
         'process-ingestion',
         body: {
           'memoryId': memory.id,
           if (isNote) 'preserve_content': true,
           if (isEmbeddingOnly) 'embedding_only': true,
+          if (audioBase64 != null) 'audio_base64': audioBase64,
+          if (mimeType != null) 'mime_type': mimeType,
         },
       );
 
@@ -283,6 +352,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             existing.category = remoteModel.category;
             existing.tags = remoteModel.tags;
             existing.aiStatus = remoteModel.aiStatus;
+            if (remoteModel.content.isNotEmpty) {
+              existing.content = remoteModel.content;
+            }
+            if (remoteModel.mediaUrl != null && remoteModel.mediaUrl!.isNotEmpty) {
+              existing.mediaUrl = remoteModel.mediaUrl;
+            }
             if (remoteModel.embedding != null) {
               existing.embedding = remoteModel.embedding;
             }
@@ -297,6 +372,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             }
             if (resData['tags'] != null) {
               existing.tags = List<String>.from(resData['tags'] as List);
+            }
+            if (resData['content'] != null && resData['content'].toString().isNotEmpty) {
+              existing.content = resData['content'].toString();
             }
             existing.aiStatus =
                 (resData['ai_status'] ?? 'processed').toString();
@@ -322,7 +400,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             id: memoryId,
             userId: fallbackMemory.userId,
             title: (resData['title'] ?? fallbackMemory.title).toString(),
-            content: fallbackMemory.content,
+            content: (resData['content'] ?? fallbackMemory.content).toString(),
             mediaUrl: fallbackMemory.mediaUrl,
             tags: resData['tags'] != null
                 ? List<String>.from(resData['tags'] as List)
