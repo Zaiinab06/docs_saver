@@ -17,10 +17,14 @@ import '../bloc/search_state.dart';
 
 class SearchScreen extends StatefulWidget {
   final SearchBloc? searchBloc;
+  final bool? showBackButton;
+  final bool autofocus;
 
   const SearchScreen({
     super.key,
     this.searchBloc,
+    this.showBackButton,
+    this.autofocus = true,
   });
 
   @override
@@ -170,6 +174,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = widget.showBackButton ?? Navigator.of(context).canPop();
+
     return BlocProvider.value(
       value: _bloc,
       child: Scaffold(
@@ -177,11 +183,14 @@ class _SearchScreenState extends State<SearchScreen> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0.5,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          titleSpacing: 0,
+          automaticallyImplyLeading: false,
+          leading: canGoBack
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
+          titleSpacing: canGoBack ? 0 : 16,
           title: Container(
             height: 44,
             margin: const EdgeInsets.only(right: 16),
@@ -192,7 +201,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             child: TextField(
               controller: _searchController,
-              autofocus: true,
+              autofocus: widget.autofocus,
               onChanged: _onQueryChanged,
               onSubmitted: _onQuerySubmitted,
               style: const TextStyle(

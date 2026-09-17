@@ -38,3 +38,12 @@ class SignInRequested extends AuthEvent {
 }
 
 class SignOutRequested extends AuthEvent {}
+
+class ResendVerificationEmailRequested extends AuthEvent {
+  final String email;
+
+  const ResendVerificationEmailRequested({required this.email});
+
+  @override
+  List<Object?> get props => [email];
+}

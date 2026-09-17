@@ -124,10 +124,17 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   String _formatErrorMessage(String message) {
+    if (message.toLowerCase().contains('email not confirmed')) {
+      return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
+    }
     final regex = RegExp(r'AuthException\s*\(\s*message:\s*([^,)]+)');
     final match = regex.firstMatch(message);
     if (match != null && match.group(1) != null) {
-      return match.group(1)!.trim();
+      final msg = match.group(1)!.trim();
+      if (msg.toLowerCase().contains('email not confirmed')) {
+        return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
+      }
+      return msg;
     }
     if (message.startsWith('Exception: ')) {
       return message.replaceFirst('Exception: ', '').trim();
@@ -205,7 +212,48 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
             );
-          } else if (state is Authenticated || state is AuthSuccess) {
+          } else if (state is AuthNeedsConfirmation) {
+            _passwordController.clear();
+            _emailController.text = state.email;
+            _switchMode(AuthMode.signIn);
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                backgroundColor: AppColors.snackBarBackground,
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.mark_email_read_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        state.message ??
+                            'Verification email sent to ${state.email}. Please verify before signing in.',
+                        style: const TextStyle(
+                          color: AppColors.textWhite,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else if (state is Authenticated ||
+              (state is AuthSuccess && state.user.hasSession)) {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }
@@ -285,6 +333,11 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
 
                       const SizedBox(height: 32),
+
+                      if (state is AuthNeedsConfirmation) ...[
+                        _buildEmailConfirmationCard(state.email, state.message),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Sliding Pill Segment / Toggle
                       Container(
@@ -655,6 +708,104 @@ class _AuthScreenState extends State<AuthScreen> {
           validator: validator,
         ),
       ],
+    );
+  }
+
+  Widget _buildEmailConfirmationCard(String email, String? message) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.lightCyanTint,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.categoryChipBorder,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.mark_email_read_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Check your email',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message ??
+                          'We sent a verification link to $email. Please click the link to activate your account.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () {
+                context.read<AuthBloc>().add(
+                      ResendVerificationEmailRequested(email: email),
+                    );
+              },
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 14,
+                color: AppColors.primaryDark,
+              ),
+              label: const Text(
+                'Resend verification email',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

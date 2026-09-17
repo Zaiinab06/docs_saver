@@ -24,7 +24,7 @@ import 'features/capture/domain/usecases/save_memory_usecase.dart';
 import 'features/capture/domain/usecases/subscribe_to_memories_usecase.dart';
 import 'features/capture/presentation/bloc/capture_bloc.dart';
 import 'features/capture/presentation/bloc/capture_event.dart';
-import 'features/home/presentation/screens/home_screen.dart';
+import 'features/navigation/presentation/screens/main_navigation_shell.dart';
 import 'features/onboarding/presentation/screens/onboarding_screen.dart';
 
 void main() async {
@@ -156,16 +156,18 @@ class AuthSessionGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
-        if (state is Authenticated || state is AuthSuccess) {
+        if (state is Authenticated ||
+            (state is AuthSuccess && state.user.hasSession)) {
           context.read<CaptureBloc>().add(LoadMemoriesEvent());
         }
       },
       builder: (context, state) {
-        if (state is Authenticated || state is AuthSuccess) {
+        if (state is Authenticated ||
+            (state is AuthSuccess && state.user.hasSession)) {
           final user = state is Authenticated
               ? state.user
               : (state as AuthSuccess).user;
-          return HomeScreen(userName: user.fullName);
+          return MainNavigationShell(userName: user.fullName);
         } else if (state is AuthLoading || state is AuthInitial) {
           return const Scaffold(
             backgroundColor: AppColors.background,

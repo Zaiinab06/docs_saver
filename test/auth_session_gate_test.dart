@@ -67,6 +67,9 @@ class FakeAuthRepository implements AuthRepository {
     _authController.add(null);
   }
 
+  @override
+  Future<void> resendVerificationEmail({required String email}) async {}
+
   void dispose() {
     _authController.close();
   }

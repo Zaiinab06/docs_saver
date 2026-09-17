@@ -29,6 +29,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignUpRequested>(_onSignUpRequested);
     on<SignInRequested>(_onSignInRequested);
     on<SignOutRequested>(_onSignOutRequested);
+    on<ResendVerificationEmailRequested>(_onResendVerificationEmailRequested);
 
     _authSubscription = authRepository.authStateChanges.listen((user) {
       if (user != null) {
@@ -63,9 +64,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
         fullName: event.fullName,
       );
-      print('DEBUG: SignUp successful in AuthBloc for user: ${user.id}, email: ${user.email}');
-      emit(AuthSuccess(user));
-      emit(Authenticated(user));
+      print('DEBUG: SignUp successful in AuthBloc for user: ${user.id}, email: ${user.email}, hasSession: ${user.hasSession}');
+      if (user.hasSession) {
+        emit(AuthSuccess(user));
+        emit(Authenticated(user));
+      } else {
+        emit(AuthNeedsConfirmation(
+          email: user.email ?? event.email,
+          message:
+              'Verification link sent to ${user.email ?? event.email}. Please verify your email before signing in.',
+        ));
+      }
     } on AuthException catch (e, stack) {
       print('DEBUG: AuthException in AuthBloc _onSignUpRequested: ${e.message} (status: ${e.statusCode})');
       print('DEBUG: Stack trace: $stack');
@@ -108,15 +117,40 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  Future<void> _onResendVerificationEmailRequested(
+    ResendVerificationEmailRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    try {
+      await authRepository.resendVerificationEmail(email: event.email);
+      emit(AuthNeedsConfirmation(
+        email: event.email,
+        message: 'A new verification link has been sent to ${event.email}.',
+      ));
+    } catch (e) {
+      emit(AuthFailure(_cleanErrorMessage(e)));
+    }
+  }
+
   String _cleanErrorMessage(dynamic error) {
     if (error is AuthException) {
+      if (error.message.toLowerCase().contains('email not confirmed')) {
+        return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
+      }
       return error.message;
     }
     final raw = error.toString();
+    if (raw.toLowerCase().contains('email not confirmed')) {
+      return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
+    }
     final regex = RegExp(r'AuthException\s*\(\s*message:\s*([^,)]+)');
     final match = regex.firstMatch(raw);
     if (match != null && match.group(1) != null) {
-      return match.group(1)!.trim();
+      final msg = match.group(1)!.trim();
+      if (msg.toLowerCase().contains('email not confirmed')) {
+        return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
+      }
+      return msg;
     }
     if (raw.startsWith('Exception: ')) {
       return raw.replaceFirst('Exception: ', '').trim();

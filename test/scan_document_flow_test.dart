@@ -13,7 +13,7 @@ import 'package:second_brain/features/capture/domain/usecases/save_memory_usecas
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
 import 'package:second_brain/features/capture/presentation/screens/memory_review_screen.dart';
 import 'package:second_brain/features/capture/presentation/screens/photo_review_screen.dart';
-import 'package:second_brain/features/home/presentation/screens/home_screen.dart';
+import 'package:second_brain/features/navigation/presentation/screens/main_navigation_shell.dart';
 
 class FakeDocumentAiRepository implements AiRepository {
   final String title;
@@ -196,14 +196,14 @@ void main() {
             BlocProvider<CaptureBloc>.value(value: captureBloc),
           ],
           child: const MaterialApp(
-            home: HomeScreen(userName: 'Noor'),
+            home: MainNavigationShell(userName: 'Noor'),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
       // Open + bottom sheet
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
       await tester.pumpAndSettle();
 
       // Tap "Scan Document"
@@ -246,14 +246,14 @@ void main() {
             BlocProvider<CaptureBloc>.value(value: captureBloc),
           ],
           child: const MaterialApp(
-            home: HomeScreen(userName: 'Noor'),
+            home: MainNavigationShell(userName: 'Noor'),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
       // Open + bottom sheet
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
       await tester.pumpAndSettle();
 
       // Tap "Scan Document"

@@ -7,7 +7,7 @@ import 'package:second_brain/features/capture/domain/repositories/capture_reposi
 import 'package:second_brain/features/capture/domain/usecases/get_memories_usecase.dart';
 import 'package:second_brain/features/capture/domain/usecases/save_memory_usecase.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
-import 'package:second_brain/features/home/presentation/screens/home_screen.dart';
+import 'package:second_brain/features/navigation/presentation/screens/main_navigation_shell.dart';
 import 'package:second_brain/features/search/presentation/screens/search_screen.dart';
 
 class FakeCaptureRepository implements CaptureRepository {
@@ -105,7 +105,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          home: HomeScreen(userName: userName),
+          home: MainNavigationShell(userName: userName),
         ),
       );
     }
@@ -295,8 +295,8 @@ void main() {
       await tester.pumpWidget(createTestApp([]));
       await tester.pumpAndSettle();
 
-      // Tap FAB
-      await tester.tap(find.byType(FloatingActionButton));
+      // Tap center + capture button in bottom nav
+      await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
       await tester.pumpAndSettle();
 
       // Verify bottom sheet appears with Take Photo

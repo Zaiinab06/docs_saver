@@ -33,6 +33,19 @@ class AuthSuccess extends AuthState {
 
 class Unauthenticated extends AuthState {}
 
+class AuthNeedsConfirmation extends AuthState {
+  final String email;
+  final String? message;
+
+  const AuthNeedsConfirmation({
+    required this.email,
+    this.message,
+  });
+
+  @override
+  List<Object?> get props => [email, message];
+}
+
 class AuthFailure extends AuthState {
   final String errorMessage;
 

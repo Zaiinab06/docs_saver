@@ -56,19 +56,26 @@ class HomeScreen extends StatefulWidget {
   final String? userName;
   final IngestMemoryUseCase? ingestMemoryUseCase;
   final LinkMetadataExtractor? linkMetadataExtractor;
+  final VoidCallback? onSearchTap;
 
   const HomeScreen({
     super.key,
     this.userName,
     this.ingestMemoryUseCase,
     this.linkMetadataExtractor,
+    this.onSearchTap,
   });
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
+  /// Opens the capture options bottom sheet modal
+  void openCaptureBottomSheet() {
+    _showCaptureBottomSheet(context);
+  }
+
   String _selectedCategory = 'All';
   final Set<String> _locallyPinnedIds = {};
   final Set<String> _locallyUnpinnedIds = {};
@@ -645,31 +652,6 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-
-      // Floating Action Button
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.38),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () => _showCaptureBottomSheet(context),
-          backgroundColor: AppColors.primary,
-          elevation: 0,
-          shape: const CircleBorder(),
-          child: const Icon(
-            Icons.add_rounded,
-            color: AppColors.textWhite,
-            size: 30,
-          ),
-        ),
-      ),
     ),
   );
 }
@@ -1238,6 +1220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+
                           // Bell button with notification dot
                           Material(
                             color: Colors.transparent,
@@ -1373,9 +1356,13 @@ class _HomeScreenState extends State<HomeScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const SearchScreen()),
-          );
+          if (widget.onSearchTap != null) {
+            widget.onSearchTap!();
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            );
+          }
         },
         borderRadius: BorderRadius.circular(100),
         child: Container(

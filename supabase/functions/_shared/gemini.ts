@@ -7,27 +7,9 @@
  */
 
 export const INGESTION_MODEL = "gemini-3.5-flash-lite";
-export const SYNTHESIS_MODEL = "gemini-3.8-flash";
-export const SYNTHESIS_FALLBACK_MODEL = "gemini-2.5-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
-
-export interface GroundedMemoryItem {
-  id: string;
-  title?: string | null;
-  content: string;
-  category?: string | null;
-  tags?: string[] | null;
-  client_created_at?: string | null;
-  similarity?: number | null;
-}
-
-export interface SynthesisResult {
-  answer: string;
-  modelUsed: string;
-  usage: TokenUsage;
-}
 
 export interface LivingEntityItem {
   name: string;
@@ -475,25 +457,38 @@ async function callEmbeddingApi(
   return values;
 }
 
+export interface MemoryEmbeddingInput {
+  title?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  content: string;
+}
+
 /**
- * Generates a 768-dimension dense vector embedding for content + title.
- * Pipeline: Primary (gemini-embedding-2-preview) with automatic fallback
- * to (gemini-embedding-001) on 429 or 5xx server errors.
+ * Formats a memory into the standard retrieval-document representation:
+ * title: {title} | category: {category} | tags: {tags} | text: {content}
  */
-export async function generateEmbedding(
-  title: string | null | undefined,
-  content: string,
-  signal?: AbortSignal
-): Promise<EmbeddingResult> {
-  const apiKey = getGeminiApiKey();
+export function formatMemoryForEmbedding(input: MemoryEmbeddingInput): string {
+  const parts: string[] = [];
+  const cleanTitle = (input.title || "").trim();
+  if (cleanTitle) {
+    parts.push(`title: ${cleanTitle}`);
+  }
 
-  // Combine title and content for rich semantic representation
-  const cleanTitle = (title || "").trim();
-  let cleanContent = (content || "").trim();
+  const cleanCategory = (input.category || "").trim();
+  if (cleanCategory) {
+    parts.push(`category: ${cleanCategory}`);
+  }
 
-  // If content begins with a URL line followed by article/readable content,
-  // strip the bare URL from the embedding input so the 768-d vector focuses
-  // strictly on the high-signal semantic text.
+  const tagList = Array.isArray(input.tags)
+    ? input.tags.map((t) => String(t).trim()).filter((t) => t.length > 0)
+    : [];
+  if (tagList.length > 0) {
+    parts.push(`tags: ${tagList.join(", ")}`);
+  }
+
+  let cleanContent = (input.content || "").trim();
+  // Strip bare URL line 1 if article body text follows
   if (
     (cleanContent.startsWith("http://") || cleanContent.startsWith("https://")) &&
     cleanContent.includes("\n")
@@ -504,12 +499,53 @@ export async function generateEmbedding(
     }
   }
 
-  const textToEmbed = cleanTitle
-    ? `${cleanTitle}\n\n${cleanContent}`
-    : cleanContent;
+  if (cleanContent) {
+    parts.push(`text: ${cleanContent}`);
+  }
 
-  if (!textToEmbed) {
-    throw new Error("Cannot generate embedding: Title and content are both empty.");
+  return parts.join(" | ");
+}
+
+/**
+ * Formats a search/ask query into the corresponding retrieval-query representation:
+ * query: {query}
+ */
+export function formatQueryForEmbedding(query: string): string {
+  return `query: ${query.trim()}`;
+}
+
+/**
+ * Generates a 768-dimension dense vector embedding using gemini-embedding-2-preview.
+ * Supports:
+ * - Structured MemoryEmbeddingInput: title: ... | category: ... | tags: ... | text: ...
+ * - Query string: query: ...
+ * - Legacy (title, content) signature for backward compatibility
+ */
+export async function generateEmbedding(
+  titleOrInput: string | null | undefined | MemoryEmbeddingInput,
+  content?: string,
+  signal?: AbortSignal
+): Promise<EmbeddingResult> {
+  const apiKey = getGeminiApiKey();
+
+  let textToEmbed: string;
+
+  if (typeof titleOrInput === "object" && titleOrInput !== null) {
+    // Structured document embedding: title, category, tags, content
+    textToEmbed = formatMemoryForEmbedding(titleOrInput);
+  } else if (titleOrInput === null && typeof content === "string") {
+    // Query embedding: title is null, content is search query
+    textToEmbed = formatQueryForEmbedding(content);
+  } else {
+    // Legacy document embedding: title + content
+    textToEmbed = formatMemoryForEmbedding({
+      title: titleOrInput,
+      content: content || "",
+    });
+  }
+
+  if (!textToEmbed || textToEmbed.trim() === "" || textToEmbed.trim() === "query:") {
+    throw new Error("Cannot generate embedding: input text is empty.");
   }
 
   try {
@@ -531,7 +567,7 @@ export async function generateEmbedding(
 
     if (isRetryableStatus || (err?.name === "TypeError" && !signal?.aborted)) {
       console.warn(
-        `[Embedding Fallback] Primary model "${PRIMARY_EMBEDDING_MODEL}" failed with status ${status || "network"}: ${err?.message}. Falling back to "${FALLBACK_EMBEDDING_MODEL}"...`
+        `[Embedding Fallback] Primary model "${PRIMARY_EMBEDDING_MODEL}" failed with status ${status || "network"}: ${err?.message}. Retrying with fallback...`
       );
 
       try {
@@ -558,184 +594,3 @@ export async function generateEmbedding(
     throw err;
   }
 }
-
-/**
- * Calls Gemini text generation API for RAG synthesis.
- */
-async function callSynthesisApi(
-  model: string,
-  systemInstruction: string,
-  userPrompt: string,
-  apiKey: string,
-  signal?: AbortSignal
-): Promise<{ text: string; usage: TokenUsage }> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 1024,
-    },
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    const err = new Error(
-      `Gemini synthesis LLM (${model}) failed with status ${response.status}: ${errorBody}`
-    );
-    (err as any).status = response.status;
-    throw err;
-  }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error(`Gemini synthesis LLM (${model}) returned an empty response candidate.`);
-  }
-
-  const usageMetadata = data.usageMetadata;
-  const promptTokens = usageMetadata?.promptTokenCount ?? 0;
-  const completionTokens = usageMetadata?.candidatesTokenCount ?? 0;
-  const totalTokens =
-    usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
-
-  return {
-    text: text.trim(),
-    usage: {
-      promptTokens,
-      completionTokens,
-      totalTokens,
-    },
-  };
-}
-
-/**
- * Synthesizes a grounded answer from matched memories using Gemini 3.8 Flash
- * with fallback to Gemini 2.5 Flash.
- */
-export async function synthesizeAnswer(
-  query: string,
-  memories: GroundedMemoryItem[],
-  signal?: AbortSignal
-): Promise<SynthesisResult> {
-  const apiKey = getGeminiApiKey();
-
-  const formattedMemories = memories
-    .map((m, index) => {
-      const memoryNumber = index + 1;
-      const title = (m.title || "").trim() || "Untitled Note";
-      const dateStr = m.client_created_at
-        ? new Date(m.client_created_at).toISOString().split("T")[0]
-        : "Unknown Date";
-      const categoryStr = m.category || "General";
-      const tagsStr =
-        Array.isArray(m.tags) && m.tags.length > 0
-          ? m.tags.join(", ")
-          : "none";
-
-      return `[Memory ${memoryNumber}] (ID: ${m.id})
-Title: ${title}
-Date: ${dateStr} | Category: ${categoryStr} | Tags: ${tagsStr}
-Content:
-"""
-${m.content}
-"""`;
-    })
-    .join("\n\n");
-
-  const systemInstruction = `You are the personal AI knowledge assistant for the user's "Second Brain".
-Your goal is to answer the user's question accurately, concisely, and factually based EXCLUSIVELY on their personal memories provided below.
-
-Strict Grounding & Citation Rules:
-1. Base your answer strictly on the provided context memories. Do NOT hallucinate, extrapolate, or invent facts that are not explicitly present in the memories.
-2. If the memories do not contain enough relevant information to answer the question, state clearly and politely: "Based on your stored notes and memories, I don't have sufficient information to answer this question."
-3. Cite your sources inline using brackets like [1], [2], etc., corresponding to the [Memory X] source numbers from which facts were gathered.
-4. Keep the answer clear, helpful, and concise (typically 2-5 sentences unless greater detail is needed).`;
-
-  const userPrompt = `[RETRIEVED MEMORIES]
-${formattedMemories}
-
-[USER QUESTION]
-${query.trim()}
-
-Answer:`;
-
-  try {
-    const result = await callSynthesisApi(
-      SYNTHESIS_MODEL,
-      systemInstruction,
-      userPrompt,
-      apiKey,
-      signal
-    );
-    return {
-      answer: result.text,
-      modelUsed: SYNTHESIS_MODEL,
-      usage: result.usage,
-    };
-  } catch (err: any) {
-    const status = err?.status;
-    const isRetryable =
-      status === 404 ||
-      status === 400 ||
-      status === 429 ||
-      (typeof status === "number" && status >= 500);
-
-    if (isRetryable && !signal?.aborted) {
-      console.warn(
-        `[Synthesis Fallback] Primary model "${SYNTHESIS_MODEL}" failed with status ${status}: ${err?.message}. Falling back to "${SYNTHESIS_FALLBACK_MODEL}"...`
-      );
-
-      try {
-        const fallbackResult = await callSynthesisApi(
-          SYNTHESIS_FALLBACK_MODEL,
-          systemInstruction,
-          userPrompt,
-          apiKey,
-          signal
-        );
-        return {
-          answer: fallbackResult.text,
-          modelUsed: SYNTHESIS_FALLBACK_MODEL,
-          usage: fallbackResult.usage,
-        };
-      } catch (fallbackErr: any) {
-        console.warn(
-          `[Synthesis Safety Fallback] Fallback model "${SYNTHESIS_FALLBACK_MODEL}" also failed. Falling back to "${INGESTION_MODEL}"...`
-        );
-        const lastResortResult = await callSynthesisApi(
-          INGESTION_MODEL,
-          systemInstruction,
-          userPrompt,
-          apiKey,
-          signal
-        );
-        return {
-          answer: lastResortResult.text,
-          modelUsed: INGESTION_MODEL,
-          usage: lastResortResult.usage,
-        };
-      }
-    }
-
-    throw err;
-  }
-}
-

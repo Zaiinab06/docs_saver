@@ -102,6 +102,8 @@ interface IngestionRecord {
   user_id: string;
   title?: string | null;
   content: string;
+  category?: string | null;
+  tags?: string[] | null;
   image_base64?: string | null;
   mime_type?: string | null;
 }
@@ -127,11 +129,11 @@ Deno.serve(async (req: Request) => {
   let recordToProcess: IngestionRecord | null = null;
   let saveToDb = true;
 
-  // Timeout guardrail: 25 seconds execution deadline
+  // Timeout guardrail: 60 seconds execution deadline for batch operations
   const timeoutController = new AbortController();
   const timeoutId = setTimeout(() => {
-    timeoutController.abort(new Error("Function execution timed out (25s deadline)"));
-  }, 25_000);
+    timeoutController.abort(new Error("Function execution timed out"));
+  }, 60_000);
 
   try {
     // 2. Parse Payload (supports pg_net webhook payload, direct POST payload, or memoryId)
@@ -148,6 +150,95 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const signal = timeoutController.signal;
+
+    // MAINTENANCE ACTION: Safe Server-Side Re-Embedding of Existing Memories
+    if (body.action === "reembed_all" || body.reembed_all === true) {
+      console.info("[Ingestion Maintenance] Initiating server-side re-embedding of all memories with new format...");
+
+      const { data: allMemories, error: fetchErr } = await supabaseAdmin
+        .from("memories")
+        .select("id, user_id, title, category, tags, content, embedding")
+        .order("client_created_at", { ascending: true });
+
+      if (fetchErr) {
+        throw new Error(`Failed to fetch memories for re-embedding: ${fetchErr.message}`);
+      }
+
+      const memories = allMemories || [];
+      let successCount = 0;
+      let failureCount = 0;
+      let skippedCount = 0;
+      const details: any[] = [];
+
+      for (const mem of memories) {
+        const hasContent = (mem.content && mem.content.trim().length > 0) ||
+                           (mem.title && mem.title.trim().length > 0);
+        if (!hasContent) {
+          skippedCount++;
+          details.push({ id: mem.id, status: "skipped", reason: "No usable content or title" });
+          continue;
+        }
+
+        try {
+          const embRes = await generateEmbedding(
+            {
+              title: mem.title,
+              category: mem.category,
+              tags: mem.tags,
+              content: mem.content || "",
+            },
+            undefined,
+            signal
+          );
+
+          // Update ONLY embedding and server_updated_at! Never overwrite user content!
+          const { error: updateErr } = await supabaseAdmin
+            .from("memories")
+            .update({
+              embedding: embRes.embedding,
+              server_updated_at: new Date().toISOString(),
+            })
+            .eq("id", mem.id);
+
+          if (updateErr) {
+            failureCount++;
+            details.push({ id: mem.id, status: "failed", error: updateErr.message });
+          } else {
+            successCount++;
+            details.push({
+              id: mem.id,
+              status: "success",
+              title: mem.title,
+              dims: embRes.embedding.length,
+              model: embRes.modelUsed,
+            });
+          }
+        } catch (memErr: any) {
+          failureCount++;
+          details.push({ id: mem.id, status: "failed", error: memErr?.message || String(memErr) });
+        }
+      }
+
+      console.info(`[Ingestion Maintenance] Re-embedding complete: ${successCount} succeeded, ${failureCount} failed, ${skippedCount} skipped.`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: "reembed_all",
+          total_memories: memories.length,
+          reembedded_count: successCount,
+          failed_count: failureCount,
+          skipped_count: skippedCount,
+          details,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Extract record from { record: { ... } } or top-level object
     const rawRecord = body.record ?? body;
     saveToDb = body.save_to_db !== false && rawRecord.save_to_db !== false;
@@ -156,6 +247,8 @@ Deno.serve(async (req: Request) => {
     let targetUserId = rawRecord.user_id ?? body.user_id;
     let targetTitle = rawRecord.title ?? body.title;
     let targetContent = rawRecord.content ?? body.content;
+    let targetCategory = rawRecord.category ?? body.category;
+    let targetTags = rawRecord.tags ?? body.tags;
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
     const targetMimeType = rawRecord.mime_type ?? body.mime_type;
     let isEmbeddingOnly = Boolean(body.embedding_only);
@@ -167,7 +260,7 @@ Deno.serve(async (req: Request) => {
       try {
         const { data: dbMem } = await supabaseAdmin
           .from("memories")
-          .select("id, user_id, title, content, embedding, ai_status")
+          .select("id, user_id, title, content, category, tags, embedding, ai_status")
           .eq("id", targetId)
           .maybeSingle();
 
@@ -175,6 +268,8 @@ Deno.serve(async (req: Request) => {
           targetUserId = targetUserId || dbMem.user_id;
           targetTitle = targetTitle || dbMem.title;
           targetContent = targetContent || dbMem.content;
+          targetCategory = targetCategory || dbMem.category;
+          targetTags = targetTags || dbMem.tags;
           existingEmbedding = dbMem.embedding;
           existingAiStatus = dbMem.ai_status;
           // If memory was already analyzed and approved by user, switch to embedding_only mode
@@ -219,6 +314,8 @@ Deno.serve(async (req: Request) => {
       user_id: targetUserId,
       title: targetTitle ? String(targetTitle) : null,
       content: targetContent ? String(targetContent) : "",
+      category: targetCategory ? String(targetCategory) : null,
+      tags: Array.isArray(targetTags) ? targetTags : null,
       image_base64: targetImageBase64 ? String(targetImageBase64) : null,
       mime_type: targetMimeType ? String(targetMimeType) : null,
     };
@@ -250,14 +347,18 @@ Deno.serve(async (req: Request) => {
     );
 
     // 4. Run Ingestion Prompt and Embedding Generation
-    const signal = timeoutController.signal;
 
     // If embedding_only mode is requested (e.g. MemoryReviewScreen save where user already reviewed metadata),
     // skip LLM re-analysis to preserve user's custom title, tags, category, and summary!
     if (isEmbeddingOnly && saveToDb) {
       const embeddingResult = await generateEmbedding(
-        recordToProcess.title,
-        recordToProcess.content,
+        {
+          title: recordToProcess.title,
+          category: recordToProcess.category,
+          tags: recordToProcess.tags,
+          content: recordToProcess.content,
+        },
+        undefined,
         signal
       );
 
@@ -338,8 +439,13 @@ Deno.serve(async (req: Request) => {
     // If saving to DB, generate 768-d embedding and update public.memories
     if (saveToDb) {
       const embeddingResult = await generateEmbedding(
-        finalTitle,
-        recordToProcess.content,
+        {
+          title: finalTitle,
+          category: finalCategory,
+          tags: finalTags,
+          content: recordToProcess.content,
+        },
+        undefined,
         signal
       );
       embeddingValues = embeddingResult.embedding;

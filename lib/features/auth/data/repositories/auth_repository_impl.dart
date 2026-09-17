@@ -20,10 +20,12 @@ class AuthRepositoryImpl implements AuthRepository {
         fullName = (meta['name'] as String).trim();
       }
     }
+    final hasSession = remoteDataSource.getCurrentUser() != null;
     return UserEntity(
       id: user.id,
       email: user.email,
       fullName: fullName,
+      hasSession: hasSession,
     );
   }
 
@@ -56,6 +58,11 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> signOut() async {
     await remoteDataSource.signOut();
+  }
+
+  @override
+  Future<void> resendVerificationEmail({required String email}) async {
+    await remoteDataSource.resendVerificationEmail(email: email);
   }
 
   @override

@@ -15,6 +15,8 @@ abstract class AuthRemoteDataSource {
 
   Future<void> signOut();
 
+  Future<void> resendVerificationEmail({required String email});
+
   User? getCurrentUser();
 
   Stream<AuthState> get onAuthStateChange;
@@ -92,6 +94,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<void> signOut() async {
     await supabase.auth.signOut();
+  }
+
+  @override
+  Future<void> resendVerificationEmail({required String email}) async {
+    await supabase.auth.resend(
+      type: OtpType.signup,
+      email: email,
+    );
   }
 
   @override
