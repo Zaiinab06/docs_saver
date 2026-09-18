@@ -39,6 +39,7 @@ class AiIngestionResult extends Equatable {
   final List<LivingEntityItem> entities;
   final String aiStatus; // 'processed' | 'pending' | 'failed'
   final String? rawOcrText;
+  final String? documentText;
 
   const AiIngestionResult({
     required this.title,
@@ -48,10 +49,12 @@ class AiIngestionResult extends Equatable {
     this.entities = const [],
     required this.aiStatus,
     this.rawOcrText,
+    this.documentText,
   });
 
   factory AiIngestionResult.empty({
     String? rawOcrText,
+    String? documentText,
     String aiStatus = 'pending',
   }) {
     return AiIngestionResult(
@@ -62,6 +65,7 @@ class AiIngestionResult extends Equatable {
       entities: const [],
       aiStatus: aiStatus,
       rawOcrText: rawOcrText,
+      documentText: documentText,
     );
   }
 
@@ -74,5 +78,6 @@ class AiIngestionResult extends Equatable {
         entities,
         aiStatus,
         rawOcrText,
+        documentText,
       ];
 }

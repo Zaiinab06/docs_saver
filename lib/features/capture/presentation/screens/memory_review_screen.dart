@@ -13,6 +13,7 @@ import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
 import '../../../brain_ai/domain/usecases/ingest_memory_usecase.dart';
+import '../../domain/repositories/capture_repository_impl.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 
@@ -28,6 +29,7 @@ class _CategoryOption {
 
 class MemoryReviewScreen extends StatefulWidget {
   final File? imageFile;
+  final File? documentFile;
   final String? linkUrl;
   final String? readableContent;
   final String? previewImageUrl;
@@ -46,6 +48,7 @@ class MemoryReviewScreen extends StatefulWidget {
   const MemoryReviewScreen({
     super.key,
     this.imageFile,
+    this.documentFile,
     this.linkUrl,
     this.readableContent,
     this.previewImageUrl,
@@ -163,11 +166,13 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       }
     });
 
-    final initialContentText = widget.initialSummary.trim().isNotEmpty
-        ? widget.initialSummary.trim()
-        : (widget.rawOcrText != null
-            ? widget.initialContent.trim()
-            : (widget.initialContent.trim() == _rawOcrText.trim() ? '' : widget.initialContent.trim()));
+    final initialContentText = widget.documentFile != null
+        ? widget.initialContent.trim()
+        : (widget.initialSummary.trim().isNotEmpty
+            ? widget.initialSummary.trim()
+            : (widget.rawOcrText != null
+                ? widget.initialContent.trim()
+                : (widget.initialContent.trim() == _rawOcrText.trim() ? '' : widget.initialContent.trim())));
     _contentController = TextEditingController(text: initialContentText);
     _selectedCategory = widget.initialCategory.isNotEmpty
         ? widget.initialCategory
@@ -244,9 +249,18 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
 
     try {
       String? imageBase64;
+      String? documentBase64;
       String? mimeType;
       try {
-        if (widget.imageFile != null && widget.imageFile!.existsSync()) {
+        if (widget.documentFile != null && widget.documentFile!.existsSync()) {
+          final fileSize = widget.documentFile!.lengthSync();
+          if (fileSize < 15 * 1024 * 1024) {
+            final docBytes = widget.documentFile!.readAsBytesSync();
+            documentBase64 = base64Encode(docBytes);
+            final extension = widget.documentFile!.path.split('.').last.toLowerCase();
+            mimeType = CaptureRepositoryImpl.resolveMimeType(extension);
+          }
+        } else if (widget.imageFile != null && widget.imageFile!.existsSync()) {
           final fileSize = widget.imageFile!.lengthSync();
           if (fileSize < 8 * 1024 * 1024) {
             final imageBytes = widget.imageFile!.readAsBytesSync();
@@ -269,10 +283,18 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       final result = await useCase(
         ocrText: _rawOcrText.trim(),
         imageBase64: imageBase64,
+        documentBase64: documentBase64,
         mimeType: mimeType,
       );
 
-      if (result.aiStatus == 'processed' && mounted) {
+      final bool isDoc = widget.documentFile != null;
+      final bool isSuccess = isDoc
+          ? (result.aiStatus == 'processed' &&
+              result.documentText != null &&
+              result.documentText!.trim().isNotEmpty)
+          : (result.aiStatus == 'processed');
+
+      if (isSuccess && mounted) {
         setState(() {
           _currentAiStatus = 'processed';
           _selectedCategory = result.category;
@@ -284,9 +306,18 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             _titleController.text = result.title;
           }
 
-          // If content is empty or unedited raw OCR, prefill content with summary
-          if ((_contentController.text.trim().isEmpty || _contentController.text.trim() == _rawOcrText.trim()) && result.summary.isNotEmpty) {
-            _contentController.text = result.summary;
+          // For documents, if documentText is extracted and content was empty, set it
+          if (widget.documentFile != null) {
+            if (_contentController.text.trim().isEmpty &&
+                result.documentText != null &&
+                result.documentText!.isNotEmpty) {
+              _contentController.text = result.documentText!;
+            }
+          } else {
+            // If content is empty or unedited raw OCR, prefill content with summary
+            if ((_contentController.text.trim().isEmpty || _contentController.text.trim() == _rawOcrText.trim()) && result.summary.isNotEmpty) {
+              _contentController.text = result.summary;
+            }
           }
 
           // Add meaningful tags
@@ -338,22 +369,58 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     setState(() => _isSaving = true);
 
     try {
-      // 1. Persist the actual captured image locally in app storage (if imageFile provided)
+      // 1. Persist the actual captured image or document locally in app storage
       String? persistentMediaUrl = widget.previewImageUrl;
-      if (widget.imageFile != null) {
+      if (widget.documentFile != null) {
+        persistentMediaUrl = widget.documentFile!.path;
+        try {
+          final appDir = await getApplicationDocumentsDirectory();
+          final extension = widget.documentFile!.path.split('.').last;
+          final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}.$extension';
+          final docDir = Directory('${appDir.path}/documents');
+          if (!docDir.existsSync()) {
+            docDir.createSync(recursive: true);
+          }
+          final persistentFile = widget.documentFile!.copySync('${docDir.path}/$fileName');
+          persistentMediaUrl = persistentFile.path;
+
+          // Optional background upload to Supabase storage if reachable
+          try {
+            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+            if (currentUserId != null && currentUserId != 'local_user') {
+              final bytes = persistentFile.readAsBytesSync();
+              final storageKey = '$currentUserId/$fileName';
+              final mime = CaptureRepositoryImpl.resolveMimeType(extension);
+              await Supabase.instance.client.storage.from('memories').uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: FileOptions(contentType: mime),
+                  );
+              final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+              if (publicUrl.isNotEmpty) {
+                persistentMediaUrl = publicUrl;
+              }
+            }
+          } catch (_) {
+            // Fallback to local persistent path on network or bucket failure
+          }
+        } catch (_) {
+          // Fallback to widget.documentFile!.path if app directory cannot be accessed
+        }
+      } else if (widget.imageFile != null) {
         persistentMediaUrl = widget.imageFile!.path;
         try {
           final appDir = await getApplicationDocumentsDirectory();
           final extension = widget.imageFile!.path.split('.').last;
           final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
-          final persistentFile = await widget.imageFile!.copy('${appDir.path}/$fileName');
+          final persistentFile = widget.imageFile!.copySync('${appDir.path}/$fileName');
           persistentMediaUrl = persistentFile.path;
 
           // Optional background upload to Supabase storage if reachable
           try {
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;
             if (currentUserId != null) {
-              final bytes = await persistentFile.readAsBytes();
+              final bytes = persistentFile.readAsBytesSync();
               final storageKey = '$currentUserId/$fileName';
               await Supabase.instance.client.storage.from('memories').uploadBinary(
                     storageKey,
@@ -382,18 +449,24 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
               ? widget.initialTitle.trim()
               : (widget.linkUrl != null
                   ? 'Web Link (${DateFormat('MMM d').format(DateTime.now())})'
-                  : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})'));
+                  : (widget.documentFile != null
+                      ? widget.documentFile!.path.split('/').last.split('\\').last
+                      : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})')));
 
-      // For links, preserve the raw URL on line 1, followed by readable content if available. For visual memories, preserve user-edited content or AI summary.
+      // For links, preserve the raw URL on line 1, followed by readable content if available.
+      // For documents, preserve the exact document text (never overwrite with summary).
+      // For visual memories, preserve user-edited content or AI summary.
       final content = widget.linkUrl != null && widget.linkUrl!.isNotEmpty
           ? ((widget.readableContent != null && widget.readableContent!.trim().isNotEmpty)
               ? '${widget.linkUrl!.trim()}\n\n${widget.readableContent!.trim()}'
               : widget.linkUrl!)
-          : (_currentSummary.trim().isNotEmpty
-              ? _currentSummary.trim()
-              : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
-                  ? _contentController.text.trim()
-                  : 'Captured Visual Memory'));
+          : (widget.documentFile != null
+              ? _contentController.text.trim()
+              : (_currentSummary.trim().isNotEmpty
+                  ? _currentSummary.trim()
+                  : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
+                      ? _contentController.text.trim()
+                      : 'Captured Visual Memory')));
 
       // 2. Persist metadata through the existing repository and data layer
       context.read<CaptureBloc>().add(
@@ -427,7 +500,122 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     }
   }
 
+  Widget _buildDocumentCard(File file) {
+    final fileName = file.path.split('/').last.split('\\').last;
+    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'DOC';
+    final isPdf = ext == 'PDF';
+
+    String fileSizeStr = '';
+    try {
+      if (file.existsSync()) {
+        final bytes = file.lengthSync();
+        if (bytes >= 1024 * 1024) {
+          fileSizeStr = '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+        } else {
+          fileSizeStr = '${(bytes / 1024).toStringAsFixed(1)} KB';
+        }
+      }
+    } catch (_) {}
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.chipInactiveBorder,
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: isPdf
+                  ? const Color(0xFFFEE2E2)
+                  : AppColors.lightCyanTint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isPdf
+                  ? Icons.picture_as_pdf_rounded
+                  : Icons.description_rounded,
+              color: isPdf ? const Color(0xFFDC2626) : AppColors.primary,
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  fileName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isPdf
+                            ? const Color(0xFFFEE2E2)
+                            : AppColors.lightCyanTint,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        ext,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: isPdf
+                              ? const Color(0xFFDC2626)
+                              : AppColors.primary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    if (fileSizeStr.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        fileSizeStr,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeaderPreview() {
+    if (widget.documentFile != null) {
+      return _buildDocumentCard(widget.documentFile!);
+    }
+
     if (widget.imageFile != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),

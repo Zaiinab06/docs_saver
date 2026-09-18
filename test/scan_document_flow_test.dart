@@ -33,6 +33,7 @@ class FakeDocumentAiRepository implements AiRepository {
     required String ocrText,
     String? imageBase64,
     String? mimeType,
+    String? documentBase64,
   }) async {
     return AiIngestionResult(
       title: title,

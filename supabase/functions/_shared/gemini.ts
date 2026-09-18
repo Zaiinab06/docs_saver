@@ -41,6 +41,7 @@ export interface IngestionMetadata {
   tags: string[];
   summary: string;
   transcript?: string;
+  documentText?: string;
   entities: LivingEntityItem[];
 }
 
@@ -80,6 +81,7 @@ export interface AnalyzeMemoryInput {
   content: string;
   imageBase64?: string | null;
   audioBase64?: string | null;
+  documentBase64?: string | null;
   mimeType?: string | null;
 }
 
@@ -133,6 +135,10 @@ export async function analyzeMemoryContent(
   const trimmedContent = (input.content || "").trim();
   const existingTitle = (input.title || "").trim();
   const isAudio = Boolean(input.audioBase64 && input.audioBase64.trim().length > 0);
+  const isPdf = Boolean(
+    (input.documentBase64 && input.documentBase64.trim().length > 0) ||
+    (input.mimeType === "application/pdf" && input.imageBase64 && input.imageBase64.trim().length > 0)
+  );
 
   const systemInstruction = isAudio
     ? `You are an expert speech recognition and audio transcription engine for a personal "Second Brain".
@@ -145,7 +151,18 @@ Listen carefully to the audio and output clean structured JSON:
 - "tags": 2 to 6 lowercase keyword tags without # describing what was spoken. MUST include "voice".
 - "summary": Maximum 1-2 concise bullet points summarizing the core subject discussed in the speech.
 - "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
-    : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
+    : (isPdf
+        ? `You are an expert document reading, transcription, and categorization engine for a personal "Second Brain".
+You will receive a PDF document.
+Read and extract the document content carefully and output clean structured JSON:
+- "document_text": The complete, accurate verbatim extracted text from the PDF document. Preserve paragraphs, tables, and section headings. If the PDF contains no extractable text, scanned pages without text, or is blank, set "document_text" to "". Do NOT fabricate, invent, or guess contents not in the document.
+- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the document subject or filename. If the user provided an explicit non-empty title, keep that title unchanged.
+- "category": Select the single best matching category from the 8 official app categories:
+  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2 to 6 lowercase keyword tags without # describing the document. MUST include "document".
+- "summary": Maximum 1-2 concise bullet points summarizing the core subject of the document.
+- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
+        : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
 You will receive an image and any supporting OCR extracted text.
 Visually inspect the image carefully, read any visible text, and output clean structured JSON:
 - "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject.
@@ -175,22 +192,36 @@ Visually inspect the image carefully, read any visible text, and output clean st
 - "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
   * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
   * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
-  * "attributes": Concise contextual detail`;
+  * "attributes": Concise contextual detail`);
 
   const userPrompt = isAudio
     ? `[INPUT]
 User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
 CRITICAL REQUIREMENT: Listen carefully to the attached audio and transcribe all spoken words verbatim into "transcript". If there is no speech, silence, or non-speech sounds, leave "transcript" as empty string "". Output clean structured JSON matching the schema.`
-    : `[INPUT]
+    : (isPdf
+        ? `[INPUT]
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
+CRITICAL REQUIREMENT: Read the attached PDF document and extract all document text verbatim into "document_text". Output clean structured JSON matching the schema.`
+        : `[INPUT]
 User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
 OCR Extracted Text:
 """
 ${trimmedContent || "(No text detected by OCR. Rely entirely on visual image analysis.)"}
 """
-Please visually analyze the attached image and OCR text, and return the structured JSON.`;
+Please visually analyze the attached image and OCR text, and return the structured JSON.`);
 
   const parts: any[] = [];
-  if (input.imageBase64 && input.imageBase64.trim().length > 0) {
+  if (isPdf) {
+    const pdfData = (input.documentBase64 || input.imageBase64)?.trim() || "";
+    if (pdfData.length > 0) {
+      parts.push({
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfData,
+        },
+      });
+    }
+  } else if (input.imageBase64 && input.imageBase64.trim().length > 0) {
     parts.push({
       inlineData: {
         mimeType: input.mimeType || "image/jpeg",
@@ -215,7 +246,9 @@ Please visually analyze the attached image and OCR text, and return the structur
 
   const requiredFields = isAudio
     ? ["title", "category", "tags", "summary", "transcript"]
-    : ["title", "category", "tags", "summary"];
+    : (isPdf
+        ? ["title", "category", "tags", "summary", "document_text"]
+        : ["title", "category", "tags", "summary"]);
 
   const payload = {
     contents: [
@@ -252,6 +285,10 @@ Please visually analyze the attached image and OCR text, and return the structur
           transcript: {
             type: "STRING",
             description: "Verbatim transcript of the spoken audio",
+          },
+          document_text: {
+            type: "STRING",
+            description: "Verbatim extracted text of the document",
           },
           entities: {
             type: "ARRAY",
@@ -335,12 +372,13 @@ Please visually analyze the attached image and OCR text, and return the structur
   }
 
   // Validate and sanitize extracted fields
+  const fallbackTitle = isPdf ? "Document" : (isAudio ? "Voice Note" : "Visual Memory");
   const resolvedTitle =
     existingTitle.length > 0
       ? existingTitle
       : typeof parsed.title === "string" && parsed.title.trim().length > 0
       ? parsed.title.trim()
-      : "Visual Memory";
+      : fallbackTitle;
 
   const validCategories = [
     "Work",
@@ -410,6 +448,8 @@ Please visually analyze the attached image and OCR text, and return the structur
 
   const resolvedTranscript =
     typeof parsed.transcript === "string" ? parsed.transcript.trim() : "";
+  const resolvedDocumentText =
+    typeof parsed.document_text === "string" ? parsed.document_text.trim() : "";
 
   return {
     metadata: {
@@ -418,6 +458,7 @@ Please visually analyze the attached image and OCR text, and return the structur
       tags: resolvedTags,
       summary: resolvedSummary,
       transcript: resolvedTranscript,
+      documentText: resolvedDocumentText,
       entities: resolvedEntities,
     },
     modelUsed,

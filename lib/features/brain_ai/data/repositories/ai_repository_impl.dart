@@ -13,9 +13,12 @@ class AiRepositoryImpl implements AiRepository {
     required String ocrText,
     String? imageBase64,
     String? mimeType,
+    String? documentBase64,
   }) async {
-    // If there is no text and no image provided, do NOT fabricate data
-    if (ocrText.trim().isEmpty && (imageBase64 == null || imageBase64.isEmpty)) {
+    // If there is no text, no image, and no document provided, do NOT fabricate data
+    if (ocrText.trim().isEmpty &&
+        (imageBase64 == null || imageBase64.isEmpty) &&
+        (documentBase64 == null || documentBase64.isEmpty)) {
       return AiIngestionResult.empty(
         rawOcrText: ocrText,
         aiStatus: 'pending',
@@ -27,12 +30,14 @@ class AiRepositoryImpl implements AiRepository {
         content: ocrText,
         imageBase64: imageBase64,
         mimeType: mimeType,
+        documentBase64: documentBase64,
       );
 
       final rawTitle = (data['title'] ?? '').toString().trim();
       final rawCategory = (data['category'] ?? '').toString().trim();
       final rawSummary = (data['summary'] ?? '').toString().trim();
       final sanitizedSummary = _sanitizeSemanticSummary(rawSummary);
+      final rawDocumentText = (data['document_text'] ?? '').toString().trim();
 
       // Normalize Category to the 8 official AppStrings categories
       final normalizedCategory = _normalizeCategory(rawCategory);
@@ -81,6 +86,7 @@ class AiRepositoryImpl implements AiRepository {
         entities: entities,
         aiStatus: aiStatus.isEmpty ? 'processed' : aiStatus,
         rawOcrText: ocrText,
+        documentText: rawDocumentText.isNotEmpty ? rawDocumentText : null,
       );
     } catch (_) {
       // ZERO FABRICATED DATA: Return empty/pending if remote AI call fails

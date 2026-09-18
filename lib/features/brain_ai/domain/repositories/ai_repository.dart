@@ -5,5 +5,6 @@ abstract class AiRepository {
     required String ocrText,
     String? imageBase64,
     String? mimeType,
+    String? documentBase64,
   });
 }

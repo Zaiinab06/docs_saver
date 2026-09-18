@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -30,6 +32,7 @@ import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
+import '../../../../core/services/file_picker_service.dart';
 import '../../../../core/utils/link_metadata_extractor.dart';
 
 class _CategoryItem {
@@ -49,6 +52,7 @@ class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
     String? title,
     String? imageBase64,
     String? mimeType,
+    String? documentBase64,
   }) async {
     return {};
   }
@@ -58,6 +62,7 @@ class HomeScreen extends StatefulWidget {
   final String? userName;
   final IngestMemoryUseCase? ingestMemoryUseCase;
   final LinkMetadataExtractor? linkMetadataExtractor;
+  final FilePickerService? filePickerService;
   final VoidCallback? onSearchTap;
 
   const HomeScreen({
@@ -65,6 +70,7 @@ class HomeScreen extends StatefulWidget {
     this.userName,
     this.ingestMemoryUseCase,
     this.linkMetadataExtractor,
+    this.filePickerService,
     this.onSearchTap,
   });
 
@@ -1100,6 +1106,303 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleChooseFile({FilePickerService? filePickerService}) async {
+    try {
+      final service = filePickerService ?? widget.filePickerService ?? const DefaultFilePickerService();
+      const supportedExtensions = [
+        'pdf',
+        'txt',
+        'md',
+        'csv',
+        'json',
+        'png',
+        'jpg',
+        'jpeg',
+        'webp',
+      ];
+
+      final picked = await service.pickFile(
+        allowedExtensions: supportedExtensions,
+      );
+
+      // Clean return if user canceled
+      if (picked == null) return;
+
+      // 15 MB file size limit
+      const maxFileSize = 15 * 1024 * 1024;
+      if (picked.size > maxFileSize) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selected file exceeds the 15 MB size limit.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      final sourcePath = picked.path;
+      if (sourcePath == null) return;
+      final sourceFile = File(sourcePath);
+      if (!sourceFile.existsSync()) return;
+
+      final ext = (picked.extension ?? sourcePath.split('.').last)
+          .toLowerCase()
+          .replaceAll('.', '')
+          .trim();
+      if (!supportedExtensions.contains(ext)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unsupported file format (.$ext). Supported: PDF, TXT, MD, CSV, JSON, PNG, JPG, WEBP.'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+
+      // 1. Image Files -> Route through existing PhotoReviewScreen
+      if (const ['png', 'jpg', 'jpeg', 'webp'].contains(ext)) {
+        final copyPath = '${appDir.path}/memory_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final localImageFile = sourceFile.copySync(copyPath);
+
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PhotoReviewScreen(
+              imageFile: localImageFile,
+              ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+            ),
+          ),
+        );
+        if (mounted) {
+          context.read<CaptureBloc>().add(LoadMemoriesEvent());
+        }
+        return;
+      }
+
+      // 2. Documents (PDF & Text files)
+      final docDir = Directory('${appDir.path}/documents');
+      if (!docDir.existsSync()) {
+        docDir.createSync(recursive: true);
+      }
+      final persistentPath = '${docDir.path}/doc_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
+      final persistentFile = sourceFile.copySync(persistentPath);
+
+      final isOnline = await NetworkChecker.isConnected();
+
+      if (const ['txt', 'md', 'csv', 'json'].contains(ext)) {
+        // Text files: read actual string contents verbatim
+        final rawText = sourceFile.readAsStringSync();
+        AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+
+        if (isOnline) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => PopScope(
+              canPop: false,
+              child: AlertDialog(
+                backgroundColor: AppColors.background,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                content: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                      SizedBox(height: 18),
+                      Text(
+                        'Analyzing document with AI...',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          try {
+            aiResult = await _effectiveIngestMemoryUseCase(ocrText: rawText);
+          } catch (_) {
+            aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+          }
+
+          if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+            Navigator.of(context, rootNavigator: true).pop();
+          }
+        }
+
+        if (!mounted) return;
+
+        final tags = List<String>.from(aiResult.tags);
+        if (!tags.contains('document')) {
+          tags.add('document');
+        }
+
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MemoryReviewScreen(
+              documentFile: persistentFile,
+              initialTitle: aiResult.title.isNotEmpty ? aiResult.title : picked.name,
+              initialContent: rawText,
+              rawOcrText: rawText,
+              initialCategory: aiResult.category,
+              initialTags: tags,
+              initialSummary: aiResult.summary,
+              entities: aiResult.entities,
+              aiStatus: aiResult.aiStatus,
+              createdAt: DateTime.now(),
+              isOffline: !isOnline,
+              ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+            ),
+          ),
+        );
+
+        if (mounted) {
+          context.read<CaptureBloc>().add(LoadMemoriesEvent());
+        }
+        return;
+      }
+
+      // 3. PDF Files
+      if (ext == 'pdf') {
+        AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+
+        if (isOnline) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => PopScope(
+              canPop: false,
+              child: AlertDialog(
+                backgroundColor: AppColors.background,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                content: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                      SizedBox(height: 18),
+                      Text(
+                        'Extracting PDF and analyzing with AI...',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          try {
+            final pdfBytes = persistentFile.readAsBytesSync();
+            final pdfBase64 = base64Encode(pdfBytes);
+            aiResult = await _effectiveIngestMemoryUseCase(
+              ocrText: '',
+              documentBase64: pdfBase64,
+              mimeType: 'application/pdf',
+            );
+          } catch (_) {
+            aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+          }
+
+          if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+            Navigator.of(context, rootNavigator: true).pop();
+          }
+        }
+
+        if (!mounted) return;
+
+        final extractedText = (aiResult.documentText ?? '').trim();
+        final bool isAiSuccess = isOnline &&
+            aiResult.aiStatus == 'processed' &&
+            extractedText.isNotEmpty;
+
+        final effectiveAiStatus = isOnline
+            ? (isAiSuccess ? 'processed' : 'failed')
+            : 'pending';
+
+        final effectiveTitle = (isAiSuccess && aiResult.title.isNotEmpty)
+            ? aiResult.title
+            : picked.name;
+
+        final effectiveSummary = isAiSuccess ? aiResult.summary : '';
+        final effectiveCategory = isAiSuccess ? aiResult.category : AppStrings.categoryWork;
+        final effectiveEntities = isAiSuccess ? aiResult.entities : const <LivingEntityItem>[];
+
+        final tags = isAiSuccess
+            ? List<String>.from(aiResult.tags)
+            : <String>['document', 'pdf'];
+        if (!tags.contains('document')) tags.add('document');
+        if (!tags.contains('pdf')) tags.add('pdf');
+
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MemoryReviewScreen(
+              documentFile: persistentFile,
+              initialTitle: effectiveTitle,
+              initialContent: extractedText,
+              rawOcrText: extractedText.isNotEmpty ? extractedText : null,
+              initialCategory: effectiveCategory,
+              initialTags: tags,
+              initialSummary: effectiveSummary,
+              entities: effectiveEntities,
+              aiStatus: effectiveAiStatus,
+              createdAt: DateTime.now(),
+              isOffline: !isOnline,
+              ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+            ),
+          ),
+        );
+
+        if (mounted) {
+          context.read<CaptureBloc>().add(LoadMemoriesEvent());
+        }
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to process file: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildCaptureOption({
     required BuildContext context,
     required IconData icon,
@@ -1121,6 +1424,8 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleAddNote();
           } else if (title == 'Record Voice') {
             await _handleRecordVoice();
+          } else if (title == 'Choose File') {
+            await _handleChooseFile();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

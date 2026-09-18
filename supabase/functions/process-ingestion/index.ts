@@ -105,6 +105,8 @@ interface IngestionRecord {
   category?: string | null;
   tags?: string[] | null;
   image_base64?: string | null;
+  audio_base64?: string | null;
+  document_base64?: string | null;
   mime_type?: string | null;
 }
 
@@ -251,6 +253,7 @@ Deno.serve(async (req: Request) => {
     let targetTags = rawRecord.tags ?? body.tags;
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
     let targetAudioBase64 = rawRecord.audio_base64 ?? body.audio_base64;
+    let targetDocumentBase64 = rawRecord.document_base64 ?? body.document_base64;
     let targetMimeType = rawRecord.mime_type ?? body.mime_type;
     let isEmbeddingOnly = Boolean(body.embedding_only);
     const preserveContent = Boolean(
@@ -262,7 +265,7 @@ Deno.serve(async (req: Request) => {
     let existingAiStatus: string | null = null;
 
     // If memoryId passed from background sync/bloc and content not in body, fetch from DB
-    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly || !targetAudioBase64)) {
+    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly || (!targetAudioBase64 && !targetDocumentBase64))) {
       try {
         const { data: dbMem } = await supabaseAdmin
           .from("memories")
@@ -279,7 +282,7 @@ Deno.serve(async (req: Request) => {
           existingEmbedding = dbMem.embedding;
           existingAiStatus = dbMem.ai_status;
           // If memory was already analyzed and approved by user, switch to embedding_only mode
-          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64 && !targetAudioBase64) {
+          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64 && !targetAudioBase64 && !targetDocumentBase64) {
             isEmbeddingOnly = true;
           }
 
@@ -309,6 +312,31 @@ Deno.serve(async (req: Request) => {
                   }
                   targetAudioBase64 = btoa(binary);
                   targetMimeType = targetMimeType || "audio/m4a";
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (!targetDocumentBase64 && dbMem.media_url && !targetImageBase64 && !targetAudioBase64) {
+            const mediaUrl = String(dbMem.media_url);
+            if (mediaUrl.endsWith(".pdf")) {
+              try {
+                let storagePath = mediaUrl;
+                if (storagePath.includes("/memories/")) {
+                  storagePath = storagePath.split("/memories/").pop() || storagePath;
+                }
+                const { data: fileData } = await supabaseAdmin.storage
+                  .from("memories")
+                  .download(storagePath);
+                if (fileData) {
+                  const arrayBuffer = await fileData.arrayBuffer();
+                  const bytes = new Uint8Array(arrayBuffer);
+                  let binary = "";
+                  for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                  }
+                  targetDocumentBase64 = btoa(binary);
+                  targetMimeType = targetMimeType || "application/pdf";
                 }
               } catch (_) {}
             }
@@ -355,6 +383,7 @@ Deno.serve(async (req: Request) => {
       tags: Array.isArray(targetTags) ? targetTags : null,
       image_base64: targetImageBase64 ? String(targetImageBase64) : null,
       audio_base64: targetAudioBase64 ? String(targetAudioBase64) : null,
+      document_base64: targetDocumentBase64 ? String(targetDocumentBase64) : null,
       mime_type: targetMimeType ? String(targetMimeType) : null,
     };
 
@@ -461,6 +490,7 @@ Deno.serve(async (req: Request) => {
         content: recordToProcess.content,
         imageBase64: recordToProcess.image_base64,
         audioBase64: recordToProcess.audio_base64,
+        documentBase64: recordToProcess.document_base64,
         mimeType: recordToProcess.mime_type,
       },
       signal
@@ -472,6 +502,7 @@ Deno.serve(async (req: Request) => {
     const finalSummary = analysisResult.metadata.summary;
     const finalEntities = analysisResult.metadata.entities;
     const finalTranscript = analysisResult.metadata.transcript;
+    const finalDocumentText = analysisResult.metadata.documentText;
 
     const isVoiceMemory = Boolean(
       recordToProcess.audio_base64 ||
@@ -482,6 +513,12 @@ Deno.serve(async (req: Request) => {
         recordToProcess.media_url.endsWith(".mp3") ||
         recordToProcess.media_url.endsWith(".wav")
       ))
+    );
+
+    const isPdfMemory = Boolean(
+      recordToProcess.document_base64 ||
+      (recordToProcess.tags && Array.isArray(recordToProcess.tags) && recordToProcess.tags.includes("pdf")) ||
+      (recordToProcess.media_url && recordToProcess.media_url.endsWith(".pdf"))
     );
 
     let resolvedAiStatus = "processed";
@@ -496,8 +533,22 @@ Deno.serve(async (req: Request) => {
         recordToProcess.content = "";
         resolvedAiStatus = "failed";
       }
+    } else if (isPdfMemory) {
+      if (finalDocumentText && finalDocumentText.trim().length > 0) {
+        recordToProcess.content = finalDocumentText.trim();
+        resolvedAiStatus = "processed";
+      } else if (recordToProcess.content && recordToProcess.content.trim().length > 0) {
+        resolvedAiStatus = "processed";
+      } else {
+        // For PDF document memories, NEVER use finalSummary as memories.content.
+        // If document text extraction is empty/missing, do NOT fabricate content.
+        recordToProcess.content = "";
+        resolvedAiStatus = "failed";
+      }
     } else if (finalTranscript && finalTranscript.trim().length > 0) {
       recordToProcess.content = finalTranscript.trim();
+    } else if (finalDocumentText && finalDocumentText.trim().length > 0) {
+      recordToProcess.content = finalDocumentText.trim();
     }
 
     const hasUserTitle = Boolean(
@@ -523,10 +574,11 @@ Deno.serve(async (req: Request) => {
 
     const resolvedTitle = hasUserTitle
       ? recordToProcess.title
-      : (finalTitle || recordToProcess.title);
+      : (resolvedAiStatus === "failed" ? recordToProcess.title : (finalTitle || recordToProcess.title));
     const resolvedCategory = hasUserCategory
       ? recordToProcess.category
       : (finalCategory || recordToProcess.category || "General");
+    const returnedSummary = resolvedAiStatus === "failed" ? "" : (finalSummary || "");
 
     let resolvedTags = recordToProcess.tags || [];
     if (!hasUserTags) {
@@ -539,6 +591,12 @@ Deno.serve(async (req: Request) => {
     if (recordToProcess.audio_base64 || (recordToProcess.tags && recordToProcess.tags.includes("voice"))) {
       if (!resolvedTags.includes("voice")) {
         resolvedTags.push("voice");
+      }
+    }
+
+    if (recordToProcess.document_base64 || (recordToProcess.tags && recordToProcess.tags.includes("document")) || (recordToProcess.tags && recordToProcess.tags.includes("pdf"))) {
+      if (!resolvedTags.includes("document")) {
+        resolvedTags.push("document");
       }
     }
 
@@ -576,8 +634,19 @@ Deno.serve(async (req: Request) => {
           // Never use finalSummary as memories.content for voice/audio memories
           updatePayload.content = "";
         }
+      } else if (isPdfMemory) {
+        if (finalDocumentText && finalDocumentText.trim().length > 0) {
+          updatePayload.content = finalDocumentText.trim();
+        } else if (recordToProcess.content && recordToProcess.content.trim().length > 0) {
+          updatePayload.content = recordToProcess.content.trim();
+        } else {
+          // Never use finalSummary as memories.content for PDF document memories
+          updatePayload.content = "";
+        }
       } else if (finalTranscript && finalTranscript.trim().length > 0) {
         updatePayload.content = finalTranscript.trim();
+      } else if (finalDocumentText && finalDocumentText.trim().length > 0) {
+        updatePayload.content = finalDocumentText.trim();
       } else if (!preserveContent) {
         const existingContent = (recordToProcess.content || "").trim();
         const isLinkContent =
@@ -636,10 +705,11 @@ Deno.serve(async (req: Request) => {
         title: resolvedTitle,
         category: resolvedCategory,
         tags: resolvedTags,
-        summary: finalSummary,
+        summary: returnedSummary,
         transcript: finalTranscript,
+        document_text: finalDocumentText,
         content: recordToProcess.content,
-        entities: finalEntities,
+        entities: resolvedAiStatus === "failed" ? [] : finalEntities,
         embedding_dimensions: embeddingValues ? embeddingValues.length : null,
         embedding_model: embeddingModel,
         ai_status: resolvedAiStatus,

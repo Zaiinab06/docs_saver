@@ -53,6 +53,7 @@ dependencies:
   html: 0.15.4
   record: ^7.1.1
   audioplayers: ^6.8.1
+  file_picker: ^8.1.6
 
 dev_dependencies:
   flutter_test:

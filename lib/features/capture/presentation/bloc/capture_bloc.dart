@@ -127,20 +127,27 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                newMemory.mediaUrl!.endsWith('.aac') ||
                newMemory.mediaUrl!.endsWith('.mp3') ||
                newMemory.mediaUrl!.endsWith('.wav')));
+      final isPdf = (newMemory.mediaUrl != null &&
+              newMemory.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
+          newMemory.tags.any((t) => t.toLowerCase() == 'pdf');
       final hasMeaningfulContent =
           newMemory.content.trim().isNotEmpty ||
           newMemory.title.trim().isNotEmpty ||
-          isVoice;
+          isVoice ||
+          isPdf;
 
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
           isSupabaseAvailable) {
-        final isNote = (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) && !isVoice;
+        final isNote = (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) &&
+            !isVoice &&
+            !isPdf;
         unawaited(
           _triggerBackgroundIngestion(
             newMemory,
             isNote: isNote,
             isVoice: isVoice,
+            isPdf: isPdf,
             isEmbeddingOnly: newMemory.aiStatus == 'processed',
           ),
         );
@@ -175,11 +182,17 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                      mem.mediaUrl!.endsWith('.aac') ||
                      mem.mediaUrl!.endsWith('.mp3') ||
                      mem.mediaUrl!.endsWith('.wav')));
+            final isPdf = (mem.mediaUrl != null &&
+                    mem.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
+                mem.tags.any((t) => t.toLowerCase() == 'pdf');
             final hasMeaningfulContent =
                 mem.content.trim().isNotEmpty ||
                 mem.title.trim().isNotEmpty ||
-                isVoice;
-            final isNote = (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) && !isVoice;
+                isVoice ||
+                isPdf;
+            final isNote = (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) &&
+                !isVoice &&
+                !isPdf;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
                 hasMeaningfulContent) {
               unawaited(
@@ -187,6 +200,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                   mem,
                   isNote: isNote,
                   isVoice: isVoice,
+                  isPdf: isPdf,
                   isEmbeddingOnly: mem.aiStatus == 'processed',
                 ),
               );
@@ -233,10 +247,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     MemoryEntity memory, {
     required bool isNote,
     bool isVoice = false,
+    bool isPdf = false,
     required bool isEmbeddingOnly,
   }) async {
     try {
       String? audioBase64;
+      String? documentBase64;
       String? mimeType;
 
       if (isVoice && memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
@@ -281,6 +297,48 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             }
           }
         } catch (_) {}
+      } else if (isPdf && memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
+        try {
+          final file = File(memory.mediaUrl!);
+          if (file.existsSync()) {
+            final bytes = await file.readAsBytes();
+            documentBase64 = base64Encode(bytes);
+            mimeType = 'application/pdf';
+
+            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+            if (currentUserId != null && currentUserId != 'local_user') {
+              final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}.pdf';
+              final storageKey = '$currentUserId/$fileName';
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: const FileOptions(contentType: 'application/pdf'),
+                  );
+              final publicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
+              if (publicUrl.isNotEmpty) {
+                final isar = IsarService.instance;
+                final existing = await isar.memoryModels
+                    .filter()
+                    .serverIdEqualTo(memory.id)
+                    .findFirst();
+                if (existing != null) {
+                  existing.mediaUrl = publicUrl;
+                  await isar.writeTxn(() async {
+                    await isar.memoryModels.put(existing);
+                  });
+                }
+                await Supabase.instance.client
+                    .from('memories')
+                    .update({'media_url': publicUrl})
+                    .eq('id', memory.id);
+              }
+            }
+          }
+        } catch (_) {}
       }
 
       final response = await Supabase.instance.client.functions.invoke(
@@ -290,6 +348,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           if (isNote) 'preserve_content': true,
           if (isEmbeddingOnly) 'embedding_only': true,
           if (audioBase64 != null) 'audio_base64': audioBase64,
+          if (documentBase64 != null) 'document_base64': documentBase64,
           if (mimeType != null) 'mime_type': mimeType,
         },
       );

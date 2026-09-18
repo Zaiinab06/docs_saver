@@ -582,6 +582,159 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
+  Widget _buildDocumentDetailCard(String mediaUrl) {
+    final fileName = mediaUrl.split('/').last.split('\\').last.split('?').first;
+    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'DOC';
+    final isPdf = ext == 'PDF';
+
+    String fileSizeStr = '';
+    if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
+      try {
+        final file = File(mediaUrl);
+        if (file.existsSync()) {
+          final bytes = file.lengthSync();
+          if (bytes >= 1024 * 1024) {
+            fileSizeStr = '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+          } else {
+            fileSizeStr = '${(bytes / 1024).toStringAsFixed(1)} KB';
+          }
+        }
+      } catch (_) {}
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isPdf ? const Color(0xFFFEE2E2) : AppColors.lightCyanTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isPdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
+                  color: isPdf ? const Color(0xFFDC2626) : AppColors.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName.isNotEmpty ? fileName : 'Document Attachment',
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isPdf ? const Color(0xFFFEE2E2) : AppColors.lightCyanTint,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            ext,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: isPdf ? const Color(0xFFDC2626) : AppColors.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        if (fileSizeStr.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            fileSizeStr,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                try {
+                  final Uri uri;
+                  if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+                    uri = Uri.parse(mediaUrl);
+                  } else {
+                    uri = Uri.file(mediaUrl);
+                  }
+                  final launched = await launchUrl(
+                    uri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!launched && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Could not open document: $fileName'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } catch (_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Could not open document: $fileName'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              label: const Text('Open File'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAiStatusBadge(MemoryEntity memory) {
     Color bg;
     Color fg;
@@ -596,7 +749,16 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
              memory.mediaUrl!.endsWith('.wav') ||
              memory.mediaUrl!.endsWith('.ogg')));
 
+    final isDocument = memory.tags.any((t) => t.toLowerCase() == 'document' || t.toLowerCase() == 'pdf') ||
+        (memory.mediaUrl != null &&
+            (memory.mediaUrl!.toLowerCase().endsWith('.pdf') ||
+             memory.mediaUrl!.toLowerCase().endsWith('.txt') ||
+             memory.mediaUrl!.toLowerCase().endsWith('.md') ||
+             memory.mediaUrl!.toLowerCase().endsWith('.csv') ||
+             memory.mediaUrl!.toLowerCase().endsWith('.json')));
+
     final isVoiceWithoutTranscript = isVoice && memory.content.trim().isEmpty;
+    final isDocumentWithoutText = isDocument && memory.content.trim().isEmpty;
 
     if (memory.aiStatus == 'processed') {
       if (isVoiceWithoutTranscript) {
@@ -604,6 +766,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         fg = AppColors.errorText;
         icon = Icons.error_outline_rounded;
         label = 'Transcription failed — audio preserved';
+      } else if (isDocumentWithoutText) {
+        bg = AppColors.categoryPersonalBackground;
+        fg = AppColors.errorText;
+        icon = Icons.error_outline_rounded;
+        label = 'Extraction failed — file preserved';
       } else {
         bg = AppColors.lightCyanTint;
         fg = AppColors.primary;
@@ -616,7 +783,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       icon = Icons.error_outline_rounded;
       label = isVoice
           ? 'Transcription failed — audio preserved'
-          : 'AI Analysis Failed';
+          : (isDocument ? 'Extraction failed — file preserved' : 'AI Analysis Failed');
     } else if (memory.aiStatus == 'saved') {
       bg = AppColors.lightCyanTint;
       fg = AppColors.primary;
@@ -706,12 +873,22 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                    memory.mediaUrl!.endsWith('.mp3') ||
                    memory.mediaUrl!.endsWith('.wav') ||
                    memory.mediaUrl!.endsWith('.ogg')));
+          final isDocumentMemory = memory.tags.any((t) => t.toLowerCase() == 'document' || t.toLowerCase() == 'pdf') ||
+              (memory.mediaUrl != null &&
+                  (memory.mediaUrl!.toLowerCase().endsWith('.pdf') ||
+                   memory.mediaUrl!.toLowerCase().endsWith('.txt') ||
+                   memory.mediaUrl!.toLowerCase().endsWith('.md') ||
+                   memory.mediaUrl!.toLowerCase().endsWith('.csv') ||
+                   memory.mediaUrl!.toLowerCase().endsWith('.json')));
 
-          // Voice Transcript only appears when real transcript content exists and is not an AI summary
+          // Voice Transcript or Document text only appears when real content exists and is not an AI summary
           final hasExtractedContent = extractedBody.isNotEmpty &&
               extractedBody != '(No additional text content recorded)' &&
               !isPureUrl &&
               (!isVoiceMemory ||
+                  (extractedBody.trim().isNotEmpty &&
+                      (_summary == null || extractedBody.trim() != _summary!.trim()))) &&
+              (!isDocumentMemory ||
                   (extractedBody.trim().isNotEmpty &&
                       (_summary == null || extractedBody.trim() != _summary!.trim())));
 
@@ -763,12 +940,14 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Attached Media (Audio Player for voice, Image Preview for photos/documents)
+                    // 1. Attached Media (Audio Player for voice, Document Card for documents, Image Preview for photos)
                     if (hasMedia) ...[
                       if (isVoiceMemory)
                         VoiceAudioPlayerCard(
                           audioSource: memory.mediaUrl!,
                         )
+                      else if (isDocumentMemory)
+                        _buildDocumentDetailCard(memory.mediaUrl!)
                       else
                         _buildMediaPreview(memory.mediaUrl!),
                       const SizedBox(height: 16),
@@ -973,8 +1152,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // Status banner for voice notes when transcript is empty
-                    if (isVoiceMemory && trimmedContent.isEmpty) ...[
+                    // Status banner for voice notes or documents when content is empty
+                    if ((isVoiceMemory || isDocumentMemory) && trimmedContent.isEmpty) ...[
                       if (memory.aiStatus == 'failed' || memory.aiStatus == 'processed') ...[
                         Container(
                           width: double.infinity,
@@ -988,18 +1167,20 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                               width: 1.0,
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.error_outline_rounded,
                                 color: AppColors.errorText,
                                 size: 20,
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Transcription failed — audio preserved',
-                                  style: TextStyle(
+                                  isVoiceMemory
+                                      ? 'Transcription failed — audio preserved'
+                                      : 'Extraction failed — file preserved',
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.errorText,
@@ -1037,8 +1218,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                               Expanded(
                                 child: Text(
                                   memory.isSynced
-                                      ? 'Transcribing and organizing audio...'
-                                      : 'Audio saved offline. Transcription will begin when online.',
+                                      ? (isVoiceMemory
+                                          ? 'Transcribing and organizing audio...'
+                                          : 'Extracting and organizing document...')
+                                      : (isVoiceMemory
+                                          ? 'Audio saved offline. Transcription will begin when online.'
+                                          : 'Document saved offline. Text extraction will begin when online.'),
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -1107,7 +1292,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                 child: Icon(
                                                   isVoiceMemory
                                                       ? Icons.record_voice_over_rounded
-                                                      : Icons.document_scanner_rounded,
+                                                      : (isDocumentMemory
+                                                          ? Icons.description_outlined
+                                                          : Icons.document_scanner_rounded),
                                                   color: AppColors.primary,
                                                   size: 18,
                                                 ),
@@ -1120,7 +1307,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                     Text(
                                                       isVoiceMemory
                                                           ? 'Voice Transcript'
-                                                          : 'Extracted Content',
+                                                          : (isDocumentMemory
+                                                              ? 'Document Content'
+                                                              : 'Extracted Content'),
                                                       style: const TextStyle(
                                                         fontSize: 14.5,
                                                         fontWeight: FontWeight.w700,
@@ -1132,7 +1321,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                     Text(
                                                       isVoiceMemory
                                                           ? 'Spoken words transcribed from audio'
-                                                          : 'See what was extracted from your memory',
+                                                          : (isDocumentMemory
+                                                              ? 'Text extracted from document'
+                                                              : 'See what was extracted from your memory'),
                                                       style: const TextStyle(
                                                         fontSize: 12,
                                                         fontWeight: FontWeight.w400,
@@ -1211,7 +1402,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                             child: Icon(
                                               isVoiceMemory
                                                   ? Icons.record_voice_over_rounded
-                                                  : Icons.document_scanner_rounded,
+                                                  : (isDocumentMemory
+                                                      ? Icons.description_outlined
+                                                      : Icons.document_scanner_rounded),
                                               color: AppColors.primary,
                                               size: 18,
                                             ),
@@ -1224,7 +1417,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                 Text(
                                                   isVoiceMemory
                                                       ? 'Voice Transcript'
-                                                      : 'Extracted Content',
+                                                      : (isDocumentMemory
+                                                          ? 'Document Content'
+                                                          : 'Extracted Content'),
                                                   style: const TextStyle(
                                                     fontSize: 14.5,
                                                     fontWeight: FontWeight.w700,
@@ -1236,7 +1431,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                                 Text(
                                                   isVoiceMemory
                                                       ? 'Spoken words transcribed from audio'
-                                                      : 'See what was extracted from your memory',
+                                                      : (isDocumentMemory
+                                                          ? 'Text extracted from document'
+                                                          : 'See what was extracted from your memory'),
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w400,

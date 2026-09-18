@@ -71,7 +71,7 @@ class CaptureRepositoryImpl implements CaptureRepository {
               final ext = entity.mediaUrl!.split('.').last;
               final fileName = 'media_${DateTime.now().millisecondsSinceEpoch}.$ext';
               final storageKey = '$effectiveUserId/$fileName';
-              final mime = ext == 'm4a' ? 'audio/m4a' : 'image/$ext';
+              final mime = resolveMimeType(ext);
               await Supabase.instance.client.storage
                   .from('memories')
                   .uploadBinary(
@@ -120,5 +120,38 @@ class CaptureRepositoryImpl implements CaptureRepository {
       await localDataSource.updateMemoryFromRemote(model);
       return model.toEntity();
     });
+  }
+
+  static String resolveMimeType(String ext) {
+    final clean = ext.toLowerCase().replaceAll('.', '').trim();
+    switch (clean) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'txt':
+      case 'md':
+      case 'csv':
+        return 'text/plain';
+      case 'json':
+        return 'application/json';
+      case 'm4a':
+        return 'audio/m4a';
+      case 'mp3':
+        return 'audio/mp3';
+      case 'wav':
+        return 'audio/wav';
+      case 'aac':
+        return 'audio/aac';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
+    }
   }
 }

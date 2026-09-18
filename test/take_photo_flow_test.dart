@@ -22,6 +22,7 @@ class FakeAiRepository implements AiRepository {
     required String ocrText,
     String? imageBase64,
     String? mimeType,
+    String? documentBase64,
   }) async {
     return const AiIngestionResult(
       title: 'Fake Title',
