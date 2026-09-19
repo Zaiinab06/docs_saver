@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../main.dart';
 
 class PersonalizeOption {
@@ -25,18 +26,14 @@ class PersonalizeScreen extends StatefulWidget {
 
 class _PersonalizeScreenState extends State<PersonalizeScreen> {
   // Design Tokens
-  static const Color primaryColor = Color(0xFF00B4D8);
-  static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-  static const Color backgroundColor = Color(0xFFFFFFFF);
-  static const Color textPrimaryColor = Color(0xFF1A1A1A);
-  static const Color textSecondaryColor = Color(0xFF8A8A8A);
-  static const Color lightCyanTint = Color(0xFFEAFAFD);
-  static const Color inactiveBorderColor = Color(0xFFF1F5F9);
-  static const Color indicatorBorderColor = Color(0xFFCBD5E1);
+  static const Color primaryColor = AppColors.primary;
+  static const LinearGradient primaryGradient = AppColors.primaryGradient;
+  static const Color backgroundColor = AppColors.cardBackground;
+  static const Color textPrimaryColor = AppColors.textPrimary;
+  static const Color textSecondaryColor = AppColors.textSecondary;
+  static const Color lightCyanTint = AppColors.softPinkBackground;
+  static const Color inactiveBorderColor = AppColors.subtleBorder;
+  static const Color indicatorBorderColor = AppColors.border;
 
   final Set<String> _selectedOptionIds = {};
 

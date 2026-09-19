@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
 import 'personalize_screen.dart';
 
 class _SlideData {
@@ -25,15 +26,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
 
   // Design Tokens
-  static const Color primaryColor = Color(0xFF00B4D8);
-  static const LinearGradient primaryGradient = LinearGradient(
-    colors: [primaryColor, Color(0xFF0096C7)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-  static const Color backgroundColor = Color(0xFFFFFFFF);
-  static const Color textSecondaryColor = Color(0xFF8A8A8A);
-  static const Color pillInactiveColor = Color(0xFFEAEAFA);
+  static const Color primaryColor = AppColors.primary;
+  static const LinearGradient primaryGradient = AppColors.primaryGradient;
+  static const Color backgroundColor = AppColors.cardBackground;
+  static const Color textSecondaryColor = AppColors.textSecondary;
+  static const Color pillInactiveColor = AppColors.border;
   static const Color pillActiveColor = primaryColor;
 
   static const List<_SlideData> _slides = [
@@ -329,13 +326,13 @@ class OnboardingIllustration extends StatelessWidget {
                   height: effectiveHeight * 0.7,
                   width: effectiveHeight * 0.7,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAEAFA),
+                    color: AppColors.softLavenderBackground,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Icon(
                     Icons.image_outlined,
                     size: 64,
-                    color: Color(0xFF00B4D8),
+                    color: AppColors.primary,
                   ),
                 );
               },

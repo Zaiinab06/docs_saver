@@ -9,6 +9,7 @@ import 'package:second_brain/features/capture/domain/usecases/save_memory_usecas
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_event.dart';
 import 'package:second_brain/features/home/presentation/screens/home_screen.dart';
+import 'package:second_brain/features/saved/presentation/screens/saved_screen.dart';
 
 class FakeCaptureRepository implements CaptureRepository {
   final List<MemoryEntity> memories;
@@ -112,7 +113,7 @@ void main() {
       expect(list[2].id, 'u1');
     });
 
-    testWidgets('HomeScreen: Pinned memory appears at the top and newly added memory appears below pinned',
+    testWidgets('HomeScreen does not display memory cards when memories exist (Recent Memories removed from Home UI)',
         (tester) async {
       final memoryOld = createMemory(
         id: 'mem-1',
@@ -145,51 +146,33 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify both are present
-      expect(find.text('First Memory (Will Pin)'), findsOneWidget);
-      expect(find.text('Second Memory (Unpinned)'), findsOneWidget);
+      // Recent Memories header and memory cards are removed from HomeScreen UI
+      expect(find.text('First Memory (Will Pin)'), findsNothing);
+      expect(find.text('Second Memory (Unpinned)'), findsNothing);
+      expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
 
-      // Verify that First Memory (pinned) is visually ABOVE Second Memory
-      final pinnedTop = tester.getTopLeft(find.text('First Memory (Will Pin)')).dy;
-      final unpinnedTop = tester.getTopLeft(find.text('Second Memory (Unpinned)')).dy;
-      expect(pinnedTop, lessThan(unpinnedTop));
-
-      // Now simulate adding a brand new memory created afterward
-      captureBloc.add(
-        const AddMemoryEvent(
-          title: 'Brand New Memory',
-          content: 'Newly captured content',
-          category: 'General',
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Brand New Memory must appear BELOW pinned memory
-      expect(find.text('Brand New Memory'), findsOneWidget);
-      final brandNewTop = tester.getTopLeft(find.text('Brand New Memory')).dy;
-      final pinnedTopAfter = tester.getTopLeft(find.text('First Memory (Will Pin)')).dy;
-      expect(pinnedTopAfter, lessThan(brandNewTop));
+      // Category Section cards are displayed
+      expect(find.text('Documents & Records'), findsOneWidget);
+      expect(find.text('Work & Learning'), findsOneWidget);
+      expect(find.text('Home & Utilities'), findsOneWidget);
     });
 
-    testWidgets('HomeScreen: Pinning and unpinning updates position immediately',
+    testWidgets('SavedScreen: Unpinning a memory removes it from SavedScreen',
         (tester) async {
       final memA = createMemory(
         id: 'a',
-        title: 'Alpha Note (Old)',
+        title: 'Alpha Note (Pinned)',
         createdAt: baseTime,
-      );
-      final memB = createMemory(
-        id: 'b',
-        title: 'Beta Note (New)',
-        createdAt: baseTime.add(const Duration(hours: 1)),
+        tags: ['pinned'],
       );
 
-      final repo = FakeCaptureRepository([memA, memB]);
+      final repo = FakeCaptureRepository([memA]);
       final captureBloc = CaptureBloc(
         saveMemoryUseCase: SaveMemoryUseCase(repo),
         getMemoriesUseCase: GetMemoriesUseCase(repo),
         repository: repo,
       );
+      captureBloc.add(LoadMemoriesEvent());
 
       await tester.pumpWidget(
         MultiBlocProvider(
@@ -197,52 +180,28 @@ void main() {
             BlocProvider<CaptureBloc>.value(value: captureBloc),
           ],
           child: const MaterialApp(
-            home: HomeScreen(userName: 'Tester'),
+            home: SavedScreen(),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Initially Beta (newer) is above Alpha (older)
-      final initialBetaTop = tester.getTopLeft(find.text('Beta Note (New)')).dy;
-      final initialAlphaTop = tester.getTopLeft(find.text('Alpha Note (Old)')).dy;
-      expect(initialBetaTop, lessThan(initialAlphaTop));
+      expect(find.text('Alpha Note (Pinned)'), findsOneWidget);
 
-      // Pin Alpha Note (Old) via popup menu
-      // Find the 3-dot menu for Alpha Note
-      final menuButtons = find.byIcon(Icons.more_vert);
-      expect(menuButtons, findsNWidgets(2));
+      // Find unpin button
+      final unpinBtn = find.byIcon(Icons.push_pin_rounded);
+      expect(unpinBtn, findsOneWidget);
 
-      // Tap the second menu button (Alpha Note is currently second)
-      await tester.tap(menuButtons.at(1));
+      // Tap unpin button
+      await tester.tap(unpinBtn);
       await tester.pumpAndSettle();
 
-      // Tap "Pin memory"
-      await tester.tap(find.text(AppStrings.menuPin));
-      await tester.pumpAndSettle();
-
-      // Now Alpha Note (pinned) must be ABOVE Beta Note (New)!
-      final pinnedAlphaTop = tester.getTopLeft(find.text('Alpha Note (Old)')).dy;
-      final unpinnedBetaTop = tester.getTopLeft(find.text('Beta Note (New)')).dy;
-      expect(pinnedAlphaTop, lessThan(unpinnedBetaTop));
-
-      // Unpin Alpha Note via popup menu
-      final menuButtonsAfterPin = find.byIcon(Icons.more_vert);
-      // Tap the first menu button (Alpha Note is currently first)
-      await tester.tap(menuButtonsAfterPin.at(0));
-      await tester.pumpAndSettle();
-
-      // Tap "Unpin memory"
-      await tester.tap(find.text(AppStrings.menuUnpin));
-      await tester.pumpAndSettle();
-
-      // Alpha Note immediately returns to its correct position below Beta Note (New)
-      final unpinnedAlphaTop = tester.getTopLeft(find.text('Alpha Note (Old)')).dy;
-      final betaTopRestored = tester.getTopLeft(find.text('Beta Note (New)')).dy;
-      expect(betaTopRestored, lessThan(unpinnedAlphaTop));
+      // Memory is unpinned, empty state is now displayed
+      expect(find.text('Alpha Note (Pinned)'), findsNothing);
+      expect(find.text('No saved memories yet'), findsOneWidget);
     });
 
-    testWidgets('HomeScreen: Multiple pinned memories remain ordered by timestamp above unpinned',
+    testWidgets('SavedScreen: Multiple pinned memories remain ordered by timestamp',
         (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
@@ -273,6 +232,7 @@ void main() {
         getMemoriesUseCase: GetMemoriesUseCase(repo),
         repository: repo,
       );
+      captureBloc.add(LoadMemoriesEvent());
 
       await tester.pumpWidget(
         MultiBlocProvider(
@@ -280,22 +240,25 @@ void main() {
             BlocProvider<CaptureBloc>.value(value: captureBloc),
           ],
           child: const MaterialApp(
-            home: HomeScreen(userName: 'Tester'),
+            home: SavedScreen(),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Order should be:
+      // Pinned memories are displayed on SavedScreen
+      expect(find.text('Pinned Later (11:00)'), findsOneWidget);
+      expect(find.text('Pinned First (10:00)'), findsOneWidget);
+      // Unpinned is not on SavedScreen
+      expect(find.text('Unpinned Latest (12:00)'), findsNothing);
+
+      // Order on SavedScreen:
       // 1. Pinned Later (11:00)
       // 2. Pinned First (10:00)
-      // 3. Unpinned Latest (12:00)
       final p2Top = tester.getTopLeft(find.text('Pinned Later (11:00)')).dy;
       final p1Top = tester.getTopLeft(find.text('Pinned First (10:00)')).dy;
-      final u1Top = tester.getTopLeft(find.text('Unpinned Latest (12:00)')).dy;
 
       expect(p2Top, lessThan(p1Top));
-      expect(p1Top, lessThan(u1Top));
     });
   });
 }

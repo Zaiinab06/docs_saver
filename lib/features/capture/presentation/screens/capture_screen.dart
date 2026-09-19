@@ -793,23 +793,17 @@ class _CaptureScreenState extends State<CaptureScreen> {
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: isSelected ? null : const Color(0xFFEAFAFD),
+                gradient: isSelected ? AppColors.primaryGradient : null,
+                color: isSelected ? null : AppColors.categoryChipBackground,
                 borderRadius: BorderRadius.circular(100),
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF0096C7) : const Color(0xFFCCEBF5),
+                  color: isSelected ? AppColors.primary : AppColors.categoryChipBorder,
                   width: isSelected ? 1.6 : 1.0,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF00B4D8).withValues(alpha: 0.25),
+                          color: AppColors.primary.withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -822,7 +816,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   Icon(
                     cat.icon,
                     size: 16,
-                    color: isSelected ? AppColors.textWhite : const Color(0xFF0096C7),
+                    color: isSelected ? AppColors.textWhite : AppColors.primary,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -830,7 +824,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color: isSelected ? AppColors.textWhite : const Color(0xFF0096C7),
+                      color: isSelected ? AppColors.textWhite : AppColors.primary,
                     ),
                   ),
                 ],

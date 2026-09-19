@@ -132,10 +132,79 @@ class SecondBrainApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.background,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
+          colorScheme: const ColorScheme(
+            brightness: Brightness.light,
             primary: AppColors.primary,
+            onPrimary: AppColors.textWhite,
+            secondary: AppColors.periwinkle600,
+            onSecondary: AppColors.textWhite,
+            tertiary: AppColors.periwinkle300,
+            onTertiary: AppColors.textWhite,
+            error: AppColors.statusFailed,
+            onError: AppColors.textWhite,
             surface: AppColors.cardBackground,
+            onSurface: AppColors.textPrimary,
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: AppColors.cardBackground,
+            foregroundColor: AppColors.textDarkest,
+            elevation: 0,
+            scrolledUnderElevation: 0.5,
+            centerTitle: false,
+            iconTheme: IconThemeData(color: AppColors.textDarkest),
+            titleTextStyle: TextStyle(
+              color: AppColors.textDarkest,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textWhite,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+          ),
+          floatingActionButtonTheme: const FloatingActionButtonThemeData(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textWhite,
+          ),
+          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+            backgroundColor: AppColors.cardBackground,
+            selectedItemColor: AppColors.primary,
+            unselectedItemColor: AppColors.textSecondary,
+          ),
+          cardTheme: CardThemeData(
+            color: AppColors.cardBackground,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.border, width: 1.0),
+            ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: AppColors.cardBackground,
+            hintStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13.5,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border, width: 1.0),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border, width: 1.0),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.focusedBorder, width: 1.5),
+            ),
           ),
         ),
         home: AuthSessionGate(hasSeenOnboarding: hasSeenOnboarding),

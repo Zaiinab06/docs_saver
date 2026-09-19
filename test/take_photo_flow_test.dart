@@ -15,6 +15,7 @@ import 'package:second_brain/features/capture/presentation/bloc/capture_event.da
 import 'package:second_brain/features/capture/presentation/screens/memory_review_screen.dart';
 import 'package:second_brain/features/capture/presentation/screens/photo_review_screen.dart';
 import 'package:second_brain/features/home/presentation/screens/home_screen.dart';
+import 'package:second_brain/features/saved/presentation/screens/saved_screen.dart';
 
 class FakeAiRepository implements AiRepository {
   @override
@@ -80,8 +81,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Initially empty
-      expect(find.text("Your brain is empty — let's fill it."), findsOneWidget);
+      // Initially empty (empty-state section is removed from Home Screen)
+      expect(find.text("Your brain is empty — let's fill it."), findsNothing);
       expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
 
       // Simulate saving a captured photo memory with custom user title
@@ -103,9 +104,8 @@ void main() {
       expect(repo.memories.first.category, 'Study');
       expect(repo.memories.first.tags, contains('biology'));
 
-      // Verified: Saved memory appears on Home screen
-      expect(find.text('My Handwritten Lecture Notes'), findsOneWidget);
-      expect(find.text(AppStrings.homeRecentMemoriesHeader), findsOneWidget);
+      // Verified: Memory is in repository and HomeScreen empty state is hidden
+      expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
       expect(find.text("Your brain is empty — let's fill it."), findsNothing);
     });
 
@@ -277,7 +277,7 @@ void main() {
         title: 'Notes App Nav',
         content: semanticDescription,
         category: 'Work',
-        tags: const ['ui'],
+        tags: const ['ui', 'pinned'],
         aiStatus: 'processed',
         clientCreatedAt: DateTime(2026, 9, 14, 1, 0),
         clientUpdatedAt: DateTime(2026, 9, 14, 1, 0),
@@ -290,6 +290,7 @@ void main() {
         getMemoriesUseCase: GetMemoriesUseCase(repo),
         repository: repo,
       );
+      captureBloc.add(LoadMemoriesEvent());
 
       await tester.pumpWidget(
         MultiBlocProvider(
@@ -297,7 +298,7 @@ void main() {
             BlocProvider<CaptureBloc>.value(value: captureBloc),
           ],
           child: const MaterialApp(
-            home: HomeScreen(),
+            home: SavedScreen(),
           ),
         ),
       );
