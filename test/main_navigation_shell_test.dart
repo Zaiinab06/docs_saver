@@ -255,7 +255,7 @@ void main() {
       expect(find.text('Choose File'), findsOneWidget);
     });
 
-    testWidgets('tapping Saved tab switches to SavedScreen with pinned memories',
+    testWidgets('tapping Saved tab switches to SavedScreen with segmented control and filters',
         (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
@@ -264,8 +264,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SavedScreen), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Pinned'), findsOneWidget);
+
+      // Default 'All' tab shows all saved memories
       expect(find.text('Important Pinned Note'), findsOneWidget);
-      // Unpinned memory must NOT appear in Saved
+      expect(find.text('Regular Grocery List'), findsOneWidget);
+
+      // Switch to 'Pinned' tab
+      await tester.tap(find.text('Pinned'));
+      await tester.pumpAndSettle();
+
+      // Only pinned memory appears
+      expect(find.text('Important Pinned Note'), findsOneWidget);
       expect(find.text('Regular Grocery List'), findsNothing);
     });
 

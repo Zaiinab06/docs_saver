@@ -186,6 +186,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Switch to Pinned tab
+      await tester.tap(find.text('Pinned'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Alpha Note (Pinned)'), findsOneWidget);
 
       // Find unpin button
@@ -198,7 +202,7 @@ void main() {
 
       // Memory is unpinned, empty state is now displayed
       expect(find.text('Alpha Note (Pinned)'), findsNothing);
-      expect(find.text('No saved memories yet'), findsOneWidget);
+      expect(find.text('No pinned memories yet'), findsOneWidget);
     });
 
     testWidgets('SavedScreen: Multiple pinned memories remain ordered by timestamp',
@@ -244,6 +248,10 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+
+      // Switch to Pinned tab
+      await tester.tap(find.text('Pinned'));
       await tester.pumpAndSettle();
 
       // Pinned memories are displayed on SavedScreen

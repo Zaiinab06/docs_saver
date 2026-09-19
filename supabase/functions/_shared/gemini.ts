@@ -117,7 +117,7 @@ export function sanitizeSemanticSummary(raw: string): string {
     if (line.startsWith("•") || line.startsWith("-") || line.startsWith("*")) {
       return `• ${line.replace(/^[•\-\*]\s*/, "").trim()}`;
     }
-    return `• ${line.trim()}`;
+    return line.trim();
   });
 
   return formatted.join("\n");
@@ -149,7 +149,7 @@ Listen carefully to the audio and output clean structured JSON:
 - "category": Select the single best matching category from the 8 official app categories:
   ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
 - "tags": 2 to 6 lowercase keyword tags without # describing what was spoken. MUST include "voice".
-- "summary": Maximum 1-2 concise bullet points summarizing the core subject discussed in the speech.
+- "summary": Write ONE concise, natural, human-readable sentence summarizing the useful meaning, topic, or context of what was spoken. Focus on the actual information discussed. Do not invent the user's intent or reason for saving it, and only state facts supported by the audio. Keep it concise enough for a memory card preview.
 - "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
     : (isPdf
         ? `You are an expert document reading, transcription, and categorization engine for a personal "Second Brain".
@@ -160,7 +160,7 @@ Read and extract the document content carefully and output clean structured JSON
 - "category": Select the single best matching category from the 8 official app categories:
   ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
 - "tags": 2 to 6 lowercase keyword tags without # describing the document. MUST include "document".
-- "summary": Maximum 1-2 concise bullet points summarizing the core subject of the document.
+- "summary": Write ONE concise, natural, human-readable sentence summarizing the useful meaning, subject, or core information of the document. Focus on the actual content and key facts rather than merely describing document layout. Do not invent the user's intent or reason for saving it, and only state facts supported by the document. Keep it concise enough for a memory card preview.
 - "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
         : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
 You will receive an image and any supporting OCR extracted text.
@@ -183,12 +183,15 @@ Visually inspect the image carefully, read any visible text, and output clean st
 - "tags": An array of 2 to 6 specific, relevant, lowercase keyword tags describing what is actually visible or discussed (e.g. ["pizza", "mozzarella", "lunch"] or ["flutter", "bloc", "dart"]).
   * ABSOLUTELY FORBIDDEN TAGS: "photo", "image", "empty", "untitled", "general", "memory", "note".
   * If you cannot determine specific meaningful tags, return [].
-- "summary": A SHORT semantic description containing ONLY the most important information visible and relevant in the image and OCR together.
-  * MAXIMUM 1 to 2 concise points or lines. Format as bullet points (e.g. "• ") or 1-2 concise lines.
-  * The description must communicate the core meaningful context (for example: identifying the app, platform, or source if visible, and the core subject, concept, or purpose).
-  * CRITICAL: The AI must NOT use the raw OCR dump as the memory description. NEVER output long OCR sentences, full paragraphs, URLs, or unrelated detected text.
-  * CRITICAL: Completely IGNORE and EXCLUDE irrelevant OCR clutter such as status bar text, battery/signal/time indicators, weather text, browser chrome, search URLs, buttons ("Back", "Next", "Done", "Cancel", "Search"), navigation labels, timestamps, ads, "Less AI", and random UI noise.
-  * Dynamically determine these points from the image; do not fabricate or hardcode.
+- "summary": Write ONE concise, natural, human-readable summary sentence of the information contained in this memory.
+  * Focus on its useful meaning, subject, or context rather than literally describing what is visually visible or listing UI elements.
+  * Avoid image-caption language such as "Image showing...", "Photo of...", "Screenshot displaying...", or "Visual Studio Code IDE displaying...".
+  * For images, summarize the meaningful subject, concept, or context that can actually be established from the image and text.
+  * For notes, links, and documents, summarize the actual provided content naturally.
+  * Do NOT simply repeat OCR text or vision observations verbatim. Completely IGNORE and EXCLUDE irrelevant OCR clutter such as status bar text, battery/signal/time indicators, weather text, browser chrome, URLs, buttons ("Back", "Next", "Done", "Cancel", "Search"), navigation labels, timestamps, ads, and UI noise.
+  * Preserve important factual information from the source, but do NOT add facts that are not supported by the source.
+  * Do NOT invent or assume the user's personal intention, feelings, or reason for saving the memory.
+  * Keep the summary concise enough for a memory card preview.
 - "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
   * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
   * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
@@ -280,7 +283,7 @@ Please visually analyze the attached image and OCR text, and return the structur
           summary: {
             type: "STRING",
             description:
-              "Maximum 1-2 concise points/lines of semantic description (e.g. • App/Platform • Core subject). No raw OCR dumps, URLs, or UI noise.",
+              "ONE concise, natural, human-readable sentence summarizing the useful meaning, subject, or context. No image captions, UI element descriptions, raw OCR dumps, URLs, or invented user intent.",
           },
           transcript: {
             type: "STRING",

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:isar_community/isar.dart';
@@ -13,6 +14,8 @@ import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../capture/presentation/screens/memory_detail_screen.dart';
 
+enum SavedTab { all, pinned }
+
 class SavedScreen extends StatefulWidget {
   const SavedScreen({super.key});
 
@@ -21,6 +24,8 @@ class SavedScreen extends StatefulWidget {
 }
 
 class _SavedScreenState extends State<SavedScreen> {
+  SavedTab _selectedTab = SavedTab.all;
+
   String _formatTimeAgo(DateTime dateTime) {
     final diff = DateTime.now().difference(dateTime);
     if (diff.inSeconds < 60) {
@@ -144,9 +149,16 @@ class _SavedScreenState extends State<SavedScreen> {
     return lines.take(2).join('\n');
   }
 
-  Future<void> _unpinMemory(MemoryEntity memory) async {
-    final newTags = List<String>.from(memory.tags)
-      ..removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
+  Future<void> _togglePinMemory(MemoryEntity memory) async {
+    final currentlyPinned = memory.isPinned;
+    final newTags = List<String>.from(memory.tags);
+    if (currentlyPinned) {
+      newTags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
+    } else {
+      if (!newTags.contains('pinned')) {
+        newTags.add('pinned');
+      }
+    }
 
     try {
       final isar = IsarService.instance;
@@ -299,15 +311,19 @@ class _SavedScreenState extends State<SavedScreen> {
                           ),
                         ),
 
-                        // Unpin Button
+                        // Pin/Unpin Button
                         IconButton(
-                          icon: const Icon(
-                            Icons.push_pin_rounded,
-                            color: AppColors.primary,
+                          icon: Icon(
+                            memory.isPinned
+                                ? Icons.push_pin_rounded
+                                : Icons.push_pin_outlined,
+                            color: memory.isPinned
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
                             size: 20,
                           ),
-                          tooltip: 'Unpin memory',
-                          onPressed: () => _unpinMemory(memory),
+                          tooltip: memory.isPinned ? 'Unpin memory' : 'Pin memory',
+                          onPressed: () => _togglePinMemory(memory),
                         ),
                       ],
                     ),
@@ -335,7 +351,96 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
+  Widget _buildSegmentedControl() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppColors.violetTwilight50,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: AppColors.violetTwilight100,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildTabItem(
+                key: const Key('saved_tab_all'),
+                title: 'All',
+                isSelected: _selectedTab == SavedTab.all,
+                onTap: () {
+                  if (_selectedTab != SavedTab.all) {
+                    setState(() => _selectedTab = SavedTab.all);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _buildTabItem(
+                key: const Key('saved_tab_pinned'),
+                title: 'Pinned',
+                isSelected: _selectedTab == SavedTab.pinned,
+                onTap: () {
+                  if (_selectedTab != SavedTab.pinned) {
+                    setState(() => _selectedTab = SavedTab.pinned);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabItem({
+    Key? key,
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      key: key,
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected ? AppColors.textWhite : AppColors.violetTwilight700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
+    final isPinnedTab = _selectedTab == SavedTab.pinned;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -354,16 +459,16 @@ class _SavedScreenState extends State<SavedScreen> {
                   width: 1.5,
                 ),
               ),
-              child: const Icon(
-                Icons.bookmark_border_rounded,
+              child: Icon(
+                isPinnedTab ? Icons.push_pin_outlined : Icons.bookmark_border_rounded,
                 color: AppColors.primary,
                 size: 38,
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'No saved memories yet',
-              style: TextStyle(
+            Text(
+              isPinnedTab ? 'No pinned memories yet' : 'No saved memories yet',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
@@ -372,9 +477,11 @@ class _SavedScreenState extends State<SavedScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
-              style: TextStyle(
+            Text(
+              isPinnedTab
+                  ? 'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.'
+                  : 'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
+              style: const TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w400,
                 color: AppColors.textSecondary,
@@ -393,24 +500,41 @@ class _SavedScreenState extends State<SavedScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        toolbarHeight: 64,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: AppColors.cardBackground,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
         automaticallyImplyLeading: false,
+        titleSpacing: 20,
         title: const Text(
           'Saved',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: AppColors.textWhite,
             letterSpacing: -0.3,
           ),
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.subtleBorder,
-            height: 1,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: AppColors.headerGradient,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.22),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
         ),
       ),
@@ -419,9 +543,16 @@ class _SavedScreenState extends State<SavedScreen> {
           builder: (context, state) {
             final allMemories =
                 state is CaptureLoaded ? state.memories : <MemoryEntity>[];
-            final savedMemories =
+            final pinnedMemories =
                 allMemories.where((m) => m.isPinned).toList()
                   ..sort(MemoryEntity.compareByPinnedAndDate);
+            final sortedAllMemories =
+                List<MemoryEntity>.from(allMemories)
+                  ..sort(MemoryEntity.compareByPinnedAndDate);
+
+            final displayedMemories = _selectedTab == SavedTab.all
+                ? sortedAllMemories
+                : pinnedMemories;
 
             if (state is CaptureLoading && allMemories.isEmpty) {
               return const Center(
@@ -431,26 +562,31 @@ class _SavedScreenState extends State<SavedScreen> {
               );
             }
 
-            if (savedMemories.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            return RefreshIndicator(
-              color: AppColors.primary,
-              backgroundColor: AppColors.cardBackground,
-              onRefresh: () async {
-                context.read<CaptureBloc>().add(LoadMemoriesEvent());
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
+            return Column(
+              children: [
+                _buildSegmentedControl(),
+                Expanded(
+                  child: displayedMemories.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          color: AppColors.primary,
+                          backgroundColor: AppColors.cardBackground,
+                          onRefresh: () async {
+                            context.read<CaptureBloc>().add(LoadMemoriesEvent());
+                          },
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 80),
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            itemCount: displayedMemories.length,
+                            itemBuilder: (context, index) {
+                              return _buildSavedCard(displayedMemories[index]);
+                            },
+                          ),
+                        ),
                 ),
-                itemCount: savedMemories.length,
-                itemBuilder: (context, index) {
-                  return _buildSavedCard(savedMemories[index]);
-                },
-              ),
+              ],
             );
           },
         ),
