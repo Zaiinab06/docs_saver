@@ -46,6 +46,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg =
+        isDark ? AppColors.darkBackground : AppColors.background;
+    final navBg =
+        isDark ? AppColors.darkCardBackground : AppColors.cardBackground;
+    final navBorder =
+        isDark ? AppColors.darkSubtleBorder : AppColors.chipInactiveBorder;
+    final selectedNavColor =
+        isDark ? AppColors.periwinkle300 : AppColors.primary;
+    final unselectedNavColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return PopScope(
       canPop: _currentIndex == 0,
       onPopInvokedWithResult: (didPop, result) {
@@ -56,7 +68,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: scaffoldBg,
         resizeToAvoidBottomInset: false,
         body: IndexedStack(
           index: _currentIndex,
@@ -77,10 +89,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            border: const Border(
+            color: navBg,
+            border: Border(
               top: BorderSide(
-                color: AppColors.chipInactiveBorder,
+                color: navBorder,
                 width: 1.0,
               ),
             ),
@@ -98,8 +110,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: AppColors.textSecondary,
+            selectedItemColor: selectedNavColor,
+            unselectedItemColor: unselectedNavColor,
             selectedFontSize: 11.5,
             unselectedFontSize: 11.5,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),

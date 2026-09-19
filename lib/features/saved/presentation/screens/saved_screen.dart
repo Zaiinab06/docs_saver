@@ -230,10 +230,10 @@ class _SavedScreenState extends State<SavedScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: AppColors.cardBackgroundOf(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.subtleBorder,
+          color: AppColors.subtleBorderOf(context),
           width: 1.2,
         ),
         boxShadow: [
@@ -272,7 +272,7 @@ class _SavedScreenState extends State<SavedScreen> {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: AppColors.lightCyanTint,
+                            color: AppColors.surfaceTintOf(context),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: ClipRRect(
@@ -289,10 +289,10 @@ class _SavedScreenState extends State<SavedScreen> {
                             children: [
                               Text(
                                 memory.title.isEmpty ? 'Untitled Note' : memory.title,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15.5,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
+                                  color: AppColors.textPrimaryOf(context),
                                   letterSpacing: -0.2,
                                 ),
                                 maxLines: 1,
@@ -301,10 +301,10 @@ class _SavedScreenState extends State<SavedScreen> {
                               const SizedBox(height: 3),
                               Text(
                                 '${memory.category} • ${_formatTimeAgo(memory.clientCreatedAt)}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.textSecondaryOf(context),
                                 ),
                               ),
                             ],
@@ -358,10 +358,10 @@ class _SavedScreenState extends State<SavedScreen> {
         height: 42,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: AppColors.violetTwilight50,
+          color: AppColors.toggleBackgroundOf(context),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: AppColors.violetTwilight100,
+            color: AppColors.borderOf(context),
             width: 1.0,
           ),
         ),
@@ -430,7 +430,9 @@ class _SavedScreenState extends State<SavedScreen> {
             style: TextStyle(
               fontSize: 13.5,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              color: isSelected ? AppColors.textWhite : AppColors.violetTwilight700,
+              color: isSelected
+                  ? AppColors.textWhite
+                  : AppColors.textSecondaryOf(context),
             ),
           ),
         ),
@@ -498,7 +500,7 @@ class _SavedScreenState extends State<SavedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
         toolbarHeight: 64,
         backgroundColor: Colors.transparent,
@@ -570,7 +572,7 @@ class _SavedScreenState extends State<SavedScreen> {
                       ? _buildEmptyState()
                       : RefreshIndicator(
                           color: AppColors.primary,
-                          backgroundColor: AppColors.cardBackground,
+                          backgroundColor: AppColors.cardBackgroundOf(context),
                           onRefresh: () async {
                             context.read<CaptureBloc>().add(LoadMemoriesEvent());
                           },

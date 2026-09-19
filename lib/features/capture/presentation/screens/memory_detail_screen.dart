@@ -461,13 +461,14 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
 
   Widget _buildNotFoundView() {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.backgroundOf(context),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimaryOf(context)),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -828,9 +829,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _memory == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
+      return Scaffold(
+        backgroundColor: AppColors.backgroundOf(context),
+        body: const Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
           ),
@@ -893,21 +894,22 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       (_summary == null || extractedBody.trim() != _summary!.trim())));
 
           return Scaffold(
-            backgroundColor: AppColors.background,
+            backgroundColor: AppColors.backgroundOf(context),
             appBar: AppBar(
-              backgroundColor: AppColors.background,
+              backgroundColor: AppColors.backgroundOf(context),
               elevation: 0,
               surfaceTintColor: Colors.transparent,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                icon: Icon(Icons.arrow_back_rounded,
+                    color: AppColors.textPrimaryOf(context)),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               title: Text(
                 memory.category,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                   letterSpacing: -0.2,
                 ),
               ),

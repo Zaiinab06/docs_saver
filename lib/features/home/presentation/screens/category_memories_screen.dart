@@ -438,10 +438,10 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: AppColors.cardBackgroundOf(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.violetTwilight100.withValues(alpha: 0.8),
+          color: AppColors.borderOf(context),
           width: 1.2,
         ),
         boxShadow: [
@@ -582,17 +582,22 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor:
+            isDark ? AppColors.darkCardBackground : Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_rounded,
-            color: AppColors.violetTwilight800,
+            color: isDark
+                ? AppColors.darkTextPrimary
+                : AppColors.violetTwilight800,
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -603,10 +608,14 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: category.iconBackgroundColor,
+                color: isDark
+                    ? AppColors.darkBackground
+                    : category.iconBackgroundColor,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: category.borderColor,
+                  color: isDark
+                      ? category.iconColor.withValues(alpha: 0.3)
+                      : category.borderColor,
                   width: 1,
                 ),
               ),
@@ -622,10 +631,12 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
             Flexible(
               child: Text(
                 category.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.violetTwilight800,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.violetTwilight800,
                   letterSpacing: -0.3,
                 ),
                 maxLines: 1,
@@ -649,7 +660,9 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
-            color: AppColors.violetTwilight100.withValues(alpha: 0.5),
+            color: isDark
+                ? AppColors.darkSubtleBorder
+                : AppColors.violetTwilight100.withValues(alpha: 0.5),
             height: 1.0,
           ),
         ),
@@ -675,7 +688,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
             if (categoryMemories.isEmpty) {
               return RefreshIndicator(
                 color: AppColors.violetTwilight500,
-                backgroundColor: AppColors.cardBackground,
+                backgroundColor: AppColors.cardBackgroundOf(context),
                 onRefresh: () async {
                   context.read<CaptureBloc>().add(LoadMemoriesEvent());
                 },
@@ -685,7 +698,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
             return RefreshIndicator(
               color: AppColors.violetTwilight500,
-              backgroundColor: AppColors.cardBackground,
+              backgroundColor: AppColors.cardBackgroundOf(context),
               onRefresh: () async {
                 context.read<CaptureBloc>().add(LoadMemoriesEvent());
               },

@@ -18,8 +18,10 @@ class CategoryDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
         toolbarHeight: 68,
         backgroundColor: Colors.transparent,
@@ -77,10 +79,10 @@ class CategoryDetailScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.violetTwilight50,
+                  color: AppColors.toggleBackgroundOf(context),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.violetTwilight100.withValues(alpha: 0.8),
+                    color: AppColors.borderOf(context),
                     width: 1.0,
                   ),
                 ),
@@ -95,10 +97,10 @@ class CategoryDetailScreen extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '${section.categories.length} Categories',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textSecondaryOf(context),
                         letterSpacing: -0.1,
                       ),
                     ),
@@ -120,7 +122,7 @@ class CategoryDetailScreen extends StatelessWidget {
                 itemCount: section.categories.length,
                 itemBuilder: (context, index) {
                   final category = section.categories[index];
-                  return _buildCategoryCard(context, category);
+                  return _buildCategoryCard(context, category, isDark);
                 },
               ),
             ],
@@ -130,7 +132,7 @@ class CategoryDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, CategoryCardItem category) {
+  Widget _buildCategoryCard(BuildContext context, CategoryCardItem category, bool isDark) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -151,10 +153,12 @@ class CategoryDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Container(
           decoration: BoxDecoration(
-            color: category.backgroundColor,
+            color: isDark ? AppColors.darkCardBackground : category.backgroundColor,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: category.borderColor,
+              color: isDark
+                  ? category.iconColor.withValues(alpha: 0.3)
+                  : category.borderColor,
               width: 1.2,
             ),
             boxShadow: [
@@ -174,7 +178,9 @@ class CategoryDetailScreen extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: category.iconBackgroundColor,
+                  color: isDark
+                      ? AppColors.darkBackground
+                      : category.iconBackgroundColor,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -195,10 +201,12 @@ class CategoryDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 category.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.violetTwilight800,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.violetTwilight800,
                   letterSpacing: -0.2,
                 ),
                 textAlign: TextAlign.center,

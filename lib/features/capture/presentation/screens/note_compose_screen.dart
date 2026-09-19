@@ -348,22 +348,23 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: AppColors.cardBackgroundOf(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
           key: const Key('note_compose_back_button'),
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimaryOf(context)),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Add Note',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: AppColors.textPrimaryOf(context),
             letterSpacing: -0.3,
           ),
         ),
@@ -371,7 +372,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: AppColors.subtleBorder,
+            color: AppColors.subtleBorderOf(context),
             height: 1,
           ),
         ),
@@ -384,38 +385,40 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 1. Title Input (Optional)
-              const Text(
+              Text(
                 'Title (optional)',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: AppColors.cardBackgroundOf(context),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                  border: Border.all(
+                      color: AppColors.borderOf(context), width: 1.2),
                 ),
                 child: TextField(
                   key: const Key('note_title_field'),
                   controller: _titleController,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: AppColors.textPrimaryOf(context),
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'e.g. Project Ideas, Meeting Notes',
                     hintStyle: TextStyle(
                       fontSize: 14,
-                      color: AppColors.textSecondary,
+                      color: AppColors.textSecondaryOf(context),
                       fontWeight: FontWeight.w400,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
               ),
@@ -423,20 +426,21 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
               const SizedBox(height: 20),
 
               // 2. Note Content Input (Required)
-              const Text(
+              Text(
                 'Note Content',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: AppColors.cardBackgroundOf(context),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                  border: Border.all(
+                      color: AppColors.borderOf(context), width: 1.2),
                 ),
                 child: TextField(
                   key: const Key('note_content_field'),

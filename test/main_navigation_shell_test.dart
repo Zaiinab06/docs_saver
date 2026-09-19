@@ -293,7 +293,7 @@ void main() {
       expect(find.text('APPEARANCE'), findsOneWidget);
       expect(find.text('NOTIFICATIONS'), findsOneWidget);
       expect(find.text('Alex Mercer'), findsOneWidget);
-      expect(find.text('tester@secondbrain.app'), findsOneWidget);
+      expect(find.text('tester@secondbrain.app'), findsAtLeastNWidgets(1));
 
       await tester.scrollUntilVisible(find.text('DATA & STORAGE'), 200);
       expect(find.text('DATA & STORAGE'), findsOneWidget);

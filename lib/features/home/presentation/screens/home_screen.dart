@@ -174,7 +174,7 @@ class HomeScreenState extends State<HomeScreen> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.backgroundOf(context),
         body: SafeArea(
           top: false,
           bottom: true,
@@ -182,7 +182,7 @@ class HomeScreenState extends State<HomeScreen> {
           builder: (context, state) {
             return RefreshIndicator(
               color: AppColors.primary,
-              backgroundColor: AppColors.cardBackground,
+              backgroundColor: AppColors.cardBackgroundOf(context),
               onRefresh: () async {
                 context.read<CaptureBloc>().add(LoadMemoriesEvent());
                 context.read<CaptureBloc>().add(SyncPendingMemoriesEvent());
@@ -201,7 +201,7 @@ class HomeScreenState extends State<HomeScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
-                      child: _buildCategoriesHeader(),
+                      child: _buildCategoriesHeader(context),
                     ),
                   ),
 
@@ -229,7 +229,7 @@ class HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.cardBackground,
+      backgroundColor: AppColors.cardBackgroundOf(context),
       barrierColor: Colors.black.withValues(alpha: 0.4),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -248,18 +248,18 @@ class HomeScreenState extends State<HomeScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.chipInactiveBorder,
+                      color: AppColors.borderOf(sheetContext),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   'What do you want to save?',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: AppColors.textPrimaryOf(sheetContext),
                     letterSpacing: -0.3,
                   ),
                 ),
@@ -970,10 +970,10 @@ class HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.background,
+            color: AppColors.cardBackgroundOf(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.chipInactiveBorder,
+              color: AppColors.borderOf(context),
               width: 1.0,
             ),
           ),
@@ -982,8 +982,8 @@ class HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 34,
                 height: 34,
-                decoration: const BoxDecoration(
-                  color: AppColors.lightCyanTint,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceTintOf(context),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -996,10 +996,10 @@ class HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1260,7 +1260,7 @@ class HomeScreenState extends State<HomeScreen> {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: AppColors.cardBackgroundOf(context),
             borderRadius: BorderRadius.circular(100),
             boxShadow: [
               BoxShadow(
@@ -1272,9 +1272,9 @@ class HomeScreenState extends State<HomeScreen> {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.search_rounded,
-                color: AppColors.textSecondary,
+                color: AppColors.textSecondaryOf(context),
                 size: 20,
               ),
               const SizedBox(width: 10),
@@ -1283,7 +1283,7 @@ class HomeScreenState extends State<HomeScreen> {
                   AppStrings.homeSearchHint,
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textSecondary.withValues(alpha: 0.85),
+                    color: AppColors.textSecondaryOf(context).withValues(alpha: 0.85),
                     fontWeight: FontWeight.w400,
                   ),
                   maxLines: 1,
@@ -1293,8 +1293,8 @@ class HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 32,
                 height: 32,
-                decoration: const BoxDecoration(
-                  color: AppColors.lightCyanTint,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceTintOf(context),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1311,15 +1311,15 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   // Section Header: Categories
-  Widget _buildCategoriesHeader() {
-    return const Align(
+  Widget _buildCategoriesHeader(BuildContext context) {
+    return Align(
       alignment: Alignment.centerLeft,
       child: Text(
         AppStrings.homeCategoriesHeader,
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: AppColors.textPrimaryOf(context),
           letterSpacing: -0.3,
         ),
       ),
@@ -1357,10 +1357,10 @@ class HomeScreenState extends State<HomeScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
+              color: AppColors.cardBackgroundOf(context),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: AppColors.violetTwilight100.withValues(alpha: 0.8),
+                color: AppColors.borderOf(context),
                 width: 1.2,
               ),
               boxShadow: [
@@ -1377,10 +1377,10 @@ class HomeScreenState extends State<HomeScreen> {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: AppColors.violetTwilight50,
+                    color: AppColors.toggleBackgroundOf(context),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: AppColors.violetTwilight100,
+                      color: AppColors.borderOf(context),
                       width: 1,
                     ),
                   ),
@@ -1394,10 +1394,10 @@ class HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: Text(
                     section.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.violetTwilight800,
+                      color: AppColors.textPrimaryOf(context),
                       letterSpacing: -0.2,
                     ),
                     maxLines: 1,
@@ -1408,7 +1408,7 @@ class HomeScreenState extends State<HomeScreen> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.violetTwilight50.withValues(alpha: 0.7),
+                    color: AppColors.toggleBackgroundOf(context).withValues(alpha: 0.7),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(

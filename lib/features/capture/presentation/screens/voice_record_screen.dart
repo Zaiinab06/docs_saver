@@ -310,24 +310,24 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.backgroundOf(context),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded,
-              color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimaryOf(context)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           _recordState == VoiceRecordState.review
               ? 'Review Voice Note'
               : 'Record Voice',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: AppColors.textPrimaryOf(context),
             letterSpacing: -0.3,
           ),
         ),

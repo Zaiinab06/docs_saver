@@ -173,7 +173,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.backgroundOf(context),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
@@ -364,7 +364,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     width: tabWidth,
                                     height: double.infinity,
                                     decoration: BoxDecoration(
-                                      color: AppColors.cardBackground,
+                                      color: AppColors.cardBackgroundOf(context),
                                       borderRadius: BorderRadius.circular(100),
                                       boxShadow: [
                                         BoxShadow(
@@ -397,7 +397,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                               color:
                                                   _currentMode == AuthMode.signIn
                                                       ? AppColors.primary
-                                                      : AppColors.textSecondary,
+                                                      : AppColors.textSecondaryOf(context),
                                             ),
                                             child:
                                                 const Text(AppStrings.signInTab),
@@ -422,7 +422,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                               color:
                                                   _currentMode == AuthMode.signUp
                                                       ? AppColors.primary
-                                                      : AppColors.textSecondary,
+                                                      : AppColors.textSecondaryOf(context),
                                             ),
                                             child:
                                                 const Text(AppStrings.signUpTab),
@@ -444,9 +444,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       Container(
                         padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
-                          color: AppColors.cardBackground,
+                          color: AppColors.cardBackgroundOf(context),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: AppColors.border, width: 1),
+                          border: Border.all(color: AppColors.borderOf(context), width: 1),
                           boxShadow: [
                             BoxShadow(
                               color: AppColors.primary.withValues(alpha: 0.06),

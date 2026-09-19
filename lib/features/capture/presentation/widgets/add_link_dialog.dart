@@ -126,9 +126,9 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
     final viewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackgroundOf(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + viewInsetsBottom),
       child: SafeArea(
@@ -143,7 +143,7 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.chipInactiveBorder,
+                  color: AppColors.borderOf(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -156,7 +156,7 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.lightCyanTint,
+                    color: AppColors.surfaceTintOf(context),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -166,7 +166,7 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -175,16 +175,16 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: AppColors.textPrimaryOf(context),
                           letterSpacing: -0.3,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'Save and organize an article, website, or reference',
                         style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.textSecondary,
+                          color: AppColors.textSecondaryOf(context),
                         ),
                       ),
                     ],
@@ -197,12 +197,12 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
             // URL Input Field
             Container(
               decoration: BoxDecoration(
-                color: AppColors.cardBackground,
+                color: AppColors.toggleBackgroundOf(context),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: _errorMessage != null
                       ? AppColors.errorText
-                      : AppColors.chipInactiveBorder,
+                      : AppColors.borderOf(context),
                   width: _errorMessage != null ? 1.4 : 1.0,
                 ),
               ),
@@ -213,16 +213,15 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                 enableSuggestions: false,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _onSubmit(),
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: AppColors.textPrimaryOf(context),
                 ),
                 decoration: InputDecoration(
                   hintText: 'https://example.com/article',
-                  hintStyle: const TextStyle(
+                  hintStyle: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textSecondary,
+                    color: AppColors.textSecondaryOf(context),
                   ),
                   prefixIcon: const Icon(
                     Icons.public_rounded,

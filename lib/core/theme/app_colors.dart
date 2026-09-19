@@ -57,6 +57,54 @@ class AppColors {
   static const Color lightLavenderTint = periwinkle100; // #DBDBF0
 
   // ==========================================
+  // Dark Theme Tokens (Obsidian / Deep Periwinkle)
+  // ==========================================
+  static const Color darkBackground = Color(0xFF0F0F1E);
+  static const Color darkCardBackground = Color(0xFF181829);
+  static const Color darkSubtleBorder = Color(0xFF262640);
+  static const Color darkBorder = Color(0xFF333355);
+  static const Color darkTextPrimary = Color(0xFFF0F0FA);
+  static const Color darkTextSecondary = Color(0xFFB0B0D0);
+  static const Color darkTextMuted = Color(0xFF7575A5);
+  static const Color darkToggleBackground = Color(0xFF222238);
+
+  // ==========================================
+  // Context-aware Theme Helpers
+  // ==========================================
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color backgroundOf(BuildContext context) =>
+      isDark(context) ? darkBackground : background;
+
+  static Color cardBackgroundOf(BuildContext context) =>
+      isDark(context) ? darkCardBackground : cardBackground;
+
+  static Color textPrimaryOf(BuildContext context) =>
+      isDark(context) ? darkTextPrimary : textPrimary;
+
+  static Color textSecondaryOf(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : textSecondary;
+
+  static Color textMutedOf(BuildContext context) =>
+      isDark(context) ? darkTextMuted : textMuted;
+
+  static Color borderOf(BuildContext context) =>
+      isDark(context) ? darkBorder : border;
+
+  static Color subtleBorderOf(BuildContext context) =>
+      isDark(context) ? darkSubtleBorder : subtleBorder;
+
+  static Color toggleBackgroundOf(BuildContext context) =>
+      isDark(context) ? darkToggleBackground : toggleBackground;
+
+  static Color inputFillOf(BuildContext context) =>
+      isDark(context) ? darkCardBackground : inputFill;
+
+  static Color surfaceTintOf(BuildContext context) =>
+      isDark(context) ? darkCardBackground : lightCyanTint;
+
+  // ==========================================
   // Chips
   // ==========================================
   static const Color chipInactiveBackground = white; // #FFFFFF

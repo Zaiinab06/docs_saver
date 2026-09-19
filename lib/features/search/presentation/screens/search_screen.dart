@@ -189,7 +189,7 @@ class _SearchScreenState extends State<SearchScreen> {
     return BlocProvider.value(
       value: _bloc,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.backgroundOf(context),
         appBar: AppBar(
           toolbarHeight: 76,
           backgroundColor: Colors.transparent,
@@ -217,7 +217,7 @@ class _SearchScreenState extends State<SearchScreen> {
               height: 36,
               padding: const EdgeInsets.only(left: 16, right: 8),
               decoration: BoxDecoration(
-                color: AppColors.cardBackground,
+                color: AppColors.cardBackgroundOf(context),
                 borderRadius: BorderRadius.circular(100),
                 boxShadow: [
                   BoxShadow(
@@ -230,43 +230,45 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                const Icon(
-                  Icons.search_rounded,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    autofocus: widget.autofocus,
-                    onChanged: _onQueryChanged,
-                    onSubmitted: _onQuerySubmitted,
-                    textAlignVertical: TextAlignVertical.center,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    decoration: InputDecoration(
-                      isCollapsed: true,
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      hintText: AppStrings.homeSearchHint,
-                      hintStyle: TextStyle(
+                  Icon(
+                    Icons.search_rounded,
+                    color: AppColors.textSecondaryOf(context),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: widget.autofocus,
+                      onChanged: _onQueryChanged,
+                      onSubmitted: _onQuerySubmitted,
+                      textInputAction: TextInputAction.search,
+                      textAlignVertical: TextAlignVertical.center,
+                      style: TextStyle(
+                        color: AppColors.textPrimaryOf(context),
                         fontSize: 14,
-                        color: AppColors.textSecondary.withValues(alpha: 0.85),
                         fontWeight: FontWeight.w400,
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      errorBorder: InputBorder.none,
-                      focusedErrorBorder: InputBorder.none,
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        hintText: AppStrings.homeSearchHint,
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondaryOf(context)
+                              .withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
                 if (_searchController.text.isNotEmpty)
                   IconButton(
                     icon: const Icon(
@@ -478,8 +480,12 @@ class _SearchScreenState extends State<SearchScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: AppColors.cardBackgroundOf(context),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.subtleBorderOf(context),
+          width: 1.0,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -516,7 +522,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         width: 46,
                         height: 46,
                         decoration: BoxDecoration(
-                          color: AppColors.lightCyanTint,
+                          color: AppColors.surfaceTintOf(context),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: ClipRRect(
@@ -532,10 +538,10 @@ class _SearchScreenState extends State<SearchScreen> {
                           children: [
                             Text(
                               item.title.isEmpty ? 'Untitled Memory' : item.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                                color: AppColors.textPrimaryOf(context),
                                 letterSpacing: -0.2,
                               ),
                               maxLines: 1,
@@ -544,10 +550,10 @@ class _SearchScreenState extends State<SearchScreen> {
                             const SizedBox(height: 3),
                             Text(
                               '${item.category} • ${_formatTimeAgo(item.clientCreatedAt)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary,
+                                color: AppColors.textSecondaryOf(context),
                               ),
                             ),
                           ],
@@ -562,7 +568,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.lightCyanTint,
+                            color: AppColors.surfaceTintOf(context),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: AppColors.primary.withValues(alpha: 0.25),
@@ -595,15 +601,15 @@ class _SearchScreenState extends State<SearchScreen> {
                             vertical: 2.5,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppColors.toggleBackgroundOf(context),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Keyword',
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
+                              color: AppColors.textSecondaryOf(context),
                             ),
                           ),
                         ),
@@ -615,9 +621,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       _cleanContentSnippet(item.content),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textSecondaryOf(context),
                         height: 1.35,
                       ),
                     ),
@@ -636,16 +642,16 @@ class _SearchScreenState extends State<SearchScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.background,
+                            color: AppColors.toggleBackgroundOf(context),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: AppColors.borderOf(context)),
                           ),
                           child: Text(
                             '#$cleanTag',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.textSecondary,
+                              color: AppColors.textSecondaryOf(context),
                             ),
                           ),
                         );
