@@ -6,19 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/services/isar_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
-import '../../../capture/data/models/memory_model.dart';
-import '../../../capture/domain/entities/memory_entity.dart';
 import '../../../capture/presentation/bloc/capture_bloc.dart';
 import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
-import '../../../capture/presentation/screens/memory_detail_screen.dart';
 import '../../../capture/presentation/screens/memory_review_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
@@ -34,16 +29,9 @@ import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/services/file_picker_service.dart';
 import '../../../../core/utils/link_metadata_extractor.dart';
+import '../../domain/models/category_section.dart';
+import 'category_detail_screen.dart';
 
-class _CategoryItem {
-  final String name;
-  final IconData icon;
-
-  const _CategoryItem({
-    required this.name,
-    required this.icon,
-  });
-}
 
 class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
   @override
@@ -83,10 +71,6 @@ class HomeScreenState extends State<HomeScreen> {
   void openCaptureBottomSheet() {
     _showCaptureBottomSheet(context);
   }
-
-  String _selectedCategory = 'All';
-  final Set<String> _locallyPinnedIds = {};
-  final Set<String> _locallyUnpinnedIds = {};
   late final LinkMetadataExtractor _linkMetadataExtractor;
 
   IngestMemoryUseCase get _effectiveIngestMemoryUseCase {
@@ -107,248 +91,6 @@ class HomeScreenState extends State<HomeScreen> {
       );
     }
   }
-
-  bool _isMemoryPinned(MemoryEntity memory) {
-    if (_locallyUnpinnedIds.contains(memory.id)) return false;
-    if (_locallyPinnedIds.contains(memory.id)) return true;
-    return memory.isPinned;
-  }
-
-  int _compareMemories(MemoryEntity a, MemoryEntity b) {
-    final aPinned = _isMemoryPinned(a);
-    final bPinned = _isMemoryPinned(b);
-    if (aPinned && !bPinned) return -1;
-    if (!aPinned && bPinned) return 1;
-    final dateComp = b.clientCreatedAt.compareTo(a.clientCreatedAt);
-    if (dateComp != 0) return dateComp;
-    return b.id.compareTo(a.id);
-  }
-
-  Future<void> _togglePinMemory(MemoryEntity memory) async {
-    final currentlyPinned = _isMemoryPinned(memory);
-    setState(() {
-      if (currentlyPinned) {
-        _locallyPinnedIds.remove(memory.id);
-        _locallyUnpinnedIds.add(memory.id);
-      } else {
-        _locallyUnpinnedIds.remove(memory.id);
-        _locallyPinnedIds.add(memory.id);
-      }
-    });
-
-    final newTags = List<String>.from(memory.tags);
-    if (currentlyPinned) {
-      newTags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
-    } else {
-      if (!newTags.contains('pinned')) {
-        newTags.add('pinned');
-      }
-    }
-
-    try {
-      final isar = IsarService.instance;
-      final model = await isar.memoryModels
-          .filter()
-          .serverIdEqualTo(memory.id)
-          .findFirst();
-      if (model != null) {
-        model.tags = newTags;
-        model.isSynced = false;
-        model.clientUpdatedAt = DateTime.now();
-        await isar.writeTxn(() async {
-          await isar.memoryModels.put(model);
-        });
-
-        try {
-          await Supabase.instance.client.from('memories').update({
-            'tags': newTags,
-            'client_updated_at': DateTime.now().toIso8601String(),
-          }).eq('id', memory.id);
-          model.isSynced = true;
-          await isar.writeTxn(() async {
-            await isar.memoryModels.put(model);
-          });
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    final updatedMemory = MemoryEntity(
-      id: memory.id,
-      userId: memory.userId,
-      title: memory.title,
-      content: memory.content,
-      mediaUrl: memory.mediaUrl,
-      tags: newTags,
-      category: memory.category,
-      embedding: memory.embedding,
-      aiStatus: memory.aiStatus,
-      isConflictCopy: memory.isConflictCopy,
-      clientCreatedAt: memory.clientCreatedAt,
-      clientUpdatedAt: DateTime.now(),
-      serverUpdatedAt: memory.serverUpdatedAt,
-    );
-
-    if (mounted) {
-      try {
-        await context.read<CaptureBloc>().saveMemoryUseCase(updatedMemory);
-      } catch (_) {}
-      if (mounted) {
-        context.read<CaptureBloc>().add(MemoryUpdatedEvent(updatedMemory));
-      }
-    }
-  }
-
-  void _shareMemory(MemoryEntity memory) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Sharing "${memory.title.isEmpty ? "Memory" : memory.title}"...'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _confirmDeleteMemory(BuildContext context, MemoryEntity memory) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            AppStrings.dialogDeleteTitle,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          content: const Text(
-            AppStrings.dialogDeleteMessage,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text(
-                AppStrings.dialogCancel,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.errorText,
-              ),
-              child: const Text(
-                AppStrings.dialogDeleteConfirm,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.errorText,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true && mounted) {
-      await _deleteMemory(memory);
-    }
-  }
-
-  Future<void> _deleteMemory(MemoryEntity memory) async {
-    try {
-      final isar = IsarService.instance;
-      await isar.writeTxn(() async {
-        await isar.memoryModels
-            .filter()
-            .serverIdEqualTo(memory.id)
-            .deleteAll();
-      });
-      try {
-        await Supabase.instance.client
-            .from('memories')
-            .delete()
-            .eq('id', memory.id);
-      } catch (_) {}
-      if (mounted) {
-        context.read<CaptureBloc>().add(LoadMemoriesEvent());
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _openMemoryDetail(MemoryEntity memory) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MemoryDetailScreen(
-          memoryId: memory.id,
-          initialMemory: memory,
-        ),
-      ),
-    );
-    if (mounted) {
-      setState(() {
-        _locallyPinnedIds.remove(memory.id);
-        _locallyUnpinnedIds.remove(memory.id);
-      });
-      context.read<CaptureBloc>().add(LoadMemoriesEvent());
-    }
-  }
-
-  static const List<_CategoryItem> _categories = [
-    _CategoryItem(
-      name: 'All',
-      icon: Icons.grid_view_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryWork,
-      icon: Icons.work_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryPersonal,
-      icon: Icons.favorite_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryStudy,
-      icon: Icons.school_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryTravel,
-      icon: Icons.flight_takeoff_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryFashion,
-      icon: Icons.shopping_bag_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryFood,
-      icon: Icons.restaurant_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryFinance,
-      icon: Icons.account_balance_wallet_rounded,
-    ),
-    _CategoryItem(
-      name: AppStrings.categoryHealth,
-      icon: Icons.fitness_center_rounded,
-    ),
-  ];
 
   StreamSubscription<dynamic>? _authSubscription;
 
@@ -420,177 +162,6 @@ class HomeScreenState extends State<HomeScreen> {
     return trimmed[0].toUpperCase();
   }
 
-  String _formatTimeAgo(DateTime dateTime) {
-    final diff = DateTime.now().difference(dateTime);
-    if (diff.inSeconds < 60) {
-      return 'Just now';
-    } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inDays == 1) {
-      return 'Yesterday';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
-    } else {
-      return DateFormat('MMM d').format(dateTime);
-    }
-  }
-
-  IconData _getMemoryIcon(MemoryEntity memory) {
-    final cat = memory.category.toLowerCase();
-    final tags = memory.tags.map((t) => t.toLowerCase()).toList();
-    final content = memory.content.toLowerCase();
-    final isVoice = tags.contains('voice') ||
-        (memory.mediaUrl != null &&
-            (memory.mediaUrl!.endsWith('.m4a') ||
-             memory.mediaUrl!.endsWith('.aac') ||
-             memory.mediaUrl!.endsWith('.mp3') ||
-             memory.mediaUrl!.endsWith('.wav')));
-
-    if (isVoice) {
-      return Icons.mic_rounded;
-    }
-    if (memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
-      return Icons.image_outlined;
-    }
-    if (content.startsWith('http://') || content.startsWith('https://') || tags.contains('link')) {
-      return Icons.link_rounded;
-    }
-    if (cat.contains('video') || tags.any((t) => t.contains('video') || t.contains('youtube'))) {
-      return Icons.play_circle_outline_rounded;
-    }
-    if (cat.contains('book') || tags.any((t) => t.contains('book') || t.contains('read'))) {
-      return Icons.menu_book_rounded;
-    }
-    if (cat.contains('work') || tags.any((t) => t.contains('project') || t.contains('meeting'))) {
-      return Icons.work_rounded;
-    }
-    if (cat.contains('travel') || tags.any((t) => t.contains('travel') || t.contains('trip') || t.contains('flight'))) {
-      return Icons.flight_takeoff_rounded;
-    }
-    if (cat.contains('fashion') || tags.any((t) => t.contains('fashion') || t.contains('shopping') || t.contains('clothes') || t.contains('outfit'))) {
-      return Icons.shopping_bag_rounded;
-    }
-    if (cat.contains('food') || tags.any((t) => t.contains('food') || t.contains('restaurant') || t.contains('recipe') || t.contains('cooking') || t.contains('meal'))) {
-      return Icons.restaurant_rounded;
-    }
-    if (cat.contains('finance') || tags.any((t) => t.contains('finance') || t.contains('money') || t.contains('budget') || t.contains('wallet') || t.contains('expense'))) {
-      return Icons.account_balance_wallet_rounded;
-    }
-    if (cat.contains('health') || cat.contains('fitness') || tags.any((t) => t.contains('health') || t.contains('fitness') || t.contains('gym') || t.contains('workout'))) {
-      return Icons.fitness_center_rounded;
-    }
-    return Icons.article_rounded;
-  }
-
-  Widget _buildMemoryThumbnail(MemoryEntity memory) {
-    final media = memory.mediaUrl;
-    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
-        (media != null &&
-            (media.endsWith('.m4a') ||
-             media.endsWith('.aac') ||
-             media.endsWith('.mp3') ||
-             media.endsWith('.wav')));
-
-    if (isVoice) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: AppColors.lightCyanTint,
-        child: const Center(
-          child: Icon(
-            Icons.mic_rounded,
-            color: AppColors.primary,
-            size: 22,
-          ),
-        ),
-      );
-    }
-    if (media == null || media.isEmpty) {
-      return Icon(
-        _getMemoryIcon(memory),
-        color: AppColors.primary,
-        size: 22,
-      );
-    }
-    if (media.startsWith('http://') || media.startsWith('https://')) {
-      return Image.network(
-        media,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(
-          _getMemoryIcon(memory),
-          color: AppColors.primary,
-          size: 22,
-        ),
-      );
-    }
-    final file = File(media);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(
-          _getMemoryIcon(memory),
-          color: AppColors.primary,
-          size: 22,
-        ),
-      );
-    }
-    return Icon(
-      _getMemoryIcon(memory),
-      color: AppColors.primary,
-      size: 22,
-    );
-  }
-
-  List<MemoryEntity> _filterMemories(List<MemoryEntity> memories) {
-    if (_selectedCategory == 'All') return memories;
-
-    final filter = _selectedCategory.toLowerCase();
-    return memories.where((m) {
-      final cat = m.category.toLowerCase();
-      final tags = m.tags.map((t) => t.toLowerCase()).toList();
-
-      if (_selectedCategory == AppStrings.categoryWork) {
-        return cat == 'work' ||
-            tags.any((t) => t.contains('work') || t.contains('project') || t.contains('meeting'));
-      }
-      if (_selectedCategory == AppStrings.categoryPersonal) {
-        return cat == 'personal' ||
-            tags.any((t) => t.contains('personal') || t.contains('idea') || t.contains('life'));
-      }
-      if (_selectedCategory == AppStrings.categoryStudy) {
-        return cat == 'study' ||
-            cat == 'learning' ||
-            cat == 'book' ||
-            tags.any((t) => t.contains('study') || t.contains('learn') || t.contains('book'));
-      }
-      if (_selectedCategory == AppStrings.categoryTravel) {
-        return cat == 'travel' ||
-            tags.any((t) => t.contains('travel') || t.contains('trip') || t.contains('flight'));
-      }
-      if (_selectedCategory == AppStrings.categoryFashion) {
-        return cat == 'fashion' ||
-            tags.any((t) => t.contains('fashion') || t.contains('shopping') || t.contains('clothes') || t.contains('outfit'));
-      }
-      if (_selectedCategory == AppStrings.categoryFood) {
-        return cat == 'food' ||
-            tags.any((t) => t.contains('food') || t.contains('restaurant') || t.contains('recipe') || t.contains('cooking') || t.contains('meal'));
-      }
-      if (_selectedCategory == AppStrings.categoryFinance) {
-        return cat == 'finance' ||
-            tags.any((t) => t.contains('finance') || t.contains('money') || t.contains('budget') || t.contains('wallet') || t.contains('expense'));
-      }
-      if (_selectedCategory == AppStrings.categoryHealth) {
-        return cat == 'health' ||
-            cat == 'fitness' ||
-            tags.any((t) => t.contains('health') || t.contains('fitness') || t.contains('gym') || t.contains('workout'));
-      }
-      return cat == filter || tags.contains(filter);
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final userName = _getUserName();
@@ -609,12 +180,6 @@ class HomeScreenState extends State<HomeScreen> {
           bottom: true,
           child: BlocBuilder<CaptureBloc, CaptureState>(
           builder: (context, state) {
-            final allMemories = state is CaptureLoaded ? state.memories : <MemoryEntity>[];
-            final filteredMemories = _filterMemories(allMemories);
-            final sortedMemories = List<MemoryEntity>.from(filteredMemories)
-              ..sort(_compareMemories);
-            final isLoading = state is CaptureLoading && allMemories.isEmpty;
-
             return RefreshIndicator(
               color: AppColors.primary,
               backgroundColor: AppColors.cardBackground,
@@ -627,63 +192,28 @@ class HomeScreenState extends State<HomeScreen> {
                   parent: BouncingScrollPhysics(),
                 ),
                 slivers: [
-                  // 1. Compact Cyan Rounded Header with Overlapping Search Bar (Reference Image 2 Style)
+                  // 1. Header with Straight Bottom and Search Bar Inside
                   SliverToBoxAdapter(
                     child: _buildHeaderWithSearch(context, userName, userInitial),
                   ),
 
-                  // 2. Categories Horizontal Section Header
+                  // 2. Categories Section Header
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
                       child: _buildCategoriesHeader(),
                     ),
                   ),
 
-                  // 3. Categories Horizontal Scrollable List
+                  // 3. Four Premium Category Navigation Section Cards
                   SliverToBoxAdapter(
-                    child: _buildCategoriesList(),
+                    child: _buildCategorySectionsList(context),
                   ),
 
-                  // 4. Recent Memories Section Header (Visible ONLY when at least one memory exists for current filter)
-                  if (!isLoading && sortedMemories.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                        child: _buildRecentMemoriesHeader(
-                          showSeeAll: true,
-                        ),
-                      ),
-                    ),
-
-                  // 5. Dynamic Memory List or Clean Empty State
-                  if (isLoading)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                        ),
-                      ),
-                    )
-                  else if (sortedMemories.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _buildEmptyState(),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 96),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final memory = sortedMemories[index];
-                            return _buildMemoryCard(memory);
-                          },
-                          childCount: sortedMemories.length,
-                        ),
-                      ),
-                    ),
+                  // 4. Bottom spacing below category cards
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 24),
+                  ),
                 ],
               ),
             );
@@ -1482,48 +1012,48 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Compact Cyan/Blue Rounded Header with Subtle Network Pattern and Overlapping Search Bar
+  // Cyan/Blue Straight Header with Search Bar Inside
   Widget _buildHeaderWithSearch(BuildContext context, String userName, String userInitial) {
     final topPadding = MediaQuery.paddingOf(context).top;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.bottomCenter,
-      children: [
-        // Full width cyan/blue background container with large rounded bottom corners
-        Container(
-          margin: const EdgeInsets.only(bottom: 24),
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: AppColors.headerGradient,
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(30),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.22),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: AppColors.headerGradient,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(30),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        child: Stack(
+          children: [
+            // Subtle connected-node/network pattern in background
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _NetworkPatternPainter(),
+              ),
             ),
-            child: Stack(
-              children: [
-                // Subtle connected-node/network pattern in background
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _NetworkPatternPainter(),
-                  ),
-                ),
 
-                // Header Content: Greeting, Subtitle, Right actions
-                Padding(
-                  padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 70),
-                  child: Row(
+            // Header Content: Greeting, Subtitle, Right actions, and Search Bar fully inside
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1585,7 +1115,6 @@ class HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-
                           // Bell button with notification dot
                           Material(
                             color: Colors.transparent,
@@ -1698,20 +1227,17 @@ class HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
 
-        // Search Bar: Floating Input Pill overlapping the bottom edge of the cyan container
-        Positioned(
-          left: 20,
-          right: 20,
-          bottom: 0,
-          child: _buildSearchBar(context),
+                  const SizedBox(height: 18),
+
+                  // Search Bar: fully inside the header
+                  _buildSearchBar(context),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -1800,516 +1326,99 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Categories Horizontal List of Pill Cards
-  Widget _buildCategoriesList() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final item = _categories[index];
-          final isSelected = _selectedCategory == item.name;
-
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  if (_selectedCategory == item.name) {
-                    _selectedCategory = 'All';
-                  } else {
-                    _selectedCategory = item.name;
-                  }
-                });
-              },
-              borderRadius: BorderRadius.circular(100),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: isSelected ? null : const Color(0xFFEAFAFD),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFF0096C7) : const Color(0xFFCCEBF5),
-                    width: isSelected ? 1.4 : 1.0,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFF00B4D8).withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      item.icon,
-                      color: isSelected ? AppColors.textWhite : const Color(0xFF0096C7),
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      item.name,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected ? AppColors.textWhite : const Color(0xFF0096C7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+  // Categories Section Cards List
+  Widget _buildCategorySectionsList(BuildContext context) {
+    return Column(
+      children: CategorySectionsData.sections.map((section) {
+        return _buildCategorySectionCard(context, section);
+      }).toList(),
     );
   }
 
-  // Section Header: Recent Memories
-  Widget _buildRecentMemoriesHeader({required bool showSeeAll}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          AppStrings.homeRecentMemoriesHeader,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-            letterSpacing: -0.3,
-          ),
-        ),
-        if (showSeeAll)
-          InkWell(
-            onTap: () {
-              if (_selectedCategory != 'All') {
-                setState(() {
-                  _selectedCategory = 'All';
-                });
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SearchScreen()),
-                );
-              }
-            },
-            borderRadius: BorderRadius.circular(6),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Text(
-                AppStrings.homeSeeAll,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+  // Premium Category Navigation Section Card
+  Widget _buildCategorySectionCard(BuildContext context, CategorySectionItem section) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: Key('home_category_section_${section.id}'),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CategoryDetailScreen(
+                  section: section,
+                  onCaptureTap: openCaptureBottomSheet,
                 ),
               ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  String _formatSnippet(String content) {
-    final trimmed = content.trim();
-    if (trimmed.isEmpty) return '';
-    if ((trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
-        !trimmed.contains('\n') &&
-        !trimmed.contains(' ')) {
-      return trimmed;
-    }
-
-    final lines = trimmed
-        .split(RegExp(r'\r?\n'))
-        .map((l) => l.trim())
-        .where((l) {
-          if (l.isEmpty) return false;
-          // Filter out raw URLs
-          if (l.startsWith('http://') ||
-              l.startsWith('https://') ||
-              l.startsWith('www.')) {
-            return false;
-          }
-          // Filter out status bar patterns (e.g. 7:45 PM, 100%, 5G)
-          if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(l) && l.length < 20) {
-            return false;
-          }
-          if (RegExp(r'^\d{1,3}%\s*$').hasMatch(l)) {
-            return false;
-          }
-          // Filter out common UI noise buttons / labels
-          final clean = l.replaceAll(RegExp(r'^[•\-\*]\s*'), '').trim().toLowerCase();
-          const noise = {
-            'back', 'next', 'done', 'cancel', 'close', 'search', 'home',
-            'share', 'menu', 'more', 'less ai', 'settings', 'profile'
-          };
-          if (noise.contains(clean)) return false;
-          return true;
-        })
-        .toList();
-
-    if (lines.isEmpty) return '';
-
-    // Take at most 2 concise points/lines
-    final maxLines = lines.take(2).toList();
-    return maxLines.join('\n');
-  }
-
-  // Recent Memory Card
-  Widget _buildMemoryCard(MemoryEntity memory) {
-    final isPinned = _isMemoryPinned(memory);
-    final cleanSnippet = _formatSnippet(memory.content);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.subtleBorder,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            border: isPinned
-                ? const Border(
-                    left: BorderSide(
-                      color: AppColors.primary,
-                      width: 4.0,
-                    ),
-                  )
-                : null,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openMemoryDetail(memory),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left Container: Dynamic Icon or Image Thumbnail
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: AppColors.lightCyanTint,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: _buildMemoryThumbnail(memory),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Title & Category • Relative Time
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            memory.title.isEmpty ? 'Untitled Note' : memory.title,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                              letterSpacing: -0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Text(
-                                '${memory.category} • ${_formatTimeAgo(memory.clientCreatedAt)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              // AI Status Indicator Dot
-                              _buildAiStatusIndicator(memory.aiStatus),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Right Side: 3-Dots Popup Menu Button
-                    PopupMenuButton<String>(
-                      icon: const Icon(
-                        Icons.more_vert,
-                        color: AppColors.iconSecondary,
-                        size: 20,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      color: AppColors.cardBackground,
-                      onSelected: (value) {
-                        if (value == 'pin') {
-                          _togglePinMemory(memory);
-                        } else if (value == 'share') {
-                          _shareMemory(memory);
-                        } else if (value == 'delete') {
-                          _confirmDeleteMemory(context, memory);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem<String>(
-                          value: 'pin',
-                          child: Row(
-                            children: [
-                              Icon(
-                                isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                isPinned ? AppStrings.menuUnpin : AppStrings.menuPin,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem<String>(
-                          value: 'share',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.share_outlined,
-                                size: 18,
-                                color: AppColors.textSecondary,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                AppStrings.menuShare,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.delete_outline_rounded,
-                                size: 18,
-                                color: AppColors.errorText,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                AppStrings.menuDelete,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.errorText,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+            );
+          },
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: AppColors.violetTwilight100.withValues(alpha: 0.8),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.violetTwilight500.withValues(alpha: 0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
                 ),
-
-                // 2-Line Snippet Preview (Clean, never large raw OCR block)
-                if (cleanSnippet.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    cleanSnippet,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-
-                // Dynamic Tag Chips with Light Cyan Background
-                if (memory.tags.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: memory.tags.take(4).map((tag) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightCyanTint,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '#$tag',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
               ],
             ),
-          ),
-        ),
-      ),
-    ),
-  ),
-);
-  }
-
-  // AI Status Indicator Dot / Icon
-  Widget _buildAiStatusIndicator(String aiStatus) {
-    if (aiStatus == 'pending') {
-      return Padding(
-        padding: const EdgeInsets.only(left: 6),
-        child: Tooltip(
-          message: 'AI Ingestion Pending',
-          child: Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-              color: AppColors.statusPending,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      );
-    } else if (aiStatus == 'failed') {
-      return Padding(
-        padding: const EdgeInsets.only(left: 6),
-        child: Tooltip(
-          message: 'AI Ingestion Failed',
-          child: Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-              color: AppColors.statusFailed,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      );
-    } else if (aiStatus == 'processed') {
-      return const Padding(
-        padding: EdgeInsets.only(left: 6),
-        child: Tooltip(
-          message: 'AI Processed',
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            size: 13,
-            color: AppColors.primary,
-          ),
-        ),
-      );
-    }
-    return const SizedBox.shrink();
-  }
-
-  // Clean Category-Aware Empty State
-  Widget _buildEmptyState() {
-    final String title;
-    final String subtitle;
-
-    if (_selectedCategory == 'All') {
-      title = AppStrings.emptyBrainTitle;
-      subtitle = AppStrings.emptyBrainSubtitle;
-    } else {
-      title = 'No $_selectedCategory memories yet';
-      subtitle = 'Save your first $_selectedCategory memory using the + button.';
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32.0, 16.0, 32.0, 60.0),
-      child: Center(
-        child: Transform.translate(
-          offset: const Offset(0, -40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/images/homeempty.png',
-                height: 140,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.violetTwilight50,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.violetTwilight100,
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    section.icon,
+                    color: AppColors.violetTwilight500,
+                    size: 22,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.textSecondary,
-                  height: 1.45,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    section.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.violetTwilight800,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.violetTwilight50.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: AppColors.violetTwilight400,
+                    size: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2322,16 +1431,16 @@ class _NetworkPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.09)
+      ..color = Colors.white.withValues(alpha: 0.12)
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
     final dotPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.18)
+      ..color = Colors.white.withValues(alpha: 0.22)
       ..style = PaintingStyle.fill;
 
     final glowPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
+      ..color = Colors.white.withValues(alpha: 0.06)
       ..style = PaintingStyle.fill;
 
     // Node coordinates scattered across header background
