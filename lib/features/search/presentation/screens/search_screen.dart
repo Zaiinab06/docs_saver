@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -86,14 +87,6 @@ class _SearchScreenState extends State<SearchScreen> {
     _debounceTimer?.cancel();
     setState(() {});
     _bloc.add(ClearSearchRequested());
-  }
-
-  void _selectPresetQuery(String query) {
-    _searchController.text = query;
-    _searchController.selection = TextSelection.fromPosition(
-      TextPosition(offset: query.length),
-    );
-    _onQuerySubmitted(query);
   }
 
   String _formatTimeAgo(DateTime dateTime) {
@@ -198,58 +191,112 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0.5,
+          toolbarHeight: 76,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          systemOverlayStyle: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
           automaticallyImplyLeading: false,
           leading: canGoBack
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textWhite),
                   onPressed: () => Navigator.of(context).pop(),
                 )
               : null,
-          titleSpacing: canGoBack ? 0 : 16,
-          title: Container(
-            height: 44,
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: TextField(
-              controller: _searchController,
-              autofocus: widget.autofocus,
-              onChanged: _onQueryChanged,
-              onSubmitted: _onQuerySubmitted,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14.5,
-                fontWeight: FontWeight.w500,
+          actions: canGoBack ? const [SizedBox(width: 56)] : null,
+          centerTitle: true,
+          titleSpacing: 0,
+          title: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-              decoration: InputDecoration(
-                hintText: AppStrings.homeSearchHint,
-                hintStyle: TextStyle(
-                  color: AppColors.textSecondary.withValues(alpha: 0.8),
-                  fontSize: 13.5,
-                ),
-                prefixIcon: const Icon(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                const Icon(
                   Icons.search_rounded,
-                  color: AppColors.primary,
+                  color: AppColors.textSecondary,
                   size: 20,
                 ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.textSecondary,
-                          size: 18,
-                        ),
-                        onPressed: _clearSearch,
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: widget.autofocus,
+                    onChanged: _onQueryChanged,
+                    onSubmitted: _onQuerySubmitted,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      hintText: AppStrings.homeSearchHint,
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                    ),
+                  ),
+                ),
+                if (_searchController.text.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textSecondary,
+                      size: 18,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    splashRadius: 18,
+                    onPressed: _clearSearch,
+                  ),
+              ],
+            ),
+          ),
+        ),
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: AppColors.headerGradient,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
           ),
         ),
@@ -272,10 +319,8 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildInitialState() {
-    final suggestions = ['Work', 'Study', 'Travel', 'Food', 'Personal'];
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 110, 24, 24),
       child: Center(
         child: Column(
           children: [
@@ -318,58 +363,6 @@ class _SearchScreenState extends State<SearchScreen> {
                 color: AppColors.textSecondary,
                 height: 1.4,
               ),
-            ),
-            const SizedBox(height: 32),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Try searching for',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary.withValues(alpha: 0.9),
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: suggestions.map((category) {
-                return InkWell(
-                  onTap: () => _selectPresetQuery(category),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _getCategoryIcon(category),
-                          size: 15,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          category,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
             ),
           ],
         ),

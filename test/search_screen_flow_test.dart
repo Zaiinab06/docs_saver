@@ -182,7 +182,7 @@ void main() {
       bloc.close();
     });
 
-    testWidgets('renders initial suggestions and search input', (tester) async {
+    testWidgets('renders initial state and search input', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: SearchScreen(searchBloc: bloc),
@@ -191,9 +191,9 @@ void main() {
 
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Semantic Search'), findsOneWidget);
-      expect(find.text('Work'), findsOneWidget);
-      expect(find.text('Study'), findsOneWidget);
-      expect(find.text('Travel'), findsOneWidget);
+      expect(find.text('Search by meaning, feeling, or concept —\nnot just exact keywords.'), findsOneWidget);
+      expect(find.text('Try searching for'), findsNothing);
+      expect(find.text('Work'), findsNothing);
     });
 
     testWidgets('shows loading state while search is in progress', (tester) async {
@@ -313,17 +313,16 @@ void main() {
       expect(bloc.state, isA<SearchInitial>());
     });
 
-    testWidgets('tapping preset chip enters query and triggers search', (tester) async {
+    testWidgets('entering query triggers search', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: SearchScreen(searchBloc: bloc),
         ),
       );
 
-      await tester.tap(find.text('Work'));
-      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Work');
+      await tester.pump(const Duration(milliseconds: 350));
 
-      expect(find.text('Work'), findsWidgets);
       expect(mockRepo.lastSearchedQuery, 'Work');
     });
   });
