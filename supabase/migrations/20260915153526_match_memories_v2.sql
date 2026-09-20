@@ -38,7 +38,7 @@ begin
     m.category,
     m.tags,
     m.media_url,
-    m.client_created_at,
+    coalesce(m.client_created_at, m.created_at) as client_created_at,
     (1 - (m.embedding <=> query_embedding))::float as similarity
   from public.memories m
   where m.user_id = auth.uid()

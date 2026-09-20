@@ -8,6 +8,8 @@ abstract class SearchLocalDataSource {
     String query, {
     String? userId,
   });
+
+  Future<MemoryModel?> getMemoryById(String serverId);
 }
 
 class SearchLocalDataSourceImpl implements SearchLocalDataSource {
@@ -19,6 +21,20 @@ class SearchLocalDataSourceImpl implements SearchLocalDataSource {
     if (isarInstance != null) return isarInstance;
     try {
       return IsarService.instance;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<MemoryModel?> getMemoryById(String serverId) async {
+    final isarDb = isar;
+    if (isarDb == null) return null;
+    try {
+      return await isarDb.memoryModels
+          .filter()
+          .serverIdEqualTo(serverId)
+          .findFirst();
     } catch (_) {
       return null;
     }

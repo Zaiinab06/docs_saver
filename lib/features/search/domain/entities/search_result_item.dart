@@ -8,7 +8,7 @@ class SearchResultItem extends Equatable {
   final String category;
   final List<String> tags;
   final String? mediaUrl;
-  final DateTime clientCreatedAt;
+  final DateTime? clientCreatedAt;
   final double similarity;
   final bool isOfflineResult;
 
@@ -19,12 +19,13 @@ class SearchResultItem extends Equatable {
     this.category = 'General',
     this.tags = const [],
     this.mediaUrl,
-    required this.clientCreatedAt,
+    this.clientCreatedAt,
     this.similarity = 0.0,
     this.isOfflineResult = false,
   });
 
   MemoryEntity toMemoryEntity({String userId = 'local_user'}) {
+    final timestamp = clientCreatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
     return MemoryEntity(
       id: id,
       userId: userId,
@@ -34,9 +35,9 @@ class SearchResultItem extends Equatable {
       tags: tags,
       category: category,
       aiStatus: 'processed',
-      clientCreatedAt: clientCreatedAt,
-      clientUpdatedAt: clientCreatedAt,
-      serverUpdatedAt: clientCreatedAt,
+      clientCreatedAt: timestamp,
+      clientUpdatedAt: timestamp,
+      serverUpdatedAt: timestamp,
     );
   }
 

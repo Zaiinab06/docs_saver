@@ -78,7 +78,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               userName: widget.userName,
               onSearchTap: () => setState(() => _currentIndex = 1),
             ),
-            const SearchScreen(
+            SearchScreen(
+              isActive: _currentIndex == 1,
               showBackButton: false,
               autofocus: false,
             ),
@@ -87,26 +88,28 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             const SettingsScreen(),
           ],
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: navBg,
-            border: Border(
-              top: BorderSide(
-                color: navBorder,
-                width: 1.0,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: _onTabSelected,
+        bottomNavigationBar: MediaQuery.of(context).viewInsets.bottom > 0
+            ? null
+            : Container(
+                decoration: BoxDecoration(
+                  color: navBg,
+                  border: Border(
+                    top: BorderSide(
+                      color: navBorder,
+                      width: 1.0,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: BottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabSelected,
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.transparent,
             elevation: 0,

@@ -160,14 +160,9 @@ void main() {
       // Verified: Category detected by AI is displayed
       expect(find.text('Work'), findsAtLeastNWidgets(1));
 
-      // Verified: Extracted content collapsible card works
-      expect(find.text('Extracted Content'), findsOneWidget);
-      expect(find.text('INVOICE #9823 Total: \$1250.00 Due: 30 days'), findsNothing);
-      await tester.ensureVisible(find.text('View extracted text'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('View extracted text'));
-      await tester.pumpAndSettle();
-      expect(find.text('INVOICE #9823 Total: \$1250.00 Due: 30 days'), findsOneWidget);
+      // Verified: Raw OCR extracted content section is removed from Review & Save UI
+      expect(find.text('Extracted Content'), findsNothing);
+      expect(find.text('View extracted text'), findsNothing);
     });
 
     testWidgets('HomeScreen Scan Document option safely handles user cancellation',

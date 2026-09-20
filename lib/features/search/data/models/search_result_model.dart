@@ -8,7 +8,7 @@ class SearchResultModel {
   final String category;
   final List<String> tags;
   final String? mediaUrl;
-  final DateTime clientCreatedAt;
+  final DateTime? clientCreatedAt;
   final double similarity;
 
   const SearchResultModel({
@@ -18,7 +18,7 @@ class SearchResultModel {
     required this.category,
     required this.tags,
     this.mediaUrl,
-    required this.clientCreatedAt,
+    this.clientCreatedAt,
     required this.similarity,
   });
 
@@ -30,10 +30,13 @@ class SearchResultModel {
       }
     }
 
-    DateTime parsedCreatedAt = DateTime.now();
-    if (json['client_created_at'] != null) {
-      parsedCreatedAt =
-          DateTime.tryParse(json['client_created_at'].toString()) ?? DateTime.now();
+    DateTime? parsedCreatedAt;
+    final rawCreatedAt = json['client_created_at'] ??
+        json['created_at'] ??
+        json['clientCreatedAt'] ??
+        json['createdAt'];
+    if (rawCreatedAt != null) {
+      parsedCreatedAt = DateTime.tryParse(rawCreatedAt.toString());
     }
 
     double parsedSimilarity = 0.0;
@@ -73,7 +76,10 @@ class SearchResultModel {
     );
   }
 
-  SearchResultItem toEntity({bool isOffline = false}) {
+  SearchResultItem toEntity({
+    DateTime? clientCreatedAt,
+    bool isOffline = false,
+  }) {
     return SearchResultItem(
       id: id,
       title: title,
@@ -81,7 +87,7 @@ class SearchResultModel {
       category: category,
       tags: tags,
       mediaUrl: mediaUrl,
-      clientCreatedAt: clientCreatedAt,
+      clientCreatedAt: clientCreatedAt ?? this.clientCreatedAt,
       similarity: similarity,
       isOfflineResult: isOffline,
     );

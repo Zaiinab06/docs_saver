@@ -381,6 +381,65 @@ void main() {
       // Verified: Remains on Search tab
       expect(find.byType(SearchScreen), findsOneWidget);
     });
+
+    testWidgets('leaving Search tab and reopening it starts with empty query and results',
+        (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      // Switch to Search tab
+      await tester.tap(find.text('Search'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      // Type a query in search
+      await tester.enterText(find.byType(TextField), 'prayer mat');
+      await tester.pump();
+      expect(find.text('prayer mat'), findsOneWidget);
+
+      // Navigate away to Home tab
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+
+      // Navigate back to Search tab
+      await tester.tap(find.text('Search'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      // Search field is empty and semantic search initial view is shown
+      expect(find.text('prayer mat'), findsNothing);
+      expect(find.text('Semantic Search'), findsOneWidget);
+    });
+
+    testWidgets('when keyboard opens, bottomNavigationBar is hidden to prevent artificial blank gap',
+        (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      // Switch to Search tab
+      await tester.tap(find.text('Search'));
+      await tester.pumpAndSettle();
+
+      // Initially, bottom navigation bar is visible
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+
+      // Simulate keyboard opening
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(() => tester.view.resetViewInsets());
+      await tester.pumpAndSettle();
+
+      // Bottom navigation bar is hidden to prevent double-inset blank gap
+      expect(find.byType(BottomNavigationBar), findsNothing);
+      expect(find.byType(SearchScreen), findsOneWidget);
+
+      // Simulate keyboard closing
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+
+      // Bottom navigation bar is restored
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+    });
   });
 
   group('SavedScreen — State, Navigation & Empty View Tests', () {

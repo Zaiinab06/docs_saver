@@ -15,6 +15,7 @@ import '../../domain/entities/memory_entity.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../bloc/capture_state.dart';
+import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/voice_audio_player_card.dart';
 
 class _CategoryTheme {
@@ -533,11 +534,44 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
+  static bool isImageMedia(String? mediaUrl) {
+    if (mediaUrl == null || mediaUrl.trim().isEmpty) return false;
+    final cleanUrl = mediaUrl.trim().split('?').first.toLowerCase();
+    if (cleanUrl.startsWith('data:image/')) return true;
+    const imageExtensions = [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.gif',
+      '.bmp',
+      '.heic',
+      '.heif',
+      '.tif',
+      '.tiff',
+      '.ico',
+    ];
+    return imageExtensions.any((ext) => cleanUrl.endsWith(ext));
+  }
+
+  void _openImageViewer(String mediaUrl, String? title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FullScreenImageViewer(
+          mediaUrl: mediaUrl,
+          title: title,
+        ),
+      ),
+    );
+  }
+
   Widget _buildMediaPreview(String mediaUrl) {
     Widget imageWidget;
     if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
       imageWidget = Image.network(
         mediaUrl,
+        width: double.infinity,
+        height: 220,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _buildMediaFallback(),
       );
@@ -546,6 +580,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       if (file.existsSync()) {
         imageWidget = Image.file(
           file,
+          width: double.infinity,
+          height: 220,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _buildMediaFallback(),
         );
@@ -554,17 +590,37 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       }
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(maxHeight: 300),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: GestureDetector(
+        onTap: () => _openImageViewer(mediaUrl, _memory?.title),
+        child: Stack(
+          children: [
+            imageWidget,
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.fullscreen_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
         ),
-        child: imageWidget,
       ),
     );
   }
@@ -583,7 +639,171 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
+  Widget _buildImageFileCard(String mediaUrl) {
+    final rawFileName = mediaUrl.split('/').last.split('\\').last.split('?').first;
+    final ext = rawFileName.contains('.') ? rawFileName.split('.').last.toUpperCase() : 'IMG';
+    final hasRealFileName = rawFileName.isNotEmpty && rawFileName.contains('.');
+
+    String fileSizeStr = '';
+    if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
+      try {
+        final file = File(mediaUrl);
+        if (file.existsSync()) {
+          final bytes = file.lengthSync();
+          if (bytes >= 1024 * 1024) {
+            fileSizeStr = '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+          } else {
+            fileSizeStr = '${(bytes / 1024).toStringAsFixed(1)} KB';
+          }
+        }
+      } catch (_) {}
+    }
+
+    Widget thumbnailWidget;
+    if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+      thumbnailWidget = Image.network(
+        mediaUrl,
+        width: double.infinity,
+        height: 180,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildMediaFallback(),
+      );
+    } else {
+      final file = File(mediaUrl);
+      if (file.existsSync()) {
+        thumbnailWidget = Image.file(
+          file,
+          width: double.infinity,
+          height: 180,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildMediaFallback(),
+        );
+      } else {
+        thumbnailWidget = _buildMediaFallback();
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => _openImageViewer(mediaUrl, _memory?.title),
+            child: Stack(
+              children: [
+                thumbnailWidget,
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.fullscreen_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasRealFileName) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          rawFileName,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightCyanTint,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          ext,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      if (fileSizeStr.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          fileSizeStr,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openImageViewer(mediaUrl, _memory?.title),
+                    icon: const Icon(Icons.fullscreen_rounded, size: 18),
+                    label: const Text('View Image'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDocumentDetailCard(String mediaUrl) {
+    if (isImageMedia(mediaUrl)) {
+      return _buildImageFileCard(mediaUrl);
+    }
+
     final fileName = mediaUrl.split('/').last.split('\\').last.split('?').first;
     final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'DOC';
     final isPdf = ext == 'PDF';

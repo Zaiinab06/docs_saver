@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/services/ocr_text_normalizer.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
@@ -185,6 +187,45 @@ class _CaptureScreenState extends State<CaptureScreen> {
     }
   }
 
+  Future<void> _rotateCapturedImage() async {
+    if (_capturedImage == null || _isProcessingOcr) return;
+
+    setState(() => _isProcessingOcr = true);
+
+    try {
+      final bytes = await _capturedImage!.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        final rotated = img.copyRotate(decoded, angle: 90);
+        final isPng = _capturedImage!.path.toLowerCase().endsWith('.png');
+        final encoded = isPng ? img.encodePng(rotated) : img.encodeJpg(rotated, quality: 90);
+
+        final dir = _capturedImage!.parent.path;
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final ext = isPng ? 'png' : 'jpg';
+        final rotatedFile = File('$dir/rot_${timestamp}_${_capturedImage!.uri.pathSegments.last.replaceAll(RegExp(r'\.[^.]+$'), '')}.$ext');
+        await rotatedFile.writeAsBytes(encoded, flush: true);
+
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+
+        if (mounted) {
+          setState(() {
+            _capturedImage = rotatedFile;
+            _persistedImagePath = rotatedFile.path;
+          });
+
+          await _runOcrExtraction(rotatedFile, _tags.contains('document'));
+        }
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingOcr = false);
+      }
+    }
+  }
+
   Future<void> _runOcrExtraction(File imageFile, bool isDocumentScan) async {
     try {
       final inputImage = InputImage.fromFile(imageFile);
@@ -192,7 +233,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       final recognizedText = await textRecognizer.processImage(inputImage);
       await textRecognizer.close();
 
-      final text = recognizedText.text.trim();
+      final text = OcrTextNormalizer.normalizeRecognizedText(recognizedText);
       if (text.isNotEmpty) {
         if (_contentController.text.trim().isEmpty) {
           _contentController.text = text;
@@ -691,6 +732,17 @@ class _CaptureScreenState extends State<CaptureScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.black.withValues(alpha: 0.65),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Rotate',
+                    icon: const Icon(Icons.rotate_right_rounded, size: 18, color: Colors.white),
+                    onPressed: _rotateCapturedImage,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: Colors.black.withValues(alpha: 0.65),

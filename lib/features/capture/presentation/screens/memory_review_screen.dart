@@ -1137,8 +1137,8 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
 
               const SizedBox(height: 20),
 
-              // 5. Extracted Content (Compact Card / Row, hidden by default)
-              if (_rawOcrText.trim().isNotEmpty) ...[
+              // 5. Extracted Content Expandable Card (For non-image sources like links and documents; raw OCR is hidden for captured photos)
+              if (widget.imageFile == null && _rawOcrText.trim().isNotEmpty) ...[
                 const Text(
                   'Extracted Content',
                   style: TextStyle(

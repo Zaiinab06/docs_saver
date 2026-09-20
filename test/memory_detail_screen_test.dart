@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:second_brain/features/capture/domain/entities/memory_entity.dart';
 import 'package:second_brain/features/capture/presentation/screens/memory_detail_screen.dart';
+import 'package:second_brain/features/capture/presentation/widgets/full_screen_image_viewer.dart';
 
 void main() {
   group('MemoryDetailScreen Widget Tests', () {
@@ -432,6 +434,243 @@ F = ma''';
         isTrue,
         reason: 'Living Memory Knowledge Graph card must appear above Tags',
       );
+    });
+
+    testWidgets('displays image preview for image attachment and tapping opens FullScreenImageViewer',
+        (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync('img_test_');
+      final imageFile = File('${tempDir.path}/sample.jpg')
+        ..writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]);
+      addTearDown(() {
+        try {
+          tempDir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+
+      final memory = MemoryEntity(
+        id: 'image-memory-1',
+        userId: 'user-1',
+        title: 'Meeting Whiteboard Photo',
+        content: 'Whiteboard notes from brainstorming',
+        category: 'Work',
+        tags: const ['photo', 'meeting'],
+        mediaUrl: imageFile.path,
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime.now(),
+        clientUpdatedAt: DateTime.now(),
+        serverUpdatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Image widget is rendered
+      expect(find.byType(Image), findsOneWidget);
+
+      // Tap image to open full-screen viewer
+      await tester.tap(find.byType(Image), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // FullScreenImageViewer is pushed
+      expect(find.byType(FullScreenImageViewer), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.text('Meeting Whiteboard Photo'), findsOneWidget);
+
+      // Tap back button
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
+
+      // Back to MemoryDetailScreen
+      expect(find.byType(FullScreenImageViewer), findsNothing);
+      expect(find.byType(MemoryDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('Take Photo image renders full-width without empty side space and expand button opens viewer',
+        (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync('take_photo_img_');
+      final imageFile = File('${tempDir.path}/camera_photo.jpg')
+        ..writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]);
+      addTearDown(() {
+        try {
+          tempDir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+
+      final memory = MemoryEntity(
+        id: 'take-photo-1',
+        userId: 'user-1',
+        title: 'Whiteboard Discussion',
+        content: 'Sprint planning notes on whiteboard',
+        category: 'Work',
+        tags: const ['photo'],
+        mediaUrl: imageFile.path,
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime.now(),
+        clientUpdatedAt: DateTime.now(),
+        serverUpdatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Image is rendered with full width and BoxFit.cover
+      final imageFinder = find.byType(Image);
+      expect(imageFinder, findsOneWidget);
+      final imageWidget = tester.widget<Image>(imageFinder);
+      expect(imageWidget.width, double.infinity);
+      expect(imageWidget.height, 220);
+      expect(imageWidget.fit, BoxFit.cover);
+
+      // 2. Expand/fullscreen icon button is visible
+      final expandButton = find.byIcon(Icons.fullscreen_rounded);
+      expect(expandButton, findsOneWidget);
+
+      // 3. Tapping the expand button opens the full-screen viewer
+      await tester.tap(expandButton);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FullScreenImageViewer), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.text('Whiteboard Discussion'), findsOneWidget);
+    });
+
+    testWidgets('document memory with image attachment displays image file card with View Image button',
+        (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync('img_doc_test_');
+      final imageFile = File('${tempDir.path}/receipt_scan.png')
+        ..writeAsBytesSync([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+      addTearDown(() {
+        try {
+          tempDir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+
+      final memory = MemoryEntity(
+        id: 'doc-img-memory-2',
+        userId: 'user-1',
+        title: 'Dinner Receipt',
+        content: 'Dinner with client at Bistro',
+        category: 'Finance',
+        tags: const ['document', 'receipt'],
+        mediaUrl: imageFile.path,
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime.now(),
+        clientUpdatedAt: DateTime.now(),
+        serverUpdatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Renders file name and PNG badge
+      expect(find.text('receipt_scan.png'), findsOneWidget);
+      expect(find.text('PNG'), findsOneWidget);
+
+      // Must have "View Image" button, NOT "Open File"
+      expect(find.text('View Image'), findsOneWidget);
+      expect(find.text('Open File'), findsNothing);
+
+      // Tap "View Image" button
+      await tester.tap(find.text('View Image'));
+      await tester.pumpAndSettle();
+
+      // Opens FullScreenImageViewer
+      expect(find.byType(FullScreenImageViewer), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+    });
+
+    testWidgets('document memory with non-image PDF preserves Open File button and does not render as image',
+        (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync('pdf_doc_test_');
+      final pdfFile = File('${tempDir.path}/contract.pdf')
+        ..writeAsBytesSync([0x25, 0x50, 0x44, 0x46]);
+      addTearDown(() {
+        try {
+          tempDir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+
+      final memory = MemoryEntity(
+        id: 'pdf-memory-3',
+        userId: 'user-1',
+        title: 'Service Agreement',
+        content: 'Contract terms and conditions',
+        category: 'Work',
+        tags: const ['document', 'contract'],
+        mediaUrl: pdfFile.path,
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime.now(),
+        clientUpdatedAt: DateTime.now(),
+        serverUpdatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // PDF card
+      expect(find.text('contract.pdf'), findsOneWidget);
+      expect(find.text('PDF'), findsOneWidget);
+      expect(find.text('Open File'), findsOneWidget);
+      expect(find.text('View Image'), findsNothing);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('missing image file displays fallback gracefully',
+        (tester) async {
+      final memory = MemoryEntity(
+        id: 'missing-img-memory-4',
+        userId: 'user-1',
+        title: 'Deleted Photo',
+        content: 'Photo was removed from storage',
+        category: 'Personal',
+        tags: const ['photo'],
+        mediaUrl: '/non/existent/path/missing_image.jpg',
+        aiStatus: 'processed',
+        clientCreatedAt: DateTime.now(),
+        clientUpdatedAt: DateTime.now(),
+        serverUpdatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MemoryDetailScreen(
+            memoryId: memory.id,
+            initialMemory: memory,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Graceful fallback icon
+      expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
     });
   });
 }

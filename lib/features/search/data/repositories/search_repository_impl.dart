@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/network/network_checker.dart';
+import '../../domain/entities/search_result_item.dart';
 import '../../domain/repositories/search_repository.dart';
+import '../../domain/usecases/semantic_relevance_filter.dart';
 import '../datasources/search_local_data_source.dart';
 import '../datasources/search_remote_data_source.dart';
 
@@ -47,11 +49,26 @@ class SearchRepositoryImpl implements SearchRepository {
           matchCount: matchCount,
         );
 
-        final items =
-            remoteModels.map((m) => m.toEntity(isOffline: false)).toList();
+        final items = <SearchResultItem>[];
+        for (final m in remoteModels) {
+          DateTime? timestamp = m.clientCreatedAt;
+          // Retrieve real persisted timestamp from local storage if available
+          // to ensure exact consistency with Saved and Memory Detail
+          final localMem = await localDataSource.getMemoryById(m.id);
+          if (localMem != null) {
+            timestamp = localMem.clientCreatedAt;
+          }
+          items.add(m.toEntity(clientCreatedAt: timestamp, isOffline: false));
+        }
+
+        final relevantItems = SemanticRelevanceFilter.filter(
+          items,
+          query: cleanQuery,
+          minThreshold: matchThreshold ?? SemanticRelevanceFilter.minSimilarityThreshold,
+        );
 
         return SearchResponse(
-          results: items,
+          results: relevantItems,
           isOffline: false,
           query: cleanQuery,
         );

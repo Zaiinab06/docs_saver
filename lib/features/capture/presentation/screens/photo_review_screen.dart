@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
+import '../../../../core/services/ocr_text_normalizer.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -37,6 +39,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   late final IngestMemoryUseCase _ingestMemoryUseCase;
 
   bool _isProcessing = false;
+  bool _isRotating = false;
   String _processingStatus = 'Understanding your memory...';
 
   @override
@@ -102,6 +105,55 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
     }
   }
 
+  Future<void> _rotateImage() async {
+    if (_isRotating || _isProcessing) return;
+
+    setState(() {
+      _isRotating = true;
+    });
+
+    try {
+      final bytes = _currentImage.readAsBytesSync();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        // Rotate 90 degrees clockwise
+        final rotated = img.copyRotate(decoded, angle: 90);
+        final isPng = _currentImage.path.toLowerCase().endsWith('.png');
+        final encoded = isPng ? img.encodePng(rotated) : img.encodeJpg(rotated, quality: 92);
+
+        final dir = _currentImage.parent.path;
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final ext = isPng ? 'png' : 'jpg';
+        final rotatedFile = File('$dir/rot_${timestamp}_${_currentImage.uri.pathSegments.last.replaceAll(RegExp(r'\.[^.]+$'), '')}.$ext');
+        rotatedFile.writeAsBytesSync(encoded, flush: true);
+
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+
+        if (mounted) {
+          setState(() {
+            _currentImage = rotatedFile;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to rotate image: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRotating = false;
+        });
+      }
+    }
+  }
+
   Future<void> _usePhoto() async {
     setState(() {
       _isProcessing = true;
@@ -120,7 +172,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
       final recognizedText = await textRecognizer.processImage(inputImage);
       await textRecognizer.close();
 
-      extractedOcrText = recognizedText.text.trim();
+      extractedOcrText = OcrTextNormalizer.normalizeRecognizedText(recognizedText);
 
       // Check network connectivity before attempting remote Gemini AI call
       final isOnline = widget.isOffline != null
@@ -246,6 +298,14 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Rotate',
+            icon: const Icon(Icons.rotate_right_rounded, color: Colors.white, size: 26),
+            onPressed: (_isProcessing || _isRotating) ? null : _rotateImage,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: Stack(
         children: [
@@ -256,6 +316,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
               maxScale: 3.0,
               child: Image.file(
                 _currentImage,
+                key: ValueKey(_currentImage.path),
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
@@ -319,7 +380,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
               ),
             ),
 
-          // 3. Bottom Action Bar (Retake vs Use Photo)
+          // 3. Bottom Action Bar (Retake vs Rotate vs Use Photo)
           if (!_isProcessing)
             Align(
               alignment: Alignment.bottomCenter,
@@ -339,18 +400,19 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                   top: false,
                   maintainBottomViewPadding: true,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                     child: Row(
                       children: [
                         // Retake Button
                         Expanded(
+                          flex: 3,
                           child: OutlinedButton.icon(
-                            onPressed: _retakePhoto,
-                            icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
+                            onPressed: (_isProcessing || _isRotating) ? null : _retakePhoto,
+                            icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
                             label: const Text(
                               'Retake',
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
@@ -365,17 +427,50 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                           ),
                         ),
 
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 8),
+
+                        // Rotate Button
+                        OutlinedButton.icon(
+                          onPressed: (_isProcessing || _isRotating) ? null : _rotateImage,
+                          icon: _isRotating
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.rotate_right_rounded, size: 18, color: Colors.white),
+                          label: const Text(
+                            'Rotate',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                            side: const BorderSide(color: Colors.white54, width: 1.2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
 
                         // Use Photo / Use Document Button
                         Expanded(
+                          flex: 4,
                           child: ElevatedButton.icon(
-                            onPressed: _usePhoto,
-                            icon: const Icon(Icons.check_rounded, size: 20, color: AppColors.textWhite),
+                            onPressed: (_isProcessing || _isRotating) ? null : _usePhoto,
+                            icon: const Icon(Icons.check_rounded, size: 18, color: AppColors.textWhite),
                             label: Text(
                               widget.isDocumentScan ? 'Use Document' : 'Use Photo',
                               style: const TextStyle(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textWhite,
                               ),

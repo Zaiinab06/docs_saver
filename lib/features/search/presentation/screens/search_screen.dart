@@ -20,12 +20,14 @@ class SearchScreen extends StatefulWidget {
   final SearchBloc? searchBloc;
   final bool? showBackButton;
   final bool autofocus;
+  final bool isActive;
 
   const SearchScreen({
     super.key,
     this.searchBloc,
     this.showBackButton,
     this.autofocus = true,
+    this.isActive = true,
   });
 
   @override
@@ -37,6 +39,19 @@ class _SearchScreenState extends State<SearchScreen> {
   late final bool _ownsBloc;
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
+
+  @override
+  void didUpdateWidget(SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When leaving or re-entering the Search screen as a fresh session, reset query and results
+    if (oldWidget.isActive != widget.isActive) {
+      if (!widget.isActive) {
+        _clearSearch();
+      } else if (_searchController.text.isNotEmpty || _bloc.state is! SearchInitial) {
+        _clearSearch();
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -91,16 +106,18 @@ class _SearchScreenState extends State<SearchScreen> {
 
   String _formatTimeAgo(DateTime dateTime) {
     final diff = DateTime.now().difference(dateTime);
-    if (diff.inDays > 30) {
-      return DateFormat('MMM d').format(dateTime);
-    } else if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
-    } else if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes}m ago';
-    } else {
+    if (diff.inSeconds < 60) {
       return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    } else if (diff.inDays == 1) {
+      return 'Yesterday';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays}d ago';
+    } else {
+      return DateFormat('MMM d').format(dateTime);
     }
   }
 
@@ -190,6 +207,7 @@ class _SearchScreenState extends State<SearchScreen> {
       value: _bloc,
       child: Scaffold(
         backgroundColor: AppColors.backgroundOf(context),
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           toolbarHeight: 76,
           backgroundColor: Colors.transparent,
@@ -322,6 +340,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildInitialState() {
     return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(24, 110, 24, 24),
       child: Center(
         child: Column(
@@ -401,6 +420,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildLoadedState(SearchLoaded state) {
     return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
       children: [
         if (state.isOffline) ...[
@@ -549,7 +569,9 @@ class _SearchScreenState extends State<SearchScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${item.category} • ${_formatTimeAgo(item.clientCreatedAt)}',
+                              item.clientCreatedAt != null
+                                  ? '${item.category} • ${_formatTimeAgo(item.clientCreatedAt!)}'
+                                  : item.category,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
@@ -681,8 +703,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildEmptyState(SearchEmpty state) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -726,8 +749,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildErrorState(SearchError state) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

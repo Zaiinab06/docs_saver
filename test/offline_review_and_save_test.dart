@@ -177,15 +177,9 @@ void main() {
       });
       expect(yellowDotFinder, findsOneWidget);
 
-      // Extracted OCR text is preserved
-      expect(find.text('Extracted Content'), findsOneWidget);
-      expect(find.text('View extracted text'), findsOneWidget);
-
-      await tester.ensureVisible(find.text('View extracted text'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('View extracted text'));
-      await tester.pumpAndSettle();
-      expect(find.text('Local OCR text recognized on device'), findsOneWidget);
+      // Raw OCR section is removed from Review & Save UI
+      expect(find.text('Extracted Content'), findsNothing);
+      expect(find.text('View extracted text'), findsNothing);
     });
 
     testWidgets('Online restored: reveals "Analyze with AI" automatically without scroll or pull',
