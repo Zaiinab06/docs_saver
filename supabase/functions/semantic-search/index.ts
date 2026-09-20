@@ -101,6 +101,100 @@ export interface SemanticSearchResultItem {
   similarity: number;
 }
 
+/**
+ * Generic Semantic Relevance Filter
+ *
+ * In Gemini 768-d dense embedding space (gemini-embedding-2-preview), unrelated texts
+ * typically exhibit cosine similarities between ~0.48 and ~0.56.
+ *
+ * This function applies a generic, query-agnostic relevance filtering strategy:
+ * 1. Absolute noise floor: Rejects any match below MIN_SIMILARITY_THRESHOLD (0.57).
+ *    If the top-ranked match does not reach this floor, the query has no relevant matches.
+ *    Set to 0.57 to stay strictly above the ~0.48–0.56 noise ceiling while avoiding
+ *    false negatives for cross-lingual (Roman Urdu), short-query, or long-document matches.
+ * 2. Dynamic relative cutoff: Retains all matches within MAX_DROP_FROM_TOP (0.18)
+ *    of the top score, clamped to the noise floor.
+ * 3. Preserves descending similarity ordering.
+ */
+export function filterRelevantSemanticResults<
+  T extends {
+    similarity: number;
+    title?: string;
+    content?: string;
+    category?: string;
+    tags?: string[];
+  }
+>(
+  items: T[],
+  minThreshold = 0.57,
+  maxDropFromTop?: number,
+  query?: string
+): T[] {
+  if (!items || items.length === 0) {
+    return [];
+  }
+
+  // Ensure items are sorted descending by similarity
+  const sorted = [...items].sort((a, b) => b.similarity - a.similarity);
+
+  const topScore = sorted[0].similarity;
+  const effectiveMin = Math.max(minThreshold, 0.57);
+
+  // If even the best match does not meet the minimum relevance threshold, return empty
+  if (topScore < effectiveMin) {
+    return [];
+  }
+
+  const margin = topScore - effectiveMin;
+  const adaptiveDrop =
+    maxDropFromTop !== undefined
+      ? maxDropFromTop
+      : Math.max(0.03, 0.03 + 0.25 * margin);
+  const dynamicCutoff = Math.max(effectiveMin, topScore - adaptiveDrop);
+
+  const queryTokens: string[] = query
+    ? query
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .split(/\s+/)
+        .filter((t) => t.length >= 2)
+    : [];
+
+  return sorted.filter((item) => {
+    if (item.similarity < effectiveMin) {
+      return false;
+    }
+
+    if (item.similarity >= dynamicCutoff) {
+      return true;
+    }
+
+    if (queryTokens.length > 0) {
+      const titleLower = (item.title || "").toLowerCase();
+      const contentLower = (item.content || "").toLowerCase();
+      const categoryLower = (item.category || "").toLowerCase();
+      const tagsLower = Array.isArray(item.tags)
+        ? item.tags.map((t) => String(t).toLowerCase())
+        : [];
+
+      const hasTokenMatch = queryTokens.some(
+        (t) =>
+          titleLower.includes(t) ||
+          contentLower.includes(t) ||
+          categoryLower.includes(t) ||
+          tagsLower.some((tag) => tag.includes(t))
+      );
+
+      if (hasTokenMatch) {
+        const hybridCutoff = Math.max(effectiveMin, topScore - 0.12);
+        return item.similarity >= hybridCutoff;
+      }
+    }
+
+    return false;
+  });
+}
+
 Deno.serve(async (req: Request) => {
   // 1. Handle CORS Preflight
   const corsResponse = handleCors(req);
@@ -287,100 +381,6 @@ Deno.serve(async (req: Request) => {
       );
       throw new Error(`Database vector search failed: ${rpcError.message}`);
     }
-
-/**
- * Generic Semantic Relevance Filter
- *
- * In Gemini 768-d dense embedding space (gemini-embedding-2-preview), unrelated texts
- * typically exhibit cosine similarities between ~0.48 and ~0.56.
- *
- * This function applies a generic, query-agnostic relevance filtering strategy:
- * 1. Absolute noise floor: Rejects any match below MIN_SIMILARITY_THRESHOLD (0.57).
- *    If the top-ranked match does not reach this floor, the query has no relevant matches.
- *    Set to 0.57 to stay strictly above the ~0.48–0.56 noise ceiling while avoiding
- *    false negatives for cross-lingual (Roman Urdu), short-query, or long-document matches.
- * 2. Dynamic relative cutoff: Retains all matches within MAX_DROP_FROM_TOP (0.18)
- *    of the top score, clamped to the noise floor.
- * 3. Preserves descending similarity ordering.
- */
-export function filterRelevantSemanticResults<
-  T extends {
-    similarity: number;
-    title?: string;
-    content?: string;
-    category?: string;
-    tags?: string[];
-  }
->(
-  items: T[],
-  minThreshold = 0.57,
-  maxDropFromTop?: number,
-  query?: string
-): T[] {
-  if (!items || items.length === 0) {
-    return [];
-  }
-
-  // Ensure items are sorted descending by similarity
-  const sorted = [...items].sort((a, b) => b.similarity - a.similarity);
-
-  const topScore = sorted[0].similarity;
-  const effectiveMin = Math.max(minThreshold, 0.57);
-
-  // If even the best match does not meet the minimum relevance threshold, return empty
-  if (topScore < effectiveMin) {
-    return [];
-  }
-
-  const margin = topScore - effectiveMin;
-  const adaptiveDrop =
-    maxDropFromTop !== undefined
-      ? maxDropFromTop
-      : Math.max(0.03, 0.03 + 0.25 * margin);
-  const dynamicCutoff = Math.max(effectiveMin, topScore - adaptiveDrop);
-
-  const queryTokens: string[] = query
-    ? query
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ")
-        .split(/\s+/)
-        .filter((t) => t.length >= 2)
-    : [];
-
-  return sorted.filter((item) => {
-    if (item.similarity < effectiveMin) {
-      return false;
-    }
-
-    if (item.similarity >= dynamicCutoff) {
-      return true;
-    }
-
-    if (queryTokens.length > 0) {
-      const titleLower = (item.title || "").toLowerCase();
-      const contentLower = (item.content || "").toLowerCase();
-      const categoryLower = (item.category || "").toLowerCase();
-      const tagsLower = Array.isArray(item.tags)
-        ? item.tags.map((t) => String(t).toLowerCase())
-        : [];
-
-      const hasTokenMatch = queryTokens.some(
-        (t) =>
-          titleLower.includes(t) ||
-          contentLower.includes(t) ||
-          categoryLower.includes(t) ||
-          tagsLower.some((tag) => tag.includes(t))
-      );
-
-      if (hasTokenMatch) {
-        const hybridCutoff = Math.max(effectiveMin, topScore - 0.12);
-        return item.similarity >= hybridCutoff;
-      }
-    }
-
-    return false;
-  });
-}
 
     // 7. Enforce multi-tenant user isolation defense-in-depth and format results
     const rawResults: SemanticSearchResultItem[] = (rawMatches || [])
