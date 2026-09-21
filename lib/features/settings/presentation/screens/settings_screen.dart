@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:url_launcher/url_launcher.dart';
+// ignore: depend_on_referenced_packages
+import 'package:app_links/app_links.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/theme_cubit.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
@@ -13,6 +16,10 @@ import '../../../capture/domain/entities/memory_entity.dart';
 import '../../../capture/presentation/bloc/capture_bloc.dart';
 import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
+import '../../../integrations/data/datasources/google_auth_remote_data_source.dart';
+import '../../../integrations/data/repositories/google_auth_repository_impl.dart';
+import '../../../integrations/domain/entities/google_integration_status.dart';
+import '../../../integrations/presentation/cubit/google_auth_cubit.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,13 +28,56 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with WidgetsBindingObserver {
   String _appVersion = '1.0.0';
+  late final GoogleAuthCubit _googleAuthCubit;
+  StreamSubscription<Uri>? _deepLinkSubscription;
+  AppLinks? _appLinks;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _googleAuthCubit = GoogleAuthCubit(
+      repository: GoogleAuthRepositoryImpl(
+        remoteDataSource: GoogleAuthRemoteDataSourceImpl(),
+      ),
+    );
+    _googleAuthCubit.checkStatus();
+    _initDeepLinks();
     _loadAppVersion();
+  }
+
+  void _initDeepLinks() {
+    try {
+      _appLinks = AppLinks();
+      _deepLinkSubscription = _appLinks?.uriLinkStream.listen((uri) {
+        if (uri.scheme == 'secondbrain' && uri.host == 'oauth') {
+          final status = uri.queryParameters['status'] ?? 'missing';
+          final reason = uri.queryParameters['reason'] ?? uri.queryParameters['error'] ?? 'none';
+          debugPrint('[Google OAuth] Deep link routed to callback: status=$status, reason=$reason.');
+          _googleAuthCubit.handleDeepLinkCallback(uri);
+        }
+      });
+    } catch (_) {
+      debugPrint('[Google OAuth] Deep-link listener initialization failed.');
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _deepLinkSubscription?.cancel();
+    _googleAuthCubit.close();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _googleAuthCubit.checkStatus();
+    }
   }
 
   Future<void> _loadAppVersion() async {
@@ -172,6 +222,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true && context.mounted) {
       context.read<AuthBloc>().add(SignOutRequested());
+    }
+  }
+
+  Future<void> _confirmDisconnectGoogle(bool isDark) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor:
+              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Disconnect Google Account',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to disconnect your Google account? Your stored memories will not be deleted.',
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.errorText,
+              ),
+              child: const Text(
+                'Disconnect',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.errorText,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _googleAuthCubit.disconnect();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google account disconnected.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -1131,7 +1258,166 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ],
                           ),
 
-                          // 2. Appearance Section
+                          // 2. Connected Accounts Section
+                          _buildSectionHeader(
+                            title: 'CONNECTED ACCOUNTS',
+                            icon: Icons.link_rounded,
+                            isDark: isDark,
+                          ),
+                          _buildCard(
+                            isDark: isDark,
+                            children: [
+                              BlocConsumer<GoogleAuthCubit, GoogleIntegrationStatus>(
+                                bloc: _googleAuthCubit,
+                                listener: (context, googleStatus) {
+                                  if (googleStatus.errorMessage != null &&
+                                      googleStatus.errorMessage!.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(googleStatus.errorMessage!),
+                                        backgroundColor: AppColors.errorText,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                },
+                                builder: (context, googleStatus) {
+                                  final isConnected = googleStatus.isConnected;
+                                  final isConnecting = googleStatus.isConnecting;
+                                  final email = googleStatus.email;
+
+                                  String subtitle;
+                                  if (isConnecting) {
+                                    subtitle =
+                                        'Opening Google sign-in in system browser...';
+                                  } else if (isConnected) {
+                                    subtitle = email != null && email.isNotEmpty
+                                        ? 'Connected as $email'
+                                        : 'Connected to Google Drive';
+                                  } else if (googleStatus.state ==
+                                      GoogleConnectionState.cancelled) {
+                                    subtitle =
+                                        'Connection was cancelled. Tap to retry.';
+                                  } else if (googleStatus.state ==
+                                      GoogleConnectionState.connectionFailed) {
+                                    subtitle =
+                                        'Connection failed. Tap to retry.';
+                                  } else {
+                                    subtitle =
+                                        'Connect your Google account for Docs import';
+                                  }
+
+                                  Widget trailingWidget;
+                                  if (isConnecting) {
+                                    trailingWidget = const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                            AppColors.primary),
+                                      ),
+                                    );
+                                  } else if (isConnected) {
+                                    trailingWidget = Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? AppColors.primary
+                                                    .withValues(alpha: 0.25)
+                                                : AppColors.lightCyanTint,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Connected',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark
+                                                  ? AppColors.periwinkle300
+                                                  : AppColors.primary,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(
+                                              Icons.link_off_rounded,
+                                              size: 20),
+                                          color: AppColors.errorText,
+                                          tooltip: 'Disconnect Google Account',
+                                          onPressed: () =>
+                                              _confirmDisconnectGoogle(
+                                                  isDark),
+                                        ),
+                                      ],
+                                    );
+                                  } else {
+                                    trailingWidget = Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? AppColors.primary
+                                                .withValues(alpha: 0.25)
+                                                : AppColors.lightCyanTint,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.primary
+                                              .withValues(alpha: 0.2),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.login_rounded,
+                                            size: 14,
+                                            color: isDark
+                                                ? AppColors.periwinkle300
+                                                : AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Connect',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark
+                                                  ? AppColors.periwinkle300
+                                                  : AppColors.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  return _buildTile(
+                                    icon: Icons.account_circle_outlined,
+                                    title: 'Google Drive',
+                                    subtitle: subtitle,
+                                    trailing: trailingWidget,
+                                    onTap: isConnecting
+                                        ? null
+                                        : (isConnected
+                                            ? () => _confirmDisconnectGoogle(
+                                                isDark)
+                                            : () => _googleAuthCubit.connect()),
+                                    isDark: isDark,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+
+                          // 3. Appearance Section
                           _buildSectionHeader(
                             title: 'APPEARANCE',
                             icon: Icons.palette_outlined,

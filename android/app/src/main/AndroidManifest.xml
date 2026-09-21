@@ -26,6 +26,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Google OAuth Deep Link Callback -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="secondbrain" android:host="oauth" />
+            </intent-filter>
         </activity>
         <!-- Automatically download ML Kit OCR and Document Scanner modules via Google Play Services -->
         <meta-data

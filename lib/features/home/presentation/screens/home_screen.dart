@@ -27,8 +27,18 @@ import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
+// ignore: depend_on_referenced_packages
+import 'package:app_links/app_links.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/file_picker_service.dart';
+import '../../../../core/utils/google_docs_link_extractor.dart';
+import '../../../../core/utils/google_drive_link_extractor.dart';
 import '../../../../core/utils/link_metadata_extractor.dart';
+import '../../../integrations/data/datasources/google_auth_remote_data_source.dart';
+import '../../../integrations/data/repositories/google_auth_repository_impl.dart';
+import '../../../integrations/domain/entities/google_doc_entity.dart';
+import '../../../integrations/domain/entities/google_integration_status.dart';
+import '../../../integrations/domain/repositories/google_auth_repository.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
 
@@ -51,6 +61,7 @@ class HomeScreen extends StatefulWidget {
   final IngestMemoryUseCase? ingestMemoryUseCase;
   final LinkMetadataExtractor? linkMetadataExtractor;
   final FilePickerService? filePickerService;
+  final GoogleAuthRepository? googleAuthRepository;
   final VoidCallback? onSearchTap;
 
   const HomeScreen({
@@ -59,6 +70,7 @@ class HomeScreen extends StatefulWidget {
     this.ingestMemoryUseCase,
     this.linkMetadataExtractor,
     this.filePickerService,
+    this.googleAuthRepository,
     this.onSearchTap,
   });
 
@@ -92,7 +104,15 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  GoogleAuthRepository get _effectiveGoogleAuthRepository =>
+      widget.googleAuthRepository ??
+      GoogleAuthRepositoryImpl(
+        remoteDataSource: GoogleAuthRemoteDataSourceImpl(),
+      );
+
   StreamSubscription<dynamic>? _authSubscription;
+  StreamSubscription<Uri>? _deepLinkSubscription;
+  AppLinks? _appLinks;
 
   @override
   void initState() {
@@ -109,11 +129,111 @@ class HomeScreenState extends State<HomeScreen> {
         }
       });
     } catch (_) {}
+    _initDeepLinks();
+  }
+
+  void _initDeepLinks() {
+    try {
+      _appLinks = AppLinks();
+      _deepLinkSubscription = _appLinks?.uriLinkStream.listen((uri) {
+        if (uri.scheme == 'secondbrain' && uri.host == 'oauth') {
+          final status = uri.queryParameters['status'];
+          final error = uri.queryParameters['error'];
+          final reason = uri.queryParameters['reason'];
+          final pickedFileId = uri.queryParameters['picked_file_id'];
+
+          if (status == 'cancelled') {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Google Drive file selection was cancelled.'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+            return;
+          }
+
+          if (status == 'error') {
+            if (mounted) {
+              final errorDetail = reason ?? error ?? 'unknown error';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Google Drive authorization failed ($errorDetail).'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+            return;
+          }
+
+          if (pickedFileId != null && pickedFileId.isNotEmpty) {
+            _handleGoogleDocsImport(
+              pickedFileId,
+              GoogleDriveLinkExtractor.toCanonicalUrl(pickedFileId),
+            );
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _openGooglePicker() async {
+    final isOnline = await NetworkChecker.isConnected();
+    if (!isOnline) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Internet connection required for Google Drive.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connecting to Google Drive...'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    try {
+      final authUrl = await _effectiveGoogleAuthRepository.startGooglePicker();
+      final uri = Uri.parse(authUrl);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not launch browser to open Google Drive.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final cleanMsg = e.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open Google Drive: $cleanMsg'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _deepLinkSubscription?.cancel();
     super.dispose();
   }
 
@@ -308,6 +428,12 @@ class HomeScreenState extends State<HomeScreen> {
                       title: 'Choose File',
                       isTakePhoto: false,
                     ),
+                    _buildCaptureOption(
+                      context: sheetContext,
+                      icon: Icons.cloud_download_outlined,
+                      title: 'Google Drive',
+                      isTakePhoto: false,
+                    ),
                   ],
                 ),
               ],
@@ -406,6 +532,14 @@ class HomeScreenState extends State<HomeScreen> {
   Future<void> _handleAddLink() async {
     final url = await AddLinkBottomSheet.show(context);
     if (url == null || url.isEmpty || !mounted) return;
+
+    // Detect Google Docs and Drive URLs before generic web-link extraction
+    final driveFileId = GoogleDocsLinkExtractor.extractFileId(url) ??
+        GoogleDriveLinkExtractor.extractFileId(url);
+    if (driveFileId != null) {
+      await _handleGoogleDocsImport(driveFileId, url);
+      return;
+    }
 
     final isOnline = await NetworkChecker.isConnected();
     final parsedUri = Uri.tryParse(url) ?? Uri();
@@ -602,6 +736,246 @@ class HomeScreenState extends State<HomeScreen> {
           aiStatus: aiResult.aiStatus,
           createdAt: DateTime.now(),
           isOffline: !isOnline,
+          ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      context.read<CaptureBloc>().add(LoadMemoriesEvent());
+    }
+  }
+
+  Future<void> _handleGoogleDocsImport(String fileId, String rawUrl) async {
+    final isOnline = await NetworkChecker.isConnected();
+    if (!isOnline) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Internet connection required to import Google Docs.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    String loadingStatus = 'Connecting to Google Drive...';
+    StateSetter? dialogSetState;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            dialogSetState = setModalState;
+            return PopScope(
+              canPop: false,
+              child: AlertDialog(
+                backgroundColor: AppColors.background,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                content: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        loadingStatus,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // 1. Verify Google integration status first
+    try {
+      final status = await _effectiveGoogleAuthRepository.getStatus();
+      if (status.state != GoogleConnectionState.connected) {
+        if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Google Drive is not connected. Please connect your Google account in Settings.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (_) {
+      // Proceed to importDoc; backend will validate integration as well
+    }
+
+    if (dialogSetState != null && mounted) {
+      dialogSetState!(() {
+        loadingStatus = 'Importing Google Drive file...';
+      });
+    }
+
+    // 2. Call backend import_doc action
+    GoogleDocEntity doc;
+    try {
+      doc = await _effectiveGoogleAuthRepository.importDoc(fileId);
+    } on GoogleDocsImportException catch (e) {
+      if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      if (mounted) {
+        String userMessage;
+        switch (e.code) {
+          case 'FILE_NOT_FOUND':
+            userMessage = 'File not found or not accessible under current Google Drive permissions. Please use "Choose from Google Drive" to select and authorize the file.';
+            break;
+          case 'PERMISSION_DENIED':
+            userMessage = 'Permission denied. Your Google account does not have access to this document.';
+            break;
+          case 'TOKEN_REVOKED':
+            userMessage = 'Google authorization expired or was revoked. Please reconnect in Settings.';
+            break;
+          case 'GOOGLE_NOT_CONNECTED':
+            userMessage = 'Google Drive is not connected. Please connect your Google account in Settings.';
+            break;
+          case 'UNSUPPORTED_ARCHIVE':
+            userMessage = 'ZIP archives cannot be imported directly. Please extract and import individual files.';
+            break;
+          case 'UNSUPPORTED_BINARY':
+            userMessage = 'Executable and binary system files are not supported.';
+            break;
+          case 'UNSUPPORTED_MIME_TYPE':
+            userMessage = e.message.isNotEmpty ? e.message : 'File format is not supported for import.';
+            break;
+          case 'EMPTY_DOCUMENT':
+            userMessage = 'The selected file contains no readable text or supported media.';
+            break;
+          case 'DOCUMENT_TOO_LARGE':
+            userMessage = e.message.isNotEmpty ? e.message : 'The file is too large to import.';
+            break;
+          default:
+            userMessage = e.message.isNotEmpty ? e.message : 'Failed to import Google Drive file.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userMessage),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: e.code == 'FILE_NOT_FOUND'
+                ? SnackBarAction(
+                    label: 'Choose File',
+                    onPressed: _openGooglePicker,
+                  )
+                : null,
+          ),
+        );
+      }
+      return;
+    } catch (e) {
+      if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to import Google Drive file: $e'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (dialogSetState != null && mounted) {
+      dialogSetState!(() {
+        loadingStatus = 'Analyzing file with AI...';
+      });
+    }
+
+    // 3. AI Ingestion using actual exported document content or media
+    AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+    try {
+      if (doc.mediaBase64 != null && doc.mediaBase64!.isNotEmpty) {
+        if (doc.mediaType == 'pdf') {
+          aiResult = await _effectiveIngestMemoryUseCase(
+            ocrText: doc.content,
+            documentBase64: doc.mediaBase64,
+            mimeType: 'application/pdf',
+          );
+        } else if (doc.mediaType == 'image') {
+          aiResult = await _effectiveIngestMemoryUseCase(
+            ocrText: doc.content,
+            imageBase64: doc.mediaBase64,
+            mimeType: doc.mimeType,
+          );
+        } else {
+          aiResult = await _effectiveIngestMemoryUseCase(ocrText: doc.content);
+        }
+      } else {
+        aiResult = await _effectiveIngestMemoryUseCase(ocrText: doc.content);
+      }
+    } catch (_) {
+      aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+    }
+
+    if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    if (!mounted) return;
+
+    final initialTitle = (aiResult.title.isNotEmpty) ? aiResult.title : doc.title;
+    final initialTags = List<String>.from(aiResult.tags);
+    if (!initialTags.contains('google-drive')) {
+      initialTags.add('google-drive');
+    }
+    if (!initialTags.contains('document')) {
+      initialTags.add('document');
+    }
+
+    final effectiveContent = (aiResult.documentText != null && aiResult.documentText!.trim().isNotEmpty)
+        ? aiResult.documentText!.trim()
+        : doc.content;
+
+    // 4. Navigate to Review & Save Screen with real extracted text
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MemoryReviewScreen(
+          imageFile: null,
+          linkUrl: doc.webViewLink.isNotEmpty ? doc.webViewLink : rawUrl,
+          readableContent: effectiveContent,
+          initialTitle: initialTitle,
+          initialContent: effectiveContent,
+          rawOcrText: effectiveContent,
+          initialCategory: aiResult.category.isNotEmpty ? aiResult.category : AppStrings.categoryWork,
+          initialTags: initialTags,
+          initialSummary: aiResult.summary,
+          entities: aiResult.entities,
+          aiStatus: aiResult.aiStatus,
+          createdAt: DateTime.now(),
+          isOffline: false,
           ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
         ),
       ),
@@ -956,6 +1330,8 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleRecordVoice();
           } else if (title == 'Choose File') {
             await _handleChooseFile();
+          } else if (title == 'Google Drive') {
+            await _openGooglePicker();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(
