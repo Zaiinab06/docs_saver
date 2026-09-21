@@ -97,6 +97,32 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   },
 });
 
+async function authenticateRequest(req: Request): Promise<{
+  userId: string;
+  authHeader: string;
+} | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !/^Bearer\s+/i.test(authHeader)) {
+    return null;
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return null;
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await supabaseAdmin.auth.getUser(token);
+
+  if (error || !user) {
+    return null;
+  }
+
+  return { userId: user.id, authHeader };
+}
+
 interface IngestionRecord {
   id: string;
   user_id: string;
@@ -138,7 +164,20 @@ Deno.serve(async (req: Request) => {
   }, 60_000);
 
   try {
-    // 2. Parse Payload (supports pg_net webhook payload, direct POST payload, or memoryId)
+    const authenticatedRequest = await authenticateRequest(req);
+    if (!authenticatedRequest) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: valid Bearer token required." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const authenticatedUserId = authenticatedRequest.userId;
+
+    // 2. Parse Payload (supports direct POST payload or memoryId)
     let body: any;
     try {
       body = await req.json();
@@ -156,86 +195,12 @@ Deno.serve(async (req: Request) => {
 
     // MAINTENANCE ACTION: Safe Server-Side Re-Embedding of Existing Memories
     if (body.action === "reembed_all" || body.reembed_all === true) {
-      console.info("[Ingestion Maintenance] Initiating server-side re-embedding of all memories with new format...");
-
-      const { data: allMemories, error: fetchErr } = await supabaseAdmin
-        .from("memories")
-        .select("id, user_id, title, category, tags, content, embedding")
-        .order("client_created_at", { ascending: true });
-
-      if (fetchErr) {
-        throw new Error(`Failed to fetch memories for re-embedding: ${fetchErr.message}`);
-      }
-
-      const memories = allMemories || [];
-      let successCount = 0;
-      let failureCount = 0;
-      let skippedCount = 0;
-      const details: any[] = [];
-
-      for (const mem of memories) {
-        const hasContent = (mem.content && mem.content.trim().length > 0) ||
-                           (mem.title && mem.title.trim().length > 0);
-        if (!hasContent) {
-          skippedCount++;
-          details.push({ id: mem.id, status: "skipped", reason: "No usable content or title" });
-          continue;
-        }
-
-        try {
-          const embRes = await generateEmbedding(
-            {
-              title: mem.title,
-              category: mem.category,
-              tags: mem.tags,
-              content: mem.content || "",
-            },
-            undefined,
-            signal
-          );
-
-          // Update ONLY embedding and server_updated_at! Never overwrite user content!
-          const { error: updateErr } = await supabaseAdmin
-            .from("memories")
-            .update({
-              embedding: embRes.embedding,
-              server_updated_at: new Date().toISOString(),
-            })
-            .eq("id", mem.id);
-
-          if (updateErr) {
-            failureCount++;
-            details.push({ id: mem.id, status: "failed", error: updateErr.message });
-          } else {
-            successCount++;
-            details.push({
-              id: mem.id,
-              status: "success",
-              title: mem.title,
-              dims: embRes.embedding.length,
-              model: embRes.modelUsed,
-            });
-          }
-        } catch (memErr: any) {
-          failureCount++;
-          details.push({ id: mem.id, status: "failed", error: memErr?.message || String(memErr) });
-        }
-      }
-
-      console.info(`[Ingestion Maintenance] Re-embedding complete: ${successCount} succeeded, ${failureCount} failed, ${skippedCount} skipped.`);
-
       return new Response(
         JSON.stringify({
-          success: true,
-          action: "reembed_all",
-          total_memories: memories.length,
-          reembedded_count: successCount,
-          failed_count: failureCount,
-          skipped_count: skippedCount,
-          details,
+          error: "Administrative re-embedding is not enabled for this endpoint.",
         }),
         {
-          status: 200,
+          status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -246,7 +211,8 @@ Deno.serve(async (req: Request) => {
     saveToDb = body.save_to_db !== false && rawRecord.save_to_db !== false;
 
     let targetId = rawRecord.id ?? body.memoryId ?? body.id;
-    let targetUserId = rawRecord.user_id ?? body.user_id;
+    const requestedUserId = rawRecord.user_id ?? body.user_id;
+    let targetUserId = authenticatedUserId;
     let targetTitle = rawRecord.title ?? body.title;
     let targetContent = rawRecord.content ?? body.content;
     let targetCategory = rawRecord.category ?? body.category;
@@ -264,8 +230,18 @@ Deno.serve(async (req: Request) => {
     let existingEmbedding: any = null;
     let existingAiStatus: string | null = null;
 
-    // If memoryId passed from background sync/bloc and content not in body, fetch from DB
-    if (targetId && (!targetContent || !targetUserId || isEmbeddingOnly || (!targetAudioBase64 && !targetDocumentBase64))) {
+    if (requestedUserId && String(requestedUserId) !== authenticatedUserId) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: user_id does not match the authenticated user." }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Always load an existing target so service-role access is preceded by an ownership check.
+    if (targetId) {
       try {
         const { data: dbMem } = await supabaseAdmin
           .from("memories")
@@ -274,7 +250,16 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (dbMem) {
-          targetUserId = targetUserId || dbMem.user_id;
+          if (String(dbMem.user_id) !== authenticatedUserId) {
+            return new Response(
+              JSON.stringify({ error: "Forbidden: memory does not belong to the authenticated user." }),
+              {
+                status: 403,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
           targetTitle = targetTitle || dbMem.title;
           targetContent = targetContent || dbMem.content;
           targetCategory = targetCategory || dbMem.category;
@@ -313,7 +298,7 @@ Deno.serve(async (req: Request) => {
                   targetAudioBase64 = btoa(binary);
                   targetMimeType = targetMimeType || "audio/m4a";
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
           }
 
@@ -338,7 +323,7 @@ Deno.serve(async (req: Request) => {
                   targetDocumentBase64 = btoa(binary);
                   targetMimeType = targetMimeType || "application/pdf";
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
           }
         }
@@ -457,7 +442,7 @@ Deno.serve(async (req: Request) => {
           total_tokens: 0,
           execution_time_ms: executionTimeMs,
         });
-      } catch (_) {}
+      } catch (_) { }
 
       console.info(
         `[Ingestion Success] Memory ${recordToProcess.id} embedded in ${executionTimeMs}ms (model: ${embeddingResult.modelUsed})`
@@ -554,22 +539,22 @@ Deno.serve(async (req: Request) => {
     const hasUserTitle = Boolean(
       body.user_provided_title ||
       (recordToProcess.title &&
-       recordToProcess.title.trim().length > 0 &&
-       !recordToProcess.title.startsWith("Note (") &&
-       !recordToProcess.title.startsWith("Voice Note (") &&
-       recordToProcess.title !== "Quick Note")
+        recordToProcess.title.trim().length > 0 &&
+        !recordToProcess.title.startsWith("Note (") &&
+        !recordToProcess.title.startsWith("Voice Note (") &&
+        recordToProcess.title !== "Quick Note")
     );
     const hasUserCategory = Boolean(
       body.user_provided_category ||
       (recordToProcess.category &&
-       recordToProcess.category.trim().length > 0 &&
-       !["General", "Quick Notes", "All"].includes(recordToProcess.category))
+        recordToProcess.category.trim().length > 0 &&
+        !["General", "Quick Notes", "All"].includes(recordToProcess.category))
     );
     const hasUserTags = Boolean(
       body.user_provided_tags ||
       (recordToProcess.tags &&
-       recordToProcess.tags.length > 0 &&
-       !(recordToProcess.tags.length === 1 && (recordToProcess.tags[0] === "note" || recordToProcess.tags[0] === "voice")))
+        recordToProcess.tags.length > 0 &&
+        !(recordToProcess.tags.length === 1 && (recordToProcess.tags[0] === "note" || recordToProcess.tags[0] === "voice")))
     );
 
     const resolvedTitle = hasUserTitle
