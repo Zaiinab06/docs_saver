@@ -10,6 +10,8 @@ abstract class CaptureEvent extends Equatable {
 
 class LoadMemoriesEvent extends CaptureEvent {}
 
+class ClearMemoriesEvent extends CaptureEvent {}
+
 class AddMemoryEvent extends CaptureEvent {
   final String title;
   final String content;
@@ -28,7 +30,14 @@ class AddMemoryEvent extends CaptureEvent {
   });
 
   @override
-  List<Object?> get props => [title, content, tags, category, mediaUrl, aiStatus];
+  List<Object?> get props => [
+    title,
+    content,
+    tags,
+    category,
+    mediaUrl,
+    aiStatus,
+  ];
 }
 
 class SyncPendingMemoriesEvent extends CaptureEvent {}

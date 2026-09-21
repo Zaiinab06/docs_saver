@@ -36,9 +36,15 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
           .findAll();
     }
     models.sort((a, b) {
-      final aPinned = a.tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+      final aPinned =
+          a.tags.any(
+            (t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin',
+          ) ||
           a.category.toLowerCase() == 'pinned';
-      final bPinned = b.tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+      final bPinned =
+          b.tags.any(
+            (t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin',
+          ) ||
           b.category.toLowerCase() == 'pinned';
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
@@ -86,12 +92,15 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
 
     if (existing != null) {
       existing.title = updatedMemory.title;
+      existing.content = updatedMemory.content;
+      existing.mediaUrl = updatedMemory.mediaUrl;
       existing.category = updatedMemory.category;
       existing.tags = updatedMemory.tags;
       existing.aiStatus = updatedMemory.aiStatus;
       if (updatedMemory.embedding != null) {
         existing.embedding = updatedMemory.embedding;
       }
+      existing.clientUpdatedAt = updatedMemory.clientUpdatedAt;
       existing.serverUpdatedAt = updatedMemory.serverUpdatedAt;
       existing.isSynced = true;
 

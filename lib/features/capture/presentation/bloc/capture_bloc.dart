@@ -31,6 +31,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     required this.repository,
   }) : super(CaptureInitial()) {
     on<LoadMemoriesEvent>(_onLoadMemories);
+    on<ClearMemoriesEvent>(_onClearMemories);
     on<AddMemoryEvent>(_onAddMemory);
     on<SyncPendingMemoriesEvent>(_onSyncPendingMemories);
     on<MemoryUpdatedEvent>(_onMemoryUpdated);
@@ -55,12 +56,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         ? subscribeToMemoriesUseCase!(currentUserId)
         : repository.subscribeToMemoryUpdates(currentUserId);
 
-    _realtimeSubscription = stream.listen(
-      (updatedMemory) {
-        add(MemoryUpdatedEvent(updatedMemory));
-      },
-      onError: (_) {},
-    );
+    _realtimeSubscription = stream.listen((updatedMemory) {
+      add(MemoryUpdatedEvent(updatedMemory));
+    }, onError: (_) {});
   }
 
   Future<void> _onLoadMemories(
@@ -79,6 +77,16 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     } catch (e) {
       emit(CaptureFailure(e.toString()));
     }
+  }
+
+  Future<void> _onClearMemories(
+    ClearMemoriesEvent event,
+    Emitter<CaptureState> emit,
+  ) async {
+    await _realtimeSubscription?.cancel();
+    _realtimeSubscription = null;
+    _subscribedUserId = null;
+    emit(const CaptureLoaded([]));
   }
 
   Future<void> _onAddMemory(
@@ -115,19 +123,20 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       // If memory requires AI analysis or is missing an embedding, trigger background enrichment/embedding
       bool isSupabaseAvailable = false;
       try {
-        isSupabaseAvailable =
-            Supabase.instance.client.auth.currentUser != null;
+        isSupabaseAvailable = Supabase.instance.client.auth.currentUser != null;
       } catch (_) {}
 
       final needsEmbedding =
           newMemory.embedding == null || newMemory.embedding!.isEmpty;
-      final isVoice = newMemory.tags.any((t) => t.toLowerCase() == 'voice') ||
+      final isVoice =
+          newMemory.tags.any((t) => t.toLowerCase() == 'voice') ||
           (newMemory.mediaUrl != null &&
               (newMemory.mediaUrl!.endsWith('.m4a') ||
-               newMemory.mediaUrl!.endsWith('.aac') ||
-               newMemory.mediaUrl!.endsWith('.mp3') ||
-               newMemory.mediaUrl!.endsWith('.wav')));
-      final isPdf = (newMemory.mediaUrl != null &&
+                  newMemory.mediaUrl!.endsWith('.aac') ||
+                  newMemory.mediaUrl!.endsWith('.mp3') ||
+                  newMemory.mediaUrl!.endsWith('.wav')));
+      final isPdf =
+          (newMemory.mediaUrl != null &&
               newMemory.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
           newMemory.tags.any((t) => t.toLowerCase() == 'pdf');
       final hasMeaningfulContent =
@@ -139,7 +148,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
           isSupabaseAvailable) {
-        final isNote = (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) &&
+        final isNote =
+            (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) &&
             !isVoice &&
             !isPdf;
         unawaited(
@@ -176,13 +186,15 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           for (final mem in memories) {
             final needsEmbedding =
                 mem.embedding == null || mem.embedding!.isEmpty;
-            final isVoice = mem.tags.any((t) => t.toLowerCase() == 'voice') ||
+            final isVoice =
+                mem.tags.any((t) => t.toLowerCase() == 'voice') ||
                 (mem.mediaUrl != null &&
                     (mem.mediaUrl!.endsWith('.m4a') ||
-                     mem.mediaUrl!.endsWith('.aac') ||
-                     mem.mediaUrl!.endsWith('.mp3') ||
-                     mem.mediaUrl!.endsWith('.wav')));
-            final isPdf = (mem.mediaUrl != null &&
+                        mem.mediaUrl!.endsWith('.aac') ||
+                        mem.mediaUrl!.endsWith('.mp3') ||
+                        mem.mediaUrl!.endsWith('.wav')));
+            final isPdf =
+                (mem.mediaUrl != null &&
                     mem.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
                 mem.tags.any((t) => t.toLowerCase() == 'pdf');
             final hasMeaningfulContent =
@@ -190,7 +202,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                 mem.title.trim().isNotEmpty ||
                 isVoice ||
                 isPdf;
-            final isNote = (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) &&
+            final isNote =
+                (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) &&
                 !isVoice &&
                 !isPdf;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
@@ -231,8 +244,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         ? (state as CaptureLoaded).memories
         : await getMemoriesUseCase(currentUserId);
 
-    final index =
-        currentMemories.indexWhere((m) => m.id == event.updatedMemory.id);
+    final index = currentMemories.indexWhere(
+      (m) => m.id == event.updatedMemory.id,
+    );
 
     final updatedList = List<MemoryEntity>.from(currentMemories);
     if (index != -1) {
@@ -265,7 +279,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
 
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;
             if (currentUserId != null && currentUserId != 'local_user') {
-              final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+              final fileName =
+                  'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
               final storageKey = '$currentUserId/$fileName';
               await Supabase.instance.client.storage
                   .from('memories')
@@ -297,7 +312,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             }
           }
         } catch (_) {}
-      } else if (isPdf && memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
+      } else if (isPdf &&
+          memory.mediaUrl != null &&
+          memory.mediaUrl!.isNotEmpty) {
         try {
           final file = File(memory.mediaUrl!);
           if (file.existsSync()) {
@@ -307,14 +324,17 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
 
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;
             if (currentUserId != null && currentUserId != 'local_user') {
-              final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}.pdf';
+              final fileName =
+                  'doc_${DateTime.now().millisecondsSinceEpoch}.pdf';
               final storageKey = '$currentUserId/$fileName';
               await Supabase.instance.client.storage
                   .from('memories')
                   .uploadBinary(
                     storageKey,
                     bytes,
-                    fileOptions: const FileOptions(contentType: 'application/pdf'),
+                    fileOptions: const FileOptions(
+                      contentType: 'application/pdf',
+                    ),
                   );
               final publicUrl = Supabase.instance.client.storage
                   .from('memories')
@@ -389,8 +409,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           resData = Map<String, dynamic>.from(response.data as Map);
         } else if (response.data is String) {
           try {
-            resData =
-                Map<String, dynamic>.from(jsonDecode(response.data as String));
+            resData = Map<String, dynamic>.from(
+              jsonDecode(response.data as String),
+            );
           } catch (_) {}
         }
       }
@@ -414,7 +435,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             if (remoteModel.content.isNotEmpty) {
               existing.content = remoteModel.content;
             }
-            if (remoteModel.mediaUrl != null && remoteModel.mediaUrl!.isNotEmpty) {
+            if (remoteModel.mediaUrl != null &&
+                remoteModel.mediaUrl!.isNotEmpty) {
               existing.mediaUrl = remoteModel.mediaUrl;
             }
             if (remoteModel.embedding != null) {
@@ -432,11 +454,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             if (resData['tags'] != null) {
               existing.tags = List<String>.from(resData['tags'] as List);
             }
-            if (resData['content'] != null && resData['content'].toString().isNotEmpty) {
+            if (resData['content'] != null &&
+                resData['content'].toString().isNotEmpty) {
               existing.content = resData['content'].toString();
             }
-            existing.aiStatus =
-                (resData['ai_status'] ?? 'processed').toString();
+            existing.aiStatus = (resData['ai_status'] ?? 'processed')
+                .toString();
             existing.serverUpdatedAt = DateTime.now();
             existing.isSynced = true;
           }
@@ -452,8 +475,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       // 4. Construct updated MemoryEntity if Isar was not open
       if (updatedEntity == null) {
         if (remoteRow != null) {
-          updatedEntity =
-              MemoryModel.fromMap(remoteRow, isSynced: true).toEntity();
+          updatedEntity = MemoryModel.fromMap(
+            remoteRow,
+            isSynced: true,
+          ).toEntity();
         } else if (resData != null) {
           updatedEntity = MemoryEntity(
             id: memoryId,
@@ -464,8 +489,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             tags: resData['tags'] != null
                 ? List<String>.from(resData['tags'] as List)
                 : fallbackMemory.tags,
-            category:
-                (resData['category'] ?? fallbackMemory.category).toString(),
+            category: (resData['category'] ?? fallbackMemory.category)
+                .toString(),
             embedding: fallbackMemory.embedding,
             aiStatus: (resData['ai_status'] ?? 'processed').toString(),
             isConflictCopy: fallbackMemory.isConflictCopy,

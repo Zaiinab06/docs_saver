@@ -61,8 +61,9 @@ void main() async {
   );
   final saveMemoryUseCase = SaveMemoryUseCase(captureRepository);
   final getMemoriesUseCase = GetMemoriesUseCase(captureRepository);
-  final subscribeToMemoriesUseCase =
-      SubscribeToMemoriesUseCase(captureRepository);
+  final subscribeToMemoriesUseCase = SubscribeToMemoriesUseCase(
+    captureRepository,
+  );
 
   final themeCubit = ThemeCubit(prefs);
 
@@ -115,9 +116,7 @@ class SecondBrainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider<ThemeCubit>.value(
-          value: themeCubit ?? ThemeCubit(),
-        ),
+        BlocProvider<ThemeCubit>.value(value: themeCubit ?? ThemeCubit()),
         BlocProvider(
           create: (context) => AuthBloc(
             signUpUseCase: signUpUseCase,
@@ -155,15 +154,15 @@ class SecondBrainApp extends StatelessWidget {
 class AuthSessionGate extends StatelessWidget {
   final bool hasSeenOnboarding;
 
-  const AuthSessionGate({
-    super.key,
-    this.hasSeenOnboarding = true,
-  });
+  const AuthSessionGate({super.key, this.hasSeenOnboarding = true});
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
+        if (state is Unauthenticated) {
+          context.read<CaptureBloc>().add(ClearMemoriesEvent());
+        }
         if (state is Authenticated ||
             (state is AuthSuccess && state.user.hasSession)) {
           context.read<CaptureBloc>().add(LoadMemoriesEvent());
