@@ -14,6 +14,7 @@ import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../capture/presentation/bloc/capture_bloc.dart';
 import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
+import '../../../capture/domain/entities/memory_entity.dart';
 import '../../../capture/presentation/screens/memory_review_screen.dart';
 import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
@@ -41,7 +42,6 @@ import '../../../integrations/domain/entities/google_integration_status.dart';
 import '../../../integrations/domain/repositories/google_auth_repository.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
-
 
 class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
   @override
@@ -83,6 +83,7 @@ class HomeScreenState extends State<HomeScreen> {
   void openCaptureBottomSheet() {
     _showCaptureBottomSheet(context);
   }
+
   late final LinkMetadataExtractor _linkMetadataExtractor;
 
   IngestMemoryUseCase get _effectiveIngestMemoryUseCase {
@@ -91,15 +92,11 @@ class HomeScreenState extends State<HomeScreen> {
     }
     try {
       return IngestMemoryUseCase(
-        AiRepositoryImpl(
-          remoteDataSource: AiRemoteDataSourceImpl(),
-        ),
+        AiRepositoryImpl(remoteDataSource: AiRemoteDataSourceImpl()),
       );
     } catch (_) {
       return IngestMemoryUseCase(
-        AiRepositoryImpl(
-          remoteDataSource: _FallbackAiRemoteDataSource(),
-        ),
+        AiRepositoryImpl(remoteDataSource: _FallbackAiRemoteDataSource()),
       );
     }
   }
@@ -121,13 +118,13 @@ class HomeScreenState extends State<HomeScreen> {
         widget.linkMetadataExtractor ?? LinkMetadataExtractor();
     context.read<CaptureBloc>().add(LoadMemoriesEvent());
     try {
-      _authSubscription =
-          Supabase.instance.client.auth.onAuthStateChange.listen((_) {
-        if (mounted) {
-          context.read<CaptureBloc>().add(LoadMemoriesEvent());
-          setState(() {});
-        }
-      });
+      _authSubscription = Supabase.instance.client.auth.onAuthStateChange
+          .listen((_) {
+            if (mounted) {
+              context.read<CaptureBloc>().add(LoadMemoriesEvent());
+              setState(() {});
+            }
+          });
     } catch (_) {}
     _initDeepLinks();
   }
@@ -160,7 +157,9 @@ class HomeScreenState extends State<HomeScreen> {
               final errorDetail = reason ?? error ?? 'unknown error';
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Google Drive authorization failed ($errorDetail).'),
+                  content: Text(
+                    'Google Drive authorization failed ($errorDetail).',
+                  ),
                   behavior: SnackBarBehavior.floating,
                   duration: const Duration(seconds: 4),
                 ),
@@ -207,7 +206,10 @@ class HomeScreenState extends State<HomeScreen> {
     try {
       final authUrl = await _effectiveGoogleAuthRepository.startGooglePicker();
       final uri = Uri.parse(authUrl);
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -282,6 +284,412 @@ class HomeScreenState extends State<HomeScreen> {
     return trimmed[0].toUpperCase();
   }
 
+  List<MemoryEntity> _memoriesFromState(CaptureState state) {
+    if (state is CaptureLoaded) return state.memories;
+    return const [];
+  }
+
+  int _documentCount(List<MemoryEntity> memories) {
+    return memories.where((memory) {
+      final media = memory.mediaUrl?.toLowerCase() ?? '';
+      return memory.tags.any((tag) {
+            final normalized = tag.toLowerCase();
+            return normalized == 'document' || normalized == 'pdf';
+          }) ||
+          media.endsWith('.pdf') ||
+          media.endsWith('.txt') ||
+          media.endsWith('.md') ||
+          media.endsWith('.csv') ||
+          media.endsWith('.json');
+    }).length;
+  }
+
+  int _categoryCount(List<MemoryEntity> memories, CategorySectionItem section) {
+    final categories = section.categories
+        .map((category) => category.name.trim().toLowerCase())
+        .toSet();
+    return memories.where((memory) {
+      final category = memory.category.trim().toLowerCase();
+      return categories.contains(category) ||
+          (section.id == 'work_learning' &&
+              (category == 'work' || category == 'study')) ||
+          (section.id == 'personal_life' &&
+              (category == 'personal' || category == 'travel')) ||
+          (section.id == 'documents_records' &&
+              (category == 'documents' || category == 'general'));
+    }).length;
+  }
+
+  void _showUnavailableFeature(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature is not available yet.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildDashboard(BuildContext context, List<MemoryEntity> memories) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: _buildStatsRow(
+            context,
+            memories.length,
+            _documentCount(memories),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: _buildUpgradeBanner(context),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: _buildSectionTitle(context, 'Quick Actions'),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: _buildQuickActions(context),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: _buildCategoriesHeader(context),
+        ),
+        _buildCategorySectionsList(context, memories),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textPrimaryOf(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsRow(BuildContext context, int memories, int documents) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            context,
+            title: 'Total Memories',
+            value: memories.toString(),
+            icon: Icons.description_outlined,
+            iconColor: const Color(0xFF6D35E8),
+            iconBackground: const Color(0xFFEDE7FF),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildStatCard(
+            context,
+            title: 'Documents',
+            value: documents.toString(),
+            icon: Icons.folder_outlined,
+            iconColor: const Color(0xFF0AAB68),
+            iconBackground: const Color(0xFFE1F8EC),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context, {
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBackground,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackgroundOf(context),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4B16C9).withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: iconBackground,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: iconColor, size: 19),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondaryOf(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: AppColors.textPrimaryOf(context),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpgradeBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF26105F), Color(0xFF4B16C9), Color(0xFF7625F5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4B16C9).withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+                width: 1.0,
+              ),
+            ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: Color(0xFFFFD166),
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text.rich(
+                  TextSpan(
+                    text: 'Upgrade to DocsSaver ',
+                    children: [
+                      TextSpan(
+                        text: 'Pro',
+                        style: TextStyle(color: Color(0xFFFFD166)),
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Unlock AI features & smart reminders',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: () => _showUnavailableFeature('DocsSaver Pro'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD166),
+              foregroundColor: const Color(0xFF26105F),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              elevation: 0,
+            ),
+            child: const Text(
+              'Go Pro →',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    final actions = [
+      (
+        'Add Note',
+        Icons.note_alt_outlined,
+        const Color(0xFF6D35E8),
+        const Color(0xFFEDE7FF),
+        _handleAddNote,
+      ),
+      (
+        'Scan Doc',
+        Icons.document_scanner_outlined,
+        const Color(0xFFF0445D),
+        const Color(0xFFFFE5EA),
+        _handleScanDocument,
+      ),
+      (
+        'Import File',
+        Icons.image_outlined,
+        const Color(0xFF1677D2),
+        const Color(0xFFE5F1FF),
+        _handleChooseFile,
+      ),
+      (
+        'Voice Note',
+        Icons.mic_none_rounded,
+        const Color(0xFF0AAB68),
+        const Color(0xFFE1F8EC),
+        _handleRecordVoice,
+      ),
+      (
+        'Save Link',
+        Icons.link_rounded,
+        const Color(0xFFE58B00),
+        const Color(0xFFFFF0D3),
+        _handleAddLink,
+      ),
+      (
+        'AI Summary',
+        Icons.auto_awesome_rounded,
+        const Color(0xFF7625F5),
+        const Color(0xFFF0E6FF),
+        () => _showUnavailableFeature('AI Summary'),
+      ),
+      (
+        'Collection',
+        Icons.create_new_folder_outlined,
+        const Color(0xFFE58B00),
+        const Color(0xFFFFF0D3),
+        () => _showUnavailableFeature('Collections'),
+      ),
+      (
+        'More',
+        Icons.grid_view_rounded,
+        const Color(0xFF6E7190),
+        const Color(0xFFEEF0F7),
+        openCaptureBottomSheet,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackgroundOf(context),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4B16C9).withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: actions.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisExtent: 78,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 6,
+        ),
+        itemBuilder: (context, index) {
+          final action = actions[index];
+          return InkWell(
+            key: Key('home_quick_action_${action.$1}'),
+            onTap: action.$5,
+            borderRadius: BorderRadius.circular(14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: action.$4,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(action.$2, color: action.$3, size: 20),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  action.$1,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textPrimaryOf(context),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userName = _getUserName();
@@ -296,55 +704,51 @@ class HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         backgroundColor: AppColors.backgroundOf(context),
         body: SafeArea(
-          top: false,
+          top:
+              false, // Fixed: Header gradient extends to top while content respects safe area padding
           bottom: true,
           child: BlocBuilder<CaptureBloc, CaptureState>(
-          builder: (context, state) {
-            return RefreshIndicator(
-              color: AppColors.primary,
-              backgroundColor: AppColors.cardBackgroundOf(context),
-              onRefresh: () async {
-                context.read<CaptureBloc>().add(LoadMemoriesEvent());
-                context.read<CaptureBloc>().add(SyncPendingMemoriesEvent());
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                slivers: [
-                  // 1. Header with Straight Bottom and Search Bar Inside
-                  SliverToBoxAdapter(
-                    child: _buildHeaderWithSearch(context, userName, userInitial),
+            builder: (context, state) {
+              return RefreshIndicator(
+                color: AppColors.primary,
+                backgroundColor: AppColors.cardBackgroundOf(context),
+                onRefresh: () async {
+                  context.read<CaptureBloc>().add(LoadMemoriesEvent());
+                  context.read<CaptureBloc>().add(SyncPendingMemoriesEvent());
+                },
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-
-                  // 2. Categories Section Header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
-                      child: _buildCategoriesHeader(context),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: _buildHeaderWithSearch(
+                        context,
+                        userName,
+                        userInitial,
+                      ),
                     ),
-                  ),
-
-                  // 3. Four Premium Category Navigation Section Cards
-                  SliverToBoxAdapter(
-                    child: _buildCategorySectionsList(context),
-                  ),
-
-                  // 4. Bottom spacing below category cards
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 24),
-                  ),
-                ],
-              ),
-            );
-          },
+                    SliverToBoxAdapter(
+                      child: _buildDashboard(
+                        context,
+                        _memoriesFromState(state),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 80 + MediaQuery.paddingOf(context).bottom,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  // Capture Bottom Sheet Modal
   void _showCaptureBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -360,88 +764,88 @@ class HomeScreenState extends State<HomeScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
               child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.borderOf(sheetContext),
-                      borderRadius: BorderRadius.circular(2),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.borderOf(sheetContext),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'What do you want to save?',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimaryOf(sheetContext),
-                    letterSpacing: -0.3,
+                  const SizedBox(height: 18),
+                  Text(
+                    'What do you want to save?',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimaryOf(sheetContext),
+                      letterSpacing: -0.3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 2.8,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.camera_alt_outlined,
-                      title: 'Take Photo',
-                      isTakePhoto: true,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.document_scanner_outlined,
-                      title: 'Scan Document',
-                      isTakePhoto: false,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.link_rounded,
-                      title: 'Add Link',
-                      isTakePhoto: false,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.edit_note_rounded,
-                      title: 'Add Note',
-                      isTakePhoto: false,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.mic_none_rounded,
-                      title: 'Record Voice',
-                      isTakePhoto: false,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.attach_file_rounded,
-                      title: 'Choose File',
-                      isTakePhoto: false,
-                    ),
-                    _buildCaptureOption(
-                      context: sheetContext,
-                      icon: Icons.cloud_download_outlined,
-                      title: 'Google Drive',
-                      isTakePhoto: false,
-                    ),
-                  ],
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 2.8,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.camera_alt_outlined,
+                        title: 'Take Photo',
+                        isTakePhoto: true,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.document_scanner_outlined,
+                        title: 'Scan Document',
+                        isTakePhoto: false,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.link_rounded,
+                        title: 'Add Link',
+                        isTakePhoto: false,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.edit_note_rounded,
+                        title: 'Add Note',
+                        isTakePhoto: false,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.mic_none_rounded,
+                        title: 'Record Voice',
+                        isTakePhoto: false,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.attach_file_rounded,
+                        title: 'Choose File',
+                        isTakePhoto: false,
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.cloud_download_outlined,
+                        title: 'Google Drive',
+                        isTakePhoto: false,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
     );
   }
 
@@ -454,14 +858,12 @@ class HomeScreenState extends State<HomeScreen> {
         maxWidth: 1800,
       );
 
-      if (photo == null) return; // User cancelled camera safely
+      if (photo == null) return;
       if (!mounted) return;
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PhotoReviewScreen(
-            imageFile: File(photo.path),
-          ),
+          builder: (_) => PhotoReviewScreen(imageFile: File(photo.path)),
         ),
       );
 
@@ -471,14 +873,12 @@ class HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (mounted) {
         final errorMsg = e.toString().toLowerCase();
-        final message = errorMsg.contains('permission') || errorMsg.contains('denied')
+        final message =
+            errorMsg.contains('permission') || errorMsg.contains('denied')
             ? 'Camera permission denied. Please enable camera access in Settings.'
             : 'Unable to open camera: ${e.toString()}';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
         );
       }
     }
@@ -493,7 +893,7 @@ class HomeScreenState extends State<HomeScreen> {
       );
 
       if (pictures == null || pictures.isEmpty) {
-        return; // User cancelled scanning safely
+        return;
       }
 
       if (!mounted) return;
@@ -503,10 +903,8 @@ class HomeScreenState extends State<HomeScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PhotoReviewScreen(
-            imageFile: scannedFile,
-            isDocumentScan: true,
-          ),
+          builder: (_) =>
+              PhotoReviewScreen(imageFile: scannedFile, isDocumentScan: true),
         ),
       );
 
@@ -516,14 +914,12 @@ class HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (mounted) {
         final errorMsg = e.toString().toLowerCase();
-        final message = errorMsg.contains('permission') || errorMsg.contains('denied')
+        final message =
+            errorMsg.contains('permission') || errorMsg.contains('denied')
             ? 'Camera permission denied. Please enable camera access in Settings.'
             : 'Unable to scan document: ${e.toString()}';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
         );
       }
     }
@@ -533,8 +929,8 @@ class HomeScreenState extends State<HomeScreen> {
     final url = await AddLinkBottomSheet.show(context);
     if (url == null || url.isEmpty || !mounted) return;
 
-    // Detect Google Docs and Drive URLs before generic web-link extraction
-    final driveFileId = GoogleDocsLinkExtractor.extractFileId(url) ??
+    final driveFileId =
+        GoogleDocsLinkExtractor.extractFileId(url) ??
         GoogleDriveLinkExtractor.extractFileId(url);
     if (driveFileId != null) {
       await _handleGoogleDocsImport(driveFileId, url);
@@ -545,10 +941,7 @@ class HomeScreenState extends State<HomeScreen> {
     final parsedUri = Uri.tryParse(url) ?? Uri();
     final detectedProvider = LinkProviderDetector.detect(parsedUri);
 
-    LinkMetadata metadata = LinkMetadata(
-      url: url,
-      provider: detectedProvider,
-    );
+    LinkMetadata metadata = LinkMetadata(url: url, provider: detectedProvider);
     AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
 
     if (isOnline) {
@@ -577,7 +970,9 @@ class HomeScreenState extends State<HomeScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         Text(
@@ -601,9 +996,7 @@ class HomeScreenState extends State<HomeScreen> {
 
       try {
         metadata = await _linkMetadataExtractor.extract(url);
-      } catch (_) {
-        // Graceful fallback: original URL remains usable
-      }
+      } catch (_) {}
 
       if (dialogSetState != null && mounted) {
         dialogSetState!(() {
@@ -645,7 +1038,8 @@ class HomeScreenState extends State<HomeScreen> {
         }
         if (metadata.transcript != null && metadata.transcript!.isNotEmpty) {
           buffer.writeln('\nTranscript:\n${metadata.transcript}');
-        } else if (metadata.readableContent != null && metadata.readableContent!.isNotEmpty) {
+        } else if (metadata.readableContent != null &&
+            metadata.readableContent!.isNotEmpty) {
           if (metadata.provider == LinkProvider.genericWeb) {
             buffer.writeln('\nContent:\n${metadata.readableContent}');
           }
@@ -667,30 +1061,33 @@ class HomeScreenState extends State<HomeScreen> {
     final initialTitle = aiResult.title.isNotEmpty
         ? aiResult.title
         : (metadata.title?.isNotEmpty == true
-            ? metadata.title!
-            : (metadata.provider == LinkProvider.youtube
-                ? 'YouTube Video (${DateFormat('MMM d').format(DateTime.now())})'
-                : (metadata.provider == LinkProvider.tiktok
-                    ? 'TikTok Video (${DateFormat('MMM d').format(DateTime.now())})'
-                    : (metadata.provider == LinkProvider.instagram
-                        ? (metadata.extraMetadata?['postType'] == 'reel'
-                            ? 'Instagram Reel (${DateFormat('MMM d').format(DateTime.now())})'
-                            : 'Instagram Post (${DateFormat('MMM d').format(DateTime.now())})')
-                        : (metadata.siteName?.isNotEmpty == true
-                            ? '${metadata.siteName} Link'
-                            : 'Web Link (${DateFormat('MMM d').format(DateTime.now())})')))));
+              ? metadata.title!
+              : (metadata.provider == LinkProvider.youtube
+                    ? 'YouTube Video (${DateFormat('MMM d').format(DateTime.now())})'
+                    : (metadata.provider == LinkProvider.tiktok
+                          ? 'TikTok Video (${DateFormat('MMM d').format(DateTime.now())})'
+                          : (metadata.provider == LinkProvider.instagram
+                                ? (metadata.extraMetadata?['postType'] == 'reel'
+                                      ? 'Instagram Reel (${DateFormat('MMM d').format(DateTime.now())})'
+                                      : 'Instagram Post (${DateFormat('MMM d').format(DateTime.now())})')
+                                : (metadata.siteName?.isNotEmpty == true
+                                      ? '${metadata.siteName} Link'
+                                      : 'Web Link (${DateFormat('MMM d').format(DateTime.now())})')))));
 
     final initialTags = List<String>.from(aiResult.tags);
     if (!initialTags.contains('link')) {
       initialTags.add('link');
     }
-    if (metadata.provider == LinkProvider.youtube && !initialTags.contains('youtube')) {
+    if (metadata.provider == LinkProvider.youtube &&
+        !initialTags.contains('youtube')) {
       initialTags.add('youtube');
     }
-    if (metadata.provider == LinkProvider.tiktok && !initialTags.contains('tiktok')) {
+    if (metadata.provider == LinkProvider.tiktok &&
+        !initialTags.contains('tiktok')) {
       initialTags.add('tiktok');
     }
-    if (metadata.provider == LinkProvider.instagram && !initialTags.contains('instagram')) {
+    if (metadata.provider == LinkProvider.instagram &&
+        !initialTags.contains('instagram')) {
       initialTags.add('instagram');
     }
 
@@ -711,7 +1108,8 @@ class HomeScreenState extends State<HomeScreen> {
         metadata.description != metadata.title) {
       rawTextBuffer.writeln('\n${metadata.description}');
     }
-    if (metadata.readableContent != null && metadata.readableContent!.isNotEmpty) {
+    if (metadata.readableContent != null &&
+        metadata.readableContent!.isNotEmpty) {
       rawTextBuffer.writeln('\n\n${metadata.readableContent}');
     }
 
@@ -752,7 +1150,9 @@ class HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Internet connection required to import Google Docs.'),
+            content: Text(
+              'Internet connection required to import Google Docs.',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 3),
           ),
@@ -786,7 +1186,9 @@ class HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
                       ),
                       const SizedBox(height: 18),
                       Text(
@@ -808,7 +1210,6 @@ class HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    // 1. Verify Google integration status first
     try {
       final status = await _effectiveGoogleAuthRepository.getStatus();
       if (status.state != GoogleConnectionState.connected) {
@@ -818,7 +1219,9 @@ class HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Google Drive is not connected. Please connect your Google account in Settings.'),
+              content: Text(
+                'Google Drive is not connected. Please connect your Google account in Settings.',
+              ),
               behavior: SnackBarBehavior.floating,
               duration: Duration(seconds: 4),
             ),
@@ -826,9 +1229,7 @@ class HomeScreenState extends State<HomeScreen> {
         }
         return;
       }
-    } catch (_) {
-      // Proceed to importDoc; backend will validate integration as well
-    }
+    } catch (_) {}
 
     if (dialogSetState != null && mounted) {
       dialogSetState!(() {
@@ -836,7 +1237,6 @@ class HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    // 2. Call backend import_doc action
     GoogleDocEntity doc;
     try {
       doc = await _effectiveGoogleAuthRepository.importDoc(fileId);
@@ -848,34 +1248,47 @@ class HomeScreenState extends State<HomeScreen> {
         String userMessage;
         switch (e.code) {
           case 'FILE_NOT_FOUND':
-            userMessage = 'File not found or not accessible under current Google Drive permissions. Please use "Choose from Google Drive" to select and authorize the file.';
+            userMessage =
+                'File not found or not accessible under current Google Drive permissions. Please use "Choose from Google Drive" to select and authorize the file.';
             break;
           case 'PERMISSION_DENIED':
-            userMessage = 'Permission denied. Your Google account does not have access to this document.';
+            userMessage =
+                'Permission denied. Your Google account does not have access to this document.';
             break;
           case 'TOKEN_REVOKED':
-            userMessage = 'Google authorization expired or was revoked. Please reconnect in Settings.';
+            userMessage =
+                'Google authorization expired or was revoked. Please reconnect in Settings.';
             break;
           case 'GOOGLE_NOT_CONNECTED':
-            userMessage = 'Google Drive is not connected. Please connect your Google account in Settings.';
+            userMessage =
+                'Google Drive is not connected. Please connect your Google account in Settings.';
             break;
           case 'UNSUPPORTED_ARCHIVE':
-            userMessage = 'ZIP archives cannot be imported directly. Please extract and import individual files.';
+            userMessage =
+                'ZIP archives cannot be imported directly. Please extract and import individual files.';
             break;
           case 'UNSUPPORTED_BINARY':
-            userMessage = 'Executable and binary system files are not supported.';
+            userMessage =
+                'Executable and binary system files are not supported.';
             break;
           case 'UNSUPPORTED_MIME_TYPE':
-            userMessage = e.message.isNotEmpty ? e.message : 'File format is not supported for import.';
+            userMessage = e.message.isNotEmpty
+                ? e.message
+                : 'File format is not supported for import.';
             break;
           case 'EMPTY_DOCUMENT':
-            userMessage = 'The selected file contains no readable text or supported media.';
+            userMessage =
+                'The selected file contains no readable text or supported media.';
             break;
           case 'DOCUMENT_TOO_LARGE':
-            userMessage = e.message.isNotEmpty ? e.message : 'The file is too large to import.';
+            userMessage = e.message.isNotEmpty
+                ? e.message
+                : 'The file is too large to import.';
             break;
           default:
-            userMessage = e.message.isNotEmpty ? e.message : 'Failed to import Google Drive file.';
+            userMessage = e.message.isNotEmpty
+                ? e.message
+                : 'Failed to import Google Drive file.';
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -914,7 +1327,6 @@ class HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    // 3. AI Ingestion using actual exported document content or media
     AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
     try {
       if (doc.mediaBase64 != null && doc.mediaBase64!.isNotEmpty) {
@@ -946,7 +1358,9 @@ class HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
 
-    final initialTitle = (aiResult.title.isNotEmpty) ? aiResult.title : doc.title;
+    final initialTitle = (aiResult.title.isNotEmpty)
+        ? aiResult.title
+        : doc.title;
     final initialTags = List<String>.from(aiResult.tags);
     if (!initialTags.contains('google-drive')) {
       initialTags.add('google-drive');
@@ -955,11 +1369,12 @@ class HomeScreenState extends State<HomeScreen> {
       initialTags.add('document');
     }
 
-    final effectiveContent = (aiResult.documentText != null && aiResult.documentText!.trim().isNotEmpty)
+    final effectiveContent =
+        (aiResult.documentText != null &&
+            aiResult.documentText!.trim().isNotEmpty)
         ? aiResult.documentText!.trim()
         : doc.content;
 
-    // 4. Navigate to Review & Save Screen with real extracted text
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MemoryReviewScreen(
@@ -969,7 +1384,9 @@ class HomeScreenState extends State<HomeScreen> {
           initialTitle: initialTitle,
           initialContent: effectiveContent,
           rawOcrText: effectiveContent,
-          initialCategory: aiResult.category.isNotEmpty ? aiResult.category : AppStrings.categoryWork,
+          initialCategory: aiResult.category.isNotEmpty
+              ? aiResult.category
+              : AppStrings.categoryWork,
           initialTags: initialTags,
           initialSummary: aiResult.summary,
           entities: aiResult.entities,
@@ -987,11 +1404,9 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleAddNote() async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => const NoteComposeScreen(),
-      ),
-    );
+    final saved = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const NoteComposeScreen()));
 
     if (saved == true && mounted) {
       context.read<CaptureBloc>().add(LoadMemoriesEvent());
@@ -999,11 +1414,9 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleRecordVoice() async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => const VoiceRecordScreen(),
-      ),
-    );
+    final saved = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const VoiceRecordScreen()));
 
     if (saved == true && mounted) {
       context.read<CaptureBloc>().add(LoadMemoriesEvent());
@@ -1012,7 +1425,10 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handleChooseFile({FilePickerService? filePickerService}) async {
     try {
-      final service = filePickerService ?? widget.filePickerService ?? const DefaultFilePickerService();
+      final service =
+          filePickerService ??
+          widget.filePickerService ??
+          const DefaultFilePickerService();
       const supportedExtensions = [
         'pdf',
         'txt',
@@ -1029,10 +1445,8 @@ class HomeScreenState extends State<HomeScreen> {
         allowedExtensions: supportedExtensions,
       );
 
-      // Clean return if user canceled
       if (picked == null) return;
 
-      // 15 MB file size limit
       const maxFileSize = 15 * 1024 * 1024;
       if (picked.size > maxFileSize) {
         if (mounted) {
@@ -1060,7 +1474,9 @@ class HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Unsupported file format (.$ext). Supported: PDF, TXT, MD, CSV, JSON, PNG, JPG, WEBP.'),
+              content: Text(
+                'Unsupported file format (.$ext). Supported: PDF, TXT, MD, CSV, JSON, PNG, JPG, WEBP.',
+              ),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 3),
             ),
@@ -1071,9 +1487,9 @@ class HomeScreenState extends State<HomeScreen> {
 
       final appDir = await getApplicationDocumentsDirectory();
 
-      // 1. Image Files -> Route through existing PhotoReviewScreen
       if (const ['png', 'jpg', 'jpeg', 'webp'].contains(ext)) {
-        final copyPath = '${appDir.path}/memory_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final copyPath =
+            '${appDir.path}/memory_${DateTime.now().millisecondsSinceEpoch}.$ext';
         final localImageFile = sourceFile.copySync(copyPath);
 
         if (!mounted) return;
@@ -1091,20 +1507,21 @@ class HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // 2. Documents (PDF & Text files)
       final docDir = Directory('${appDir.path}/documents');
       if (!docDir.existsSync()) {
         docDir.createSync(recursive: true);
       }
-      final persistentPath = '${docDir.path}/doc_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
+      final persistentPath =
+          '${docDir.path}/doc_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
       final persistentFile = sourceFile.copySync(persistentPath);
 
       final isOnline = await NetworkChecker.isConnected();
 
       if (const ['txt', 'md', 'csv', 'json'].contains(ext)) {
-        // Text files: read actual string contents verbatim
         final rawText = sourceFile.readAsStringSync();
-        AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+        AiIngestionResult aiResult = AiIngestionResult.empty(
+          aiStatus: 'pending',
+        );
 
         if (isOnline) {
           if (!mounted) return;
@@ -1125,7 +1542,9 @@ class HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
                       ),
                       SizedBox(height: 18),
                       Text(
@@ -1166,7 +1585,9 @@ class HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(
             builder: (_) => MemoryReviewScreen(
               documentFile: persistentFile,
-              initialTitle: aiResult.title.isNotEmpty ? aiResult.title : picked.name,
+              initialTitle: aiResult.title.isNotEmpty
+                  ? aiResult.title
+                  : picked.name,
               initialContent: rawText,
               rawOcrText: rawText,
               initialCategory: aiResult.category,
@@ -1187,9 +1608,10 @@ class HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // 3. PDF Files
       if (ext == 'pdf') {
-        AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
+        AiIngestionResult aiResult = AiIngestionResult.empty(
+          aiStatus: 'pending',
+        );
 
         if (isOnline) {
           if (!mounted) return;
@@ -1210,7 +1632,9 @@ class HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
                       ),
                       SizedBox(height: 18),
                       Text(
@@ -1249,7 +1673,8 @@ class HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
 
         final extractedText = (aiResult.documentText ?? '').trim();
-        final bool isAiSuccess = isOnline &&
+        final bool isAiSuccess =
+            isOnline &&
             aiResult.aiStatus == 'processed' &&
             extractedText.isNotEmpty;
 
@@ -1262,8 +1687,12 @@ class HomeScreenState extends State<HomeScreen> {
             : picked.name;
 
         final effectiveSummary = isAiSuccess ? aiResult.summary : '';
-        final effectiveCategory = isAiSuccess ? aiResult.category : AppStrings.categoryWork;
-        final effectiveEntities = isAiSuccess ? aiResult.entities : const <LivingEntityItem>[];
+        final effectiveCategory = isAiSuccess
+            ? aiResult.category
+            : AppStrings.categoryWork;
+        final effectiveEntities = isAiSuccess
+            ? aiResult.entities
+            : const <LivingEntityItem>[];
 
         final tags = isAiSuccess
             ? List<String>.from(aiResult.tags)
@@ -1348,10 +1777,7 @@ class HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: AppColors.cardBackgroundOf(context),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.borderOf(context),
-              width: 1.0,
-            ),
+            border: Border.all(color: AppColors.borderOf(context), width: 1.0),
           ),
           child: Row(
             children: [
@@ -1362,11 +1788,7 @@ class HomeScreenState extends State<HomeScreen> {
                   color: AppColors.surfaceTintOf(context),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: AppColors.primary,
-                  size: 18,
-                ),
+                child: Icon(icon, color: AppColors.primary, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1388,14 +1810,21 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Cyan/Blue Straight Header with Search Bar Inside
-  Widget _buildHeaderWithSearch(BuildContext context, String userName, String userInitial) {
+  Widget _buildHeaderWithSearch(
+    BuildContext context,
+    String userName,
+    String userInitial,
+  ) {
     final topPadding = MediaQuery.paddingOf(context).top;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: AppColors.headerGradient,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF26105F), Color(0xFF4B16C9), Color(0xFF7625F5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -1415,16 +1844,11 @@ class HomeScreenState extends State<HomeScreen> {
         ),
         child: Stack(
           children: [
-            // Subtle connected-node/network pattern in background
             Positioned.fill(
-              child: CustomPaint(
-                painter: _NetworkPatternPainter(),
-              ),
+              child: CustomPaint(painter: _NetworkPatternPainter()),
             ),
-
-            // Header Content: Greeting, Subtitle, Right actions, and Search Bar fully inside
             Padding(
-              padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 20),
+              padding: EdgeInsets.fromLTRB(20, topPadding + 10, 20, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1433,7 +1857,6 @@ class HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Left: Prominent "Hello {userName} 👋" & Subtitle "Your second brain is ready"
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1460,9 +1883,7 @@ class HomeScreenState extends State<HomeScreen> {
                                   const SizedBox(width: 5),
                                   const Text(
                                     '👋',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                    ),
+                                    style: TextStyle(fontSize: 20),
                                   ),
                                 ],
                               ),
@@ -1473,7 +1894,9 @@ class HomeScreenState extends State<HomeScreen> {
                               style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w400,
-                                color: AppColors.textWhite.withValues(alpha: 0.88),
+                                color: AppColors.textWhite.withValues(
+                                  alpha: 0.88,
+                                ),
                                 letterSpacing: -0.1,
                                 height: 1.25,
                               ),
@@ -1483,15 +1906,11 @@ class HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(width: 12),
-
-                      // Right: Bell notification & Profile avatar
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Bell button with notification dot
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
@@ -1514,10 +1933,14 @@ class HomeScreenState extends State<HomeScreen> {
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.35),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.35,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
@@ -1547,10 +1970,7 @@ class HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ),
-
                           const SizedBox(width: 10),
-
-                          // Profile Avatar [Dynamic Initial]
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
@@ -1580,7 +2000,9 @@ class HomeScreenState extends State<HomeScreen> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.08),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -1603,10 +2025,7 @@ class HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 18),
-
-                  // Search Bar: fully inside the header
                   _buildSearchBar(context),
                 ],
               ),
@@ -1617,7 +2036,6 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Modern Floating Search Bar Pill
   Widget _buildSearchBar(BuildContext context) {
     return Material(
       color: Colors.transparent,
@@ -1626,9 +2044,9 @@ class HomeScreenState extends State<HomeScreen> {
           if (widget.onSearchTap != null) {
             widget.onSearchTap!();
           } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SearchScreen()),
-            );
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
           }
         },
         borderRadius: BorderRadius.circular(100),
@@ -1659,7 +2077,9 @@ class HomeScreenState extends State<HomeScreen> {
                   AppStrings.homeSearchHint,
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textSecondaryOf(context).withValues(alpha: 0.85),
+                    color: AppColors.textSecondaryOf(
+                      context,
+                    ).withValues(alpha: 0.85),
                     fontWeight: FontWeight.w400,
                   ),
                   maxLines: 1,
@@ -1686,7 +2106,6 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Section Header: Categories
   Widget _buildCategoriesHeader(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -1702,99 +2121,188 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Categories Section Cards List
-  Widget _buildCategorySectionsList(BuildContext context) {
-    return Column(
-      children: CategorySectionsData.sections.map((section) {
-        return _buildCategorySectionCard(context, section);
-      }).toList(),
+  Widget _buildCategorySectionsList(
+    BuildContext context,
+    List<MemoryEntity> memories,
+  ) {
+    return SizedBox(
+      height: 122,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(left: 20, right: 20),
+        itemCount: CategorySectionsData.sections.length,
+        itemBuilder: (context, index) {
+          final section = CategorySectionsData.sections[index];
+          final isLast = index == CategorySectionsData.sections.length - 1;
+          return Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 12),
+            child: SizedBox(
+              width: 158,
+              child: _buildCategorySectionCard(
+                context,
+                section,
+                _categoryCount(memories, section),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  // Premium Category Navigation Section Card
-  Widget _buildCategorySectionCard(BuildContext context, CategorySectionItem section) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: Key('home_category_section_${section.id}'),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CategoryDetailScreen(
-                  section: section,
-                  onCaptureTap: openCaptureBottomSheet,
-                ),
+  ({Color icon, Color cardBgStart, Color cardBgEnd, Color border, Color shadow})
+  _categoryAccent(String sectionId) {
+    return switch (sectionId) {
+      'documents_records' => (
+        icon: const Color(0xFF2563EB),
+        cardBgStart: const Color(0xFFEFF6FF),
+        cardBgEnd: const Color(0xFFF8FAFC),
+        border: const Color(0xFFBFDBFE),
+        shadow: const Color(0xFF3B82F6),
+      ),
+      'work_learning' => (
+        icon: const Color(0xFF7C3AED),
+        cardBgStart: const Color(0xFFF5F3FF),
+        cardBgEnd: const Color(0xFFFAF5FF),
+        border: const Color(0xFFDDD6FE),
+        shadow: const Color(0xFF8B5CF6),
+      ),
+      'home_utilities' => (
+        icon: const Color(0xFF059669),
+        cardBgStart: const Color(0xFFECFDF5),
+        cardBgEnd: const Color(0xFFF0FDF4),
+        border: const Color(0xFFA7F3D0),
+        shadow: const Color(0xFF10B981),
+      ),
+      'personal_life' => (
+        icon: const Color(0xFFE11D48),
+        cardBgStart: const Color(0xFFFFF1F2),
+        cardBgEnd: const Color(0xFFFFF7ED),
+        border: const Color(0xFFFECDD3),
+        shadow: const Color(0xFFF43F5E),
+      ),
+      _ => (
+        icon: const Color(0xFF4F46E5),
+        cardBgStart: const Color(0xFFF8FAFC),
+        cardBgEnd: const Color(0xFFFFFFFF),
+        border: const Color(0xFFE2E8F0),
+        shadow: const Color(0xFF64748B),
+      ),
+    };
+  }
+
+  Widget _buildCategorySectionCard(
+    BuildContext context,
+    CategorySectionItem section,
+    int count,
+  ) {
+    final accent = _categoryAccent(section.id);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('home_category_section_${section.id}'),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CategoryDetailScreen(
+                section: section,
+                onCaptureTap: openCaptureBottomSheet,
               ),
-            );
-          },
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackgroundOf(context),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.borderOf(context),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.violetTwilight500.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: AppColors.toggleBackgroundOf(context),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.borderOf(context),
-                      width: 1,
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [accent.cardBgStart, accent.cardBgEnd],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: accent.border.withValues(alpha: 0.75),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.shadow.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(11),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.shadow.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(section.icon, color: accent.icon, size: 19),
+                  ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.shadow.withValues(alpha: 0.15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: accent.icon,
+                      size: 10,
                     ),
                   ),
-                  child: Icon(
-                    section.icon,
-                    color: AppColors.violetTwilight500,
-                    size: 22,
-                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                section.title,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                  letterSpacing: -0.2,
+                  height: 1.15,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    section.title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimaryOf(context),
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$count ${count == 1 ? 'item' : 'items'}',
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
                 ),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.toggleBackgroundOf(context).withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: AppColors.violetTwilight400,
-                    size: 13,
-                  ),
-                ),
-              ],
-            ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
@@ -1802,7 +2310,6 @@ class HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Subtle connected-node / network pattern custom painter for header background
 class _NetworkPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1819,7 +2326,6 @@ class _NetworkPatternPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.06)
       ..style = PaintingStyle.fill;
 
-    // Node coordinates scattered across header background
     final nodes = [
       Offset(size.width * 0.10, size.height * 0.28),
       Offset(size.width * 0.26, size.height * 0.65),
@@ -1854,4 +2360,3 @@ class _NetworkPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

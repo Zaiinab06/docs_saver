@@ -40,7 +40,8 @@ class AppStrings {
 
   // Home / Memory List Screen
   static const String homeTitle = 'Your second brain';
-  static const String homeSearchHint = 'Search by meaning or keyword';
+  static const String homeSearchHint =
+      'Search your notes, documents, or ideas...';
   static const String homeWeeklyStatSuffix = 'memories this week';
   static const String emptyMemoriesTitle = 'No memories yet';
   static const String emptyMemoriesSubtitle =
@@ -49,7 +50,7 @@ class AppStrings {
   static const String homeGreetingAfternoon = 'Good afternoon,';
   static const String homeGreetingEvening = 'Good evening,';
   static const String homeDefaultUser = 'there';
-  static const String homeReadySubtitle = 'Your second brain is ready';
+  static const String homeReadySubtitle = 'Your knowledge, organized.';
   static const String homeCategoriesHeader = 'Categories';
   static const String homeRecentMemoriesHeader = 'Recent Memories';
   static const String homeSeeAll = 'See all >';
