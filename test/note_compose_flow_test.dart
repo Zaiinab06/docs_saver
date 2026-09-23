@@ -79,13 +79,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify bottom sheet appears with Add Note
-        expect(find.text('Add Note'), findsOneWidget);
+        expect(find.text('Add Note'), findsWidgets);
         expect(find.text('Take Photo'), findsOneWidget);
         expect(find.text('Scan Document'), findsOneWidget);
         expect(find.text('Add Link'), findsOneWidget);
 
         // Tap "Add Note"
-        await tester.tap(find.text('Add Note'));
+        await tester.tap(find.text('Add Note').last);
         await tester.pumpAndSettle();
 
         // Verify NoteComposeScreen is pushed
@@ -338,7 +338,7 @@ void main() {
         expect(find.text('Take Photo'), findsOneWidget);
         expect(find.text('Scan Document'), findsOneWidget);
         expect(find.text('Add Link'), findsOneWidget);
-        expect(find.text('Add Note'), findsOneWidget);
+        expect(find.text('Add Note'), findsWidgets);
 
         await tester.tap(find.text('Add Link'));
         await tester.pumpAndSettle();

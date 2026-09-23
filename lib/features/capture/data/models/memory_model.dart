@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:isar_community/isar.dart';
 import '../../domain/entities/memory_entity.dart';
 
@@ -37,11 +38,20 @@ class MemoryModel {
   bool isSynced = false; // Local tracking flag for offline sync engine
 
   static MemoryModel fromMap(Map<String, dynamic> map, {bool isSynced = true}) {
+    var contentStr = (map['content'] ?? '').toString();
+    if (map['metadata'] is Map &&
+        (map['metadata'] as Map).isNotEmpty &&
+        !contentStr.contains('<!--template_metadata:')) {
+      contentStr =
+          '$contentStr\n\n<!--template_metadata:${jsonEncode(map['metadata'])}-->'
+              .trim();
+    }
+
     final model = MemoryModel()
       ..serverId = (map['id'] ?? '').toString()
       ..userId = (map['user_id'] ?? '').toString()
       ..title = (map['title'] ?? '').toString()
-      ..content = (map['content'] ?? '').toString()
+      ..content = contentStr
       ..mediaUrl = map['media_url'] as String?
       ..tags = map['tags'] != null ? List<String>.from(map['tags'] as List) : []
       ..category = (map['category'] ?? 'General').toString()

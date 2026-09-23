@@ -15,6 +15,8 @@ import '../../domain/services/related_memory_matcher.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../bloc/capture_state.dart';
+import '../widgets/bank_card_display_card.dart';
+import '../widgets/bill_display_card.dart';
 import '../widgets/full_screen_image_viewer.dart';
 import '../widgets/voice_audio_player_card.dart';
 
@@ -422,6 +424,71 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               .from('memories')
               .update({
                 'tags': newTags,
+                'client_updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', _memory!.id);
+          model.isSynced = true;
+          await isar.writeTxn(() async {
+            await isar.memoryModels.put(model);
+          });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleBillPaid(bool newPaid) async {
+    if (_memory == null || _memory!.billTemplate == null) return;
+    final updatedTemplate = _memory!.billTemplate!.copyWith(isPaid: newPaid);
+    final updatedContent = updatedTemplate.toSerializedContent();
+    final updatedTags = List<String>.from(_memory!.tags)
+      ..remove('#paid')
+      ..remove('#unpaid')
+      ..add(newPaid ? '#paid' : '#unpaid');
+
+    final updatedMemory = MemoryEntity(
+      id: _memory!.id,
+      userId: _memory!.userId,
+      title: _memory!.title,
+      content: updatedContent,
+      mediaUrl: _memory!.mediaUrl,
+      tags: updatedTags,
+      category: _memory!.category,
+      embedding: _memory!.embedding,
+      aiStatus: _memory!.aiStatus,
+      isConflictCopy: _memory!.isConflictCopy,
+      clientCreatedAt: _memory!.clientCreatedAt,
+      clientUpdatedAt: DateTime.now(),
+      serverUpdatedAt: DateTime.now(),
+      isSynced: false,
+    );
+
+    setState(() {
+      _memory = updatedMemory;
+    });
+
+    context.read<CaptureBloc>().add(MemoryUpdatedEvent(updatedMemory));
+
+    try {
+      final isar = IsarService.instance;
+      final model = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(_memory!.id)
+          .findFirst();
+      if (model != null) {
+        model.content = updatedContent;
+        model.tags = updatedTags;
+        model.isSynced = false;
+        model.clientUpdatedAt = DateTime.now();
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(model);
+        });
+
+        try {
+          await Supabase.instance.client
+              .from('memories')
+              .update({
+                'content': updatedContent,
+                'tags': updatedTags,
                 'client_updated_at': DateTime.now().toIso8601String(),
               })
               .eq('id', _memory!.id);
@@ -1618,8 +1685,23 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 ],
               ],
 
+              // Structured Template Display Cards (Bank Card / Bill)
+              if (memory.isStructuredTemplate) ...[
+                if (memory.bankCardTemplate != null) ...[
+                  BankCardDisplayCard(template: memory.bankCardTemplate!),
+                  const SizedBox(height: 20),
+                ],
+                if (memory.billTemplate != null) ...[
+                  BillDisplayCard(
+                    template: memory.billTemplate!,
+                    onTogglePaid: _toggleBillPaid,
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ],
+
               // 5. Extracted Content (Collapsible / Compact Card)
-              if (hasExtractedContent) ...[
+              if (hasExtractedContent && !memory.isStructuredTemplate) ...[
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
