@@ -344,8 +344,8 @@ void main() {
         expect(find.text('Work'), findsWidgets);
 
         // Dynamic empty state verification
-        expect(find.text('No Work memories yet!'), findsOneWidget);
-        expect(find.text('Click + to add memories'), findsOneWidget);
+        expect(find.text('No Work yet'), findsOneWidget);
+        expect(find.text('or click + for other capture methods'), findsOneWidget);
 
         // Back navigation to CategoryDetailScreen
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -516,7 +516,7 @@ void main() {
 
         // Verify bottom sheet appears with Take Photo
         expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsNWidgets(2));
+        expect(find.text('Scan Document'), findsOneWidget);
       },
     );
   });

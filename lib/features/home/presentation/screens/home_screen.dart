@@ -20,8 +20,6 @@ import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
 import '../../../capture/presentation/screens/voice_record_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
-import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
-import '../../../capture/presentation/widgets/bill_template_sheet.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
@@ -838,18 +836,6 @@ class HomeScreenState extends State<HomeScreen> {
                         context: sheetContext,
                         icon: Icons.cloud_download_outlined,
                         title: 'Google Drive',
-                        isTakePhoto: false,
-                      ),
-                      _buildCaptureOption(
-                        context: sheetContext,
-                        icon: Icons.credit_card_rounded,
-                        title: 'Bank Card',
-                        isTakePhoto: false,
-                      ),
-                      _buildCaptureOption(
-                        context: sheetContext,
-                        icon: Icons.receipt_long_rounded,
-                        title: 'Bill / Utility',
                         isTakePhoto: false,
                       ),
                     ],
@@ -1775,10 +1761,6 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleChooseFile();
           } else if (title == 'Google Drive') {
             await _openGooglePicker();
-          } else if (title == 'Bank Card') {
-            await BankCardTemplateSheet.show(this.context);
-          } else if (title == 'Bill / Utility') {
-            await BillTemplateSheet.show(this.context);
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(

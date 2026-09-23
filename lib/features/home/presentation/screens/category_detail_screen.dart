@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
+import '../../../capture/presentation/widgets/bill_template_sheet.dart';
 import '../../domain/models/category_section.dart';
 import 'category_memories_screen.dart';
 
@@ -120,7 +122,7 @@ class CategoryDetailScreen extends StatelessWidget {
                   crossAxisCount: 2,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  childAspectRatio: 1.15,
+                  childAspectRatio: 1.02,
                 ),
                 itemCount: section.categories.length,
                 itemBuilder: (context, index) {
@@ -224,6 +226,79 @@ class CategoryDetailScreen extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (category.isCardTemplate) ...[
+                const SizedBox(height: 6),
+                InkWell(
+                  key: Key('detail_add_card_${category.name}'),
+                  onTap: () => BankCardTemplateSheet.show(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          size: 12,
+                          color: AppColors.primary,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          'Add Card',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else if (category.isBillTemplate) ...[
+                const SizedBox(height: 6),
+                InkWell(
+                  key: Key('detail_add_bill_${category.name}'),
+                  onTap: () => BillTemplateSheet.show(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          size: 12,
+                          color: AppColors.primary,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          'Add Bill',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

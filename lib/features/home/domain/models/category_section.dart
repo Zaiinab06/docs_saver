@@ -9,6 +9,7 @@ class CategoryCardItem {
   final Color borderColor;
   final Color iconColor;
   final Color iconBackgroundColor;
+  final String? templateType;
 
   const CategoryCardItem({
     required this.name,
@@ -17,7 +18,19 @@ class CategoryCardItem {
     required this.borderColor,
     required this.iconColor,
     required this.iconBackgroundColor,
+    this.templateType,
   });
+
+  bool get isCardTemplate =>
+      templateType == 'bank_card' ||
+      name == 'Cards' ||
+      name == 'Finance & Banking';
+
+  bool get isBillTemplate =>
+      templateType == 'bill' ||
+      name == 'Electricity' ||
+      name == 'Water' ||
+      name == 'Gas';
 }
 
 /// Represents a top-level category section card displayed on the Home Screen.
@@ -70,6 +83,7 @@ class CategorySectionsData {
           borderColor: AppColors.catVioletBorder,
           iconColor: AppColors.catVioletIcon,
           iconBackgroundColor: Colors.white,
+          templateType: 'bank_card',
         ),
         CategoryCardItem(
           name: 'Contacts',
@@ -128,6 +142,7 @@ class CategorySectionsData {
           borderColor: AppColors.catCyanBorder,
           iconColor: AppColors.catCyanIcon,
           iconBackgroundColor: Colors.white,
+          templateType: 'bill',
         ),
         CategoryCardItem(
           name: 'Electricity',
@@ -136,6 +151,7 @@ class CategorySectionsData {
           borderColor: AppColors.catYellowBorder,
           iconColor: AppColors.catYellowIcon,
           iconBackgroundColor: Colors.white,
+          templateType: 'bill',
         ),
         CategoryCardItem(
           name: 'Gas',
@@ -144,6 +160,7 @@ class CategorySectionsData {
           borderColor: AppColors.catOrangeBorder,
           iconColor: AppColors.catOrangeIcon,
           iconBackgroundColor: Colors.white,
+          templateType: 'bill',
         ),
       ],
     ),
@@ -177,6 +194,7 @@ class CategorySectionsData {
           borderColor: AppColors.catGreenBorder,
           iconColor: AppColors.catGreenIcon,
           iconBackgroundColor: Colors.white,
+          templateType: 'bank_card',
         ),
         CategoryCardItem(
           name: 'Travel & Tickets',

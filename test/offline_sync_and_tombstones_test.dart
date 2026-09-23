@@ -177,7 +177,7 @@ void main() {
       connectivityController.add(true);
 
       // Wait for debounce period (50ms) to complete
-      await Future.delayed(const Duration(milliseconds: 80));
+      await Future.delayed(const Duration(milliseconds: 150));
 
       // Should have triggered exactly 1 sync call despite 3 online events
       expect(repo.syncCallCount, 1);

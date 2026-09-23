@@ -11,6 +11,8 @@ import '../../../capture/presentation/screens/memory_detail_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
 import '../../../capture/presentation/screens/voice_record_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
+import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
+import '../../../capture/presentation/widgets/bill_template_sheet.dart';
 import '../../domain/models/category_section.dart';
 
 /// Dedicated Category Memories screen for displaying real memories
@@ -178,6 +180,11 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                         icon: Icons.attach_file_rounded,
                         title: 'Choose File',
                       ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.cloud_download_outlined,
+                        title: 'Google Drive',
+                      ),
                     ],
                   ),
                 ],
@@ -331,7 +338,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
             // Dynamic Empty State Title
             Text(
-              'No ${category.name} memories yet!',
+              'No ${category.name} yet',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -340,25 +347,20 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 20),
 
-            // Dynamic Empty State Subtitle
-            const Text(
-              'Click + to add memories',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: AppColors.textSecondary,
-                letterSpacing: -0.1,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-
-            // Styled + Add Memory Action Button
+            // Styled Action Button
             InkWell(
               key: const Key('empty_state_add_btn'),
-              onTap: () => _handleCapture(context),
+              onTap: () {
+                if (category.isCardTemplate) {
+                  BankCardTemplateSheet.show(context);
+                } else if (category.isBillTemplate) {
+                  BillTemplateSheet.show(context);
+                } else {
+                  _handleCapture(context);
+                }
+              },
               borderRadius: BorderRadius.circular(24),
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -378,14 +380,26 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
+                    Icon(
+                      category.isCardTemplate
+                          ? Icons.credit_card_rounded
+                          : category.isBillTemplate
+                              ? Icons.receipt_long_rounded
+                              : Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
-                      'Add Memory',
-                      style: TextStyle(
+                      category.isCardTemplate
+                          ? 'Add Card'
+                          : category.isBillTemplate
+                              ? 'Add Bill'
+                              : 'Add Memory',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -394,6 +408,23 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Helper text below button
+            GestureDetector(
+              key: const Key('empty_state_other_methods_btn'),
+              onTap: () => _handleCapture(context),
+              child: const Text(
+                'or click + for other capture methods',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.textSecondary,
+                  letterSpacing: -0.1,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -609,18 +640,6 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            key: const Key('category_memories_add_btn'),
-            icon: const Icon(
-              Icons.add_rounded,
-              color: AppColors.primary,
-              size: 24,
-            ),
-            tooltip: 'Add memory',
-            onPressed: () => _handleCapture(context),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
@@ -680,6 +699,21 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               ),
             );
           },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        key: const Key('category_memories_add_btn'),
+        heroTag: 'category_memories_fab',
+        onPressed: () => _handleCapture(context),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(
+          Icons.add_rounded,
+          size: 28,
         ),
       ),
     );

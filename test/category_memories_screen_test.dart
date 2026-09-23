@@ -75,8 +75,8 @@ void main() {
       await tester.pumpWidget(createTestApp(category: foodCat));
       await tester.pumpAndSettle();
 
-      expect(find.text('No Food memories yet!'), findsOneWidget);
-      expect(find.text('Click + to add memories'), findsOneWidget);
+      expect(find.text('No Food yet'), findsOneWidget);
+      expect(find.text('or click + for other capture methods'), findsOneWidget);
       expect(find.text('Add Memory'), findsOneWidget);
     });
 
@@ -85,8 +85,8 @@ void main() {
       await tester.pumpWidget(createTestApp(category: workCat));
       await tester.pumpAndSettle();
 
-      expect(find.text('No Work memories yet!'), findsOneWidget);
-      expect(find.text('Click + to add memories'), findsOneWidget);
+      expect(find.text('No Work yet'), findsOneWidget);
+      expect(find.text('or click + for other capture methods'), findsOneWidget);
       expect(find.text('Add Memory'), findsOneWidget);
     });
 
@@ -97,9 +97,21 @@ void main() {
       await tester.pumpWidget(createTestApp(category: elecCat));
       await tester.pumpAndSettle();
 
-      expect(find.text('No Electricity memories yet!'), findsOneWidget);
-      expect(find.text('Click + to add memories'), findsOneWidget);
-      expect(find.text('Add Memory'), findsOneWidget);
+      expect(find.text('No Electricity yet'), findsOneWidget);
+      expect(find.text('or click + for other capture methods'), findsOneWidget);
+      expect(find.text('Add Bill'), findsOneWidget);
+    });
+
+    testWidgets('Contextual Add Card option is present for Cards and Finance', (
+      tester,
+    ) async {
+      final cardsCat = findCategoryByName('Cards');
+      await tester.pumpWidget(createTestApp(category: cardsCat));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No Cards yet'), findsOneWidget);
+      expect(find.text('or click + for other capture methods'), findsOneWidget);
+      expect(find.text('Add Card'), findsOneWidget);
     });
 
     testWidgets('Empty State displays dynamic text for Documents', (
@@ -109,8 +121,8 @@ void main() {
       await tester.pumpWidget(createTestApp(category: docCat));
       await tester.pumpAndSettle();
 
-      expect(find.text('No Documents memories yet!'), findsOneWidget);
-      expect(find.text('Click + to add memories'), findsOneWidget);
+      expect(find.text('No Documents yet'), findsOneWidget);
+      expect(find.text('or click + for other capture methods'), findsOneWidget);
       expect(find.text('Add Memory'), findsOneWidget);
     });
 
@@ -153,11 +165,11 @@ void main() {
         // Work memory is NOT displayed in Food screen
         expect(find.text('Q4 Budget Review'), findsNothing);
         // Empty state is NOT displayed
-        expect(find.text('No Food memories yet!'), findsNothing);
+        expect(find.text('No Food yet'), findsNothing);
       },
     );
 
-    testWidgets('AppBar + button triggers capture action', (tester) async {
+    testWidgets('+ button triggers capture action', (tester) async {
       bool captureTapped = false;
       final foodCat = findCategoryByName('Food');
       await tester.pumpWidget(
@@ -170,7 +182,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap AppBar + button
+      // Tap + button
       await tester.tap(find.byKey(const Key('category_memories_add_btn')));
       await tester.pumpAndSettle();
 
@@ -195,6 +207,39 @@ void main() {
         expect(find.text('Add Note'), findsOneWidget);
         expect(find.text('Record Voice'), findsOneWidget);
         expect(find.text('Choose File'), findsOneWidget);
+        expect(find.text('Google Drive'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Clicking contextual Add Card center button opens BankCardTemplateSheet',
+      (tester) async {
+        final cardsCat = findCategoryByName('Cards');
+        await tester.pumpWidget(createTestApp(category: cardsCat));
+        await tester.pumpAndSettle();
+
+        // Tap contextual Add Card center button
+        await tester.tap(find.byKey(const Key('empty_state_add_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Save Bank Card'), findsOneWidget);
+        expect(find.text('Cardholder Name'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Clicking contextual Add Bill center button opens BillTemplateSheet',
+      (tester) async {
+        final elecCat = findCategoryByName('Electricity');
+        await tester.pumpWidget(createTestApp(category: elecCat));
+        await tester.pumpAndSettle();
+
+        // Tap contextual Add Bill center button
+        await tester.tap(find.byKey(const Key('empty_state_add_btn')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Save Utility / Bill'), findsOneWidget);
+        expect(find.text('Bill Type'), findsOneWidget);
       },
     );
   });
