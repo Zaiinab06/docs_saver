@@ -13,6 +13,13 @@ class RelatedMemoryMatcher {
     'pin',
     'pinned',
     'voice',
+    'fitness',
+    'general',
+    'health',
+    'personal',
+    'study',
+    'travel',
+    'work',
   };
 
   List<MemoryEntity> find({

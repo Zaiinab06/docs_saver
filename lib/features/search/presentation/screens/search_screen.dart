@@ -47,7 +47,8 @@ class _SearchScreenState extends State<SearchScreen> {
     if (oldWidget.isActive != widget.isActive) {
       if (!widget.isActive) {
         _clearSearch();
-      } else if (_searchController.text.isNotEmpty || _bloc.state is! SearchInitial) {
+      } else if (_searchController.text.isNotEmpty ||
+          _bloc.state is! SearchInitial) {
         _clearSearch();
       }
     }
@@ -148,7 +149,8 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildThumbnail(SearchResultItem item) {
     if (item.mediaUrl != null && item.mediaUrl!.isNotEmpty) {
       final url = item.mediaUrl!;
-      final isAudio = url.endsWith('.m4a') ||
+      final isAudio =
+          url.endsWith('.m4a') ||
           url.endsWith('.aac') ||
           url.endsWith('.mp3') ||
           url.endsWith('.wav');
@@ -171,7 +173,8 @@ class _SearchScreenState extends State<SearchScreen> {
           fit: BoxFit.cover,
           width: 46,
           height: 46,
-          errorBuilder: (_, __, ___) => _buildCategoryFallbackIcon(item.category),
+          errorBuilder: (_, __, ___) =>
+              _buildCategoryFallbackIcon(item.category),
         );
       } else {
         final localFile = File(url);
@@ -181,7 +184,8 @@ class _SearchScreenState extends State<SearchScreen> {
             fit: BoxFit.cover,
             width: 46,
             height: 46,
-            errorBuilder: (_, __, ___) => _buildCategoryFallbackIcon(item.category),
+            errorBuilder: (_, __, ___) =>
+                _buildCategoryFallbackIcon(item.category),
           );
         }
       }
@@ -222,7 +226,10 @@ class _SearchScreenState extends State<SearchScreen> {
           automaticallyImplyLeading: false,
           leading: canGoBack
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textWhite),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: AppColors.textWhite,
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
                 )
               : null,
@@ -274,8 +281,9 @@ class _SearchScreenState extends State<SearchScreen> {
                         hintText: AppStrings.homeSearchHint,
                         hintStyle: TextStyle(
                           fontSize: 14,
-                          color: AppColors.textSecondaryOf(context)
-                              .withValues(alpha: 0.85),
+                          color: AppColors.textSecondaryOf(
+                            context,
+                          ).withValues(alpha: 0.85),
                           fontWeight: FontWeight.w400,
                         ),
                         border: InputBorder.none,
@@ -287,22 +295,25 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                     ),
                   ),
-                if (_searchController.text.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: AppColors.textSecondary,
-                      size: 18,
+                  if (_searchController.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textSecondary,
+                        size: 18,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      splashRadius: 18,
+                      onPressed: _clearSearch,
                     ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    splashRadius: 18,
-                    onPressed: _clearSearch,
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
           flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: AppColors.headerGradient,
@@ -557,7 +568,9 @@ class _SearchScreenState extends State<SearchScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item.title.isEmpty ? 'Untitled Memory' : item.title,
+                              item.title.isEmpty
+                                  ? 'Untitled Memory'
+                                  : item.title,
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -656,8 +669,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       spacing: 6,
                       runSpacing: 4,
                       children: item.tags.take(3).map((tag) {
-                        final cleanTag =
-                            tag.startsWith('#') ? tag.substring(1) : tag;
+                        final cleanTag = tag.startsWith('#')
+                            ? tag.substring(1)
+                            : tag;
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 7,
@@ -666,7 +680,9 @@ class _SearchScreenState extends State<SearchScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.toggleBackgroundOf(context),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.borderOf(context)),
+                            border: Border.all(
+                              color: AppColors.borderOf(context),
+                            ),
                           ),
                           child: Text(
                             '#$cleanTag',

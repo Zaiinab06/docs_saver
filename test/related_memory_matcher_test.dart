@@ -89,7 +89,7 @@ void main() {
     expect(result, isEmpty);
   });
 
-  test('requires category plus a meaningful tag for a category match', () {
+  test('requires relevant content with a category tag match', () {
     final source = memory(
       id: 'source',
       userId: 'user-a',
@@ -114,14 +114,46 @@ void main() {
       tags: const ['pdf'],
       createdAt: baseDate,
     );
+    final unrelatedSameCategory = memory(
+      id: 'unrelated-same-category',
+      userId: 'user-a',
+      title: 'Unrelated astronomy observation',
+      category: 'Study',
+      tags: const ['study'],
+      createdAt: baseDate,
+    );
 
     final result = matcher.find(
       memory: source,
-      candidates: [sameCategory, weakMetadataOnly],
+      candidates: [sameCategory, unrelatedSameCategory, weakMetadataOnly],
       userId: 'user-a',
     );
 
     expect(result.map((item) => item.id), ['same-category']);
+  });
+
+  test('rejects generic category and generic-tag matches', () {
+    final source = memory(
+      id: 'health-source',
+      userId: 'user-a',
+      title: 'Human foot on brown carpet',
+      category: 'Health & Fitness',
+      tags: const ['health'],
+      createdAt: baseDate,
+    );
+    final unrelated = memory(
+      id: 'keyboard',
+      userId: 'user-a',
+      title: 'Laptop QWERTY Keyboard Close-up',
+      category: 'Health & Fitness',
+      tags: const ['health'],
+      createdAt: baseDate,
+    );
+
+    expect(
+      matcher.find(memory: source, candidates: [unrelated], userId: 'user-a'),
+      isEmpty,
+    );
   });
 
   test(

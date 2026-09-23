@@ -7,28 +7,30 @@ class InstagramLinkExtractor {
   final Dio _dio;
 
   InstagramLinkExtractor({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
-                sendTimeout: const Duration(seconds: 5),
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-                  'Accept':
-                      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                  'Accept-Language': 'en-US,en;q=0.9',
-                },
-                followRedirects: true,
-                maxRedirects: 5,
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 5),
+              sendTimeout: const Duration(seconds: 5),
+              headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+                'Accept':
+                    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+              },
+              followRedirects: true,
+              maxRedirects: 5,
+            ),
+          );
 
   Future<RichLinkContent> extract(Uri uri) async {
     final shortcode = LinkProviderDetector.extractInstagramShortcode(uri);
     final postType = LinkProviderDetector.extractInstagramPostType(uri) ?? 'p';
-    String canonicalUrl = LinkProviderDetector.toCanonicalInstagramUrl(uri) ??
+    String canonicalUrl =
+        LinkProviderDetector.toCanonicalInstagramUrl(uri) ??
         uri.replace(queryParameters: {}).toString();
 
     String? title;
@@ -52,7 +54,8 @@ class InstagramLinkExtractor {
         final html = response.data!;
 
         // Guard strictly against Meta login wall / login page redirects
-        final isLoginWall = html.contains('accounts/login') ||
+        final isLoginWall =
+            html.contains('accounts/login') ||
             html.contains('Login • Instagram') ||
             html.contains('Log In • Instagram') ||
             (html.contains('Log In') && html.contains('Instagram')) ||
@@ -62,26 +65,69 @@ class InstagramLinkExtractor {
           final document = html_parser.parse(html);
 
           // 1. Extract OpenGraph & Meta tags (DOM queries handle any attribute order/intervening attributes)
-          final ogTitle = document.querySelector('meta[property="og:title"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="og:title"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="twitter:title"]')?.attributes['content']?.trim();
+          final ogTitle =
+              document
+                  .querySelector('meta[property="og:title"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="og:title"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="twitter:title"]')
+                  ?.attributes['content']
+                  ?.trim();
 
-          final ogDesc = document.querySelector('meta[property="og:description"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="og:description"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="description"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="twitter:description"]')?.attributes['content']?.trim();
+          final ogDesc =
+              document
+                  .querySelector('meta[property="og:description"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="og:description"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="description"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="twitter:description"]')
+                  ?.attributes['content']
+                  ?.trim();
 
-          final ogImage = document.querySelector('meta[property="og:image"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="og:image"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="twitter:image"]')?.attributes['content']?.trim();
+          final ogImage =
+              document
+                  .querySelector('meta[property="og:image"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="og:image"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="twitter:image"]')
+                  ?.attributes['content']
+                  ?.trim();
 
-          final rawOgUrl = document.querySelector('meta[property="og:url"]')?.attributes['content']?.trim() ??
-              document.querySelector('meta[name="og:url"]')?.attributes['content']?.trim();
+          final rawOgUrl =
+              document
+                  .querySelector('meta[property="og:url"]')
+                  ?.attributes['content']
+                  ?.trim() ??
+              document
+                  .querySelector('meta[name="og:url"]')
+                  ?.attributes['content']
+                  ?.trim();
 
           if (rawOgUrl != null && rawOgUrl.isNotEmpty) {
             ogUrl = rawOgUrl;
             if (rawOgUrl.contains('instagram.com/')) {
-              final detectedCanonical = LinkProviderDetector.toCanonicalInstagramUrl(Uri.tryParse(rawOgUrl) ?? uri);
+              final detectedCanonical =
+                  LinkProviderDetector.toCanonicalInstagramUrl(
+                    Uri.tryParse(rawOgUrl) ?? uri,
+                  );
               if (detectedCanonical != null) {
                 canonicalUrl = detectedCanonical;
               }
@@ -89,7 +135,9 @@ class InstagramLinkExtractor {
           }
 
           // 2. Extract public structured metadata / JSON-LD when legitimately exposed
-          final ldJsonScripts = document.querySelectorAll('script[type="application/ld+json"]');
+          final ldJsonScripts = document.querySelectorAll(
+            'script[type="application/ld+json"]',
+          );
           for (final script in ldJsonScripts) {
             final rawJson = script.text.trim();
             if (rawJson.isEmpty) continue;
@@ -143,11 +191,15 @@ class InstagramLinkExtractor {
               final onIgIdx = cleanTitle.indexOf('on Instagram:');
               if (onIgIdx != -1) {
                 var capCandidate = cleanTitle.substring(onIgIdx + 13).trim();
-                if (capCandidate.startsWith('"') || capCandidate.startsWith('“')) {
+                if (capCandidate.startsWith('"') ||
+                    capCandidate.startsWith('“')) {
                   capCandidate = capCandidate.substring(1);
                 }
                 if (capCandidate.endsWith('"') || capCandidate.endsWith('”')) {
-                  capCandidate = capCandidate.substring(0, capCandidate.length - 1);
+                  capCandidate = capCandidate.substring(
+                    0,
+                    capCandidate.length - 1,
+                  );
                 }
                 capCandidate = capCandidate.trim();
                 if (capCandidate.isNotEmpty) {
@@ -189,7 +241,9 @@ class InstagramLinkExtractor {
               if (matchedCaption != null && matchedCaption.isNotEmpty) {
                 caption ??= matchedCaption;
               }
-            } else if (caption == null && !cleanDesc.contains('likes,') && !cleanDesc.contains('comments -')) {
+            } else if (caption == null &&
+                !cleanDesc.contains('likes,') &&
+                !cleanDesc.contains('comments -')) {
               caption = cleanDesc;
             }
           }
@@ -216,7 +270,8 @@ class InstagramLinkExtractor {
 
     // Construct readable content if real creator or caption exists
     final bodyBuffer = StringBuffer();
-    final effectiveCaption = caption ??
+    final effectiveCaption =
+        caption ??
         (description != null && !description.contains('likes,')
             ? description
             : null);
@@ -244,7 +299,9 @@ class InstagramLinkExtractor {
     return RichLinkContent(
       provider: LinkProvider.instagram,
       canonicalUrl: canonicalUrl,
-      title: effectiveCaption?.isNotEmpty == true ? effectiveCaption : (title?.isNotEmpty == true ? title : null),
+      title: effectiveCaption?.isNotEmpty == true
+          ? effectiveCaption
+          : (title?.isNotEmpty == true ? title : null),
       description: description?.isNotEmpty == true ? description : null,
       creator: creator,
       thumbnailUrl: thumbnailUrl,
@@ -286,7 +343,8 @@ class InstagramLinkExtractor {
     }
 
     // Extract caption / body
-    final body = json['articleBody']?.toString().trim() ??
+    final body =
+        json['articleBody']?.toString().trim() ??
         json['caption']?.toString().trim() ??
         json['text']?.toString().trim() ??
         json['headline']?.toString().trim() ??

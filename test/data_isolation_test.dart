@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
 import 'package:second_brain/features/capture/data/models/memory_model.dart';
@@ -27,7 +27,8 @@ class MockLocalDataSource implements CaptureLocalDataSource {
   @override
   Future<List<MemoryModel>> getUnsyncedMemories({String? userId}) async {
     return store.where((m) {
-      final matchesUser = (userId == null || userId.isEmpty || m.userId == userId);
+      final matchesUser =
+          (userId == null || userId.isEmpty || m.userId == userId);
       return matchesUser && !m.isSynced;
     }).toList();
   }
@@ -70,7 +71,9 @@ class MockRemoteDataSource implements CaptureRemoteDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchRemoteMemories({String? userId}) async {
+  Future<List<Map<String, dynamic>>> fetchRemoteMemories({
+    String? userId,
+  }) async {
     if (userId != null) fetchedUserIds.add(userId);
     if (userId != null && userId.isNotEmpty) {
       return remoteStore.where((m) => m['user_id'] == userId).toList();
@@ -143,15 +146,16 @@ void main() {
       expect(noorMemories.length, 2);
       expect(noorMemories.every((m) => m.userId == 'user_noor'), isTrue);
       expect(noorMemories.any((m) => m.id == 'zainab-mem-1'), isFalse);
-      expect(noorMemories.map((m) => m.title), containsAll([
-        'Noor Study Notes',
-        'Noor Travel Idea',
-      ]));
+      expect(
+        noorMemories.map((m) => m.title),
+        containsAll(['Noor Study Notes', 'Noor Travel Idea']),
+      );
     });
 
     test('User Zainab only receives Zainab memories', () async {
-      final zainabMemories =
-          await repository.getMemories(userId: 'user_zainab');
+      final zainabMemories = await repository.getMemories(
+        userId: 'user_zainab',
+      );
 
       expect(zainabMemories.length, 1);
       expect(zainabMemories.first.userId, 'user_zainab');
@@ -160,8 +164,9 @@ void main() {
     });
 
     test('New user with no memories receives empty list', () async {
-      final newMemories =
-          await repository.getMemories(userId: 'user_brand_new');
+      final newMemories = await repository.getMemories(
+        userId: 'user_brand_new',
+      );
 
       expect(newMemories, isEmpty);
     });

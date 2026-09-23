@@ -7,10 +7,7 @@ class OcrLineFragment {
   final String text;
   final Rect boundingBox;
 
-  const OcrLineFragment({
-    required this.text,
-    required this.boundingBox,
-  });
+  const OcrLineFragment({required this.text, required this.boundingBox});
 }
 
 /// Normalizes and reconstructs natural line and paragraph structure from
@@ -31,19 +28,17 @@ class OcrTextNormalizer {
         for (final line in block.lines) {
           final trimmed = line.text.trim();
           if (trimmed.isNotEmpty) {
-            fragments.add(OcrLineFragment(
-              text: trimmed,
-              boundingBox: line.boundingBox,
-            ));
+            fragments.add(
+              OcrLineFragment(text: trimmed, boundingBox: line.boundingBox),
+            );
           }
         }
       } else {
         final trimmed = block.text.trim();
         if (trimmed.isNotEmpty) {
-          fragments.add(OcrLineFragment(
-            text: trimmed,
-            boundingBox: block.boundingBox,
-          ));
+          fragments.add(
+            OcrLineFragment(text: trimmed, boundingBox: block.boundingBox),
+          );
         }
       }
     }
@@ -52,7 +47,10 @@ class OcrTextNormalizer {
       return normalizeRawText(recognizedText.text);
     }
 
-    return reconstructFromFragments(fragments, fallbackRawText: recognizedText.text);
+    return reconstructFromFragments(
+      fragments,
+      fallbackRawText: recognizedText.text,
+    );
   }
 
   /// Reconstructs natural reading order and spatial structure from [OcrLineFragment]s.
@@ -72,14 +70,18 @@ class OcrTextNormalizer {
     }
 
     // Check if geometry is valid (non-zero bounding boxes)
-    final hasValidGeometry = fragments.any((f) =>
-        f.boundingBox.width > 0 && f.boundingBox.height > 0);
+    final hasValidGeometry = fragments.any(
+      (f) => f.boundingBox.width > 0 && f.boundingBox.height > 0,
+    );
 
     if (!hasValidGeometry) {
       if (fallbackRawText != null && fallbackRawText.trim().isNotEmpty) {
         return normalizeRawText(fallbackRawText);
       }
-      return fragments.map((f) => f.text.trim()).where((t) => t.isNotEmpty).join('\n');
+      return fragments
+          .map((f) => f.text.trim())
+          .where((t) => t.isNotEmpty)
+          .join('\n');
     }
 
     // Sort fragments initially by top, then by left
@@ -106,8 +108,8 @@ class OcrTextNormalizer {
 
         if (minHeight > 0) {
           final overlapRatio = overlap / minHeight;
-          final centerDiff =
-              (row.verticalCenter - (fBox.top + fBox.bottom) / 2).abs();
+          final centerDiff = (row.verticalCenter - (fBox.top + fBox.bottom) / 2)
+              .abs();
 
           if (overlapRatio >= 0.45 ||
               (overlapRatio >= 0.25 && centerDiff <= minHeight * 0.4)) {
@@ -131,7 +133,9 @@ class OcrTextNormalizer {
 
     // Sort items within each row from left to right
     for (final row in rows) {
-      row.items.sort((a, b) => a.boundingBox.left.compareTo(b.boundingBox.left));
+      row.items.sort(
+        (a, b) => a.boundingBox.left.compareTo(b.boundingBox.left),
+      );
     }
 
     // Construct text for each row
@@ -178,10 +182,7 @@ class OcrTextNormalizer {
   static String normalizeRawText(String text) {
     if (text.trim().isEmpty) return '';
 
-    final lines = text
-        .split('\n')
-        .map((l) => l.trimRight())
-        .toList();
+    final lines = text.split('\n').map((l) => l.trimRight()).toList();
 
     final buffer = StringBuffer();
     int consecutiveEmptyLines = 0;
@@ -211,8 +212,8 @@ class _ReconstructedRow {
   double bottom;
 
   _ReconstructedRow(OcrLineFragment initial)
-      : top = initial.boundingBox.top,
-        bottom = initial.boundingBox.bottom {
+    : top = initial.boundingBox.top,
+      bottom = initial.boundingBox.bottom {
     items.add(initial);
   }
 
@@ -222,6 +223,8 @@ class _ReconstructedRow {
   void add(OcrLineFragment fragment) {
     items.add(fragment);
     if (fragment.boundingBox.top < top) top = fragment.boundingBox.top;
-    if (fragment.boundingBox.bottom > bottom) bottom = fragment.boundingBox.bottom;
+    if (fragment.boundingBox.bottom > bottom) {
+      bottom = fragment.boundingBox.bottom;
+    }
   }
 }

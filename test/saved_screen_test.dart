@@ -59,27 +59,21 @@ void main() {
 
   Widget createTestWidget(CaptureBloc bloc) {
     return MultiBlocProvider(
-      providers: [
-        BlocProvider<CaptureBloc>.value(value: bloc),
-      ],
-      child: const MaterialApp(
-        home: SavedScreen(),
-      ),
+      providers: [BlocProvider<CaptureBloc>.value(value: bloc)],
+      child: const MaterialApp(home: SavedScreen()),
     );
   }
 
   group('SavedScreen Segmented Control & Filtering Tests', () {
-    testWidgets('All shows all saved memories (pinned and unpinned)',
-        (tester) async {
+    testWidgets('All shows all saved memories (pinned and unpinned)', (
+      tester,
+    ) async {
       final pinned = createMemory(
         id: '1',
         title: 'Important Pinned Note',
         tags: ['pinned'],
       );
-      final unpinned = createMemory(
-        id: '2',
-        title: 'Regular Grocery List',
-      );
+      final unpinned = createMemory(id: '2', title: 'Regular Grocery List');
 
       final repo = _FakeCaptureRepository([pinned, unpinned]);
       final bloc = CaptureBloc(
@@ -106,10 +100,7 @@ void main() {
         title: 'Important Pinned Note',
         tags: ['pinned'],
       );
-      final unpinned = createMemory(
-        id: '2',
-        title: 'Regular Grocery List',
-      );
+      final unpinned = createMemory(id: '2', title: 'Regular Grocery List');
 
       final repo = _FakeCaptureRepository([pinned, unpinned]);
       final bloc = CaptureBloc(
@@ -130,47 +121,47 @@ void main() {
       expect(find.text('Regular Grocery List'), findsNothing);
     });
 
-    testWidgets('Switching between All and Pinned works correctly and updates immediately',
-        (tester) async {
-      final pinned = createMemory(
-        id: '1',
-        title: 'Pinned Item',
-        tags: ['pinned'],
-      );
-      final unpinned = createMemory(
-        id: '2',
-        title: 'Unpinned Item',
-      );
+    testWidgets(
+      'Switching between All and Pinned works correctly and updates immediately',
+      (tester) async {
+        final pinned = createMemory(
+          id: '1',
+          title: 'Pinned Item',
+          tags: ['pinned'],
+        );
+        final unpinned = createMemory(id: '2', title: 'Unpinned Item');
 
-      final repo = _FakeCaptureRepository([pinned, unpinned]);
-      final bloc = CaptureBloc(
-        saveMemoryUseCase: SaveMemoryUseCase(repo),
-        getMemoriesUseCase: GetMemoriesUseCase(repo),
-        repository: repo,
-      )..add(LoadMemoriesEvent());
+        final repo = _FakeCaptureRepository([pinned, unpinned]);
+        final bloc = CaptureBloc(
+          saveMemoryUseCase: SaveMemoryUseCase(repo),
+          getMemoriesUseCase: GetMemoriesUseCase(repo),
+          repository: repo,
+        )..add(LoadMemoriesEvent());
 
-      await tester.pumpWidget(createTestWidget(bloc));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(createTestWidget(bloc));
+        await tester.pumpAndSettle();
 
-      // On 'All': both exist
-      expect(find.text('Pinned Item'), findsOneWidget);
-      expect(find.text('Unpinned Item'), findsOneWidget);
+        // On 'All': both exist
+        expect(find.text('Pinned Item'), findsOneWidget);
+        expect(find.text('Unpinned Item'), findsOneWidget);
 
-      // Switch to 'Pinned'
-      await tester.tap(find.text('Pinned'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pinned Item'), findsOneWidget);
-      expect(find.text('Unpinned Item'), findsNothing);
+        // Switch to 'Pinned'
+        await tester.tap(find.text('Pinned'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pinned Item'), findsOneWidget);
+        expect(find.text('Unpinned Item'), findsNothing);
 
-      // Switch back to 'All'
-      await tester.tap(find.text('All'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pinned Item'), findsOneWidget);
-      expect(find.text('Unpinned Item'), findsOneWidget);
-    });
+        // Switch back to 'All'
+        await tester.tap(find.text('All'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pinned Item'), findsOneWidget);
+        expect(find.text('Unpinned Item'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Empty state works for All section when no memories exist',
-        (tester) async {
+    testWidgets('Empty state works for All section when no memories exist', (
+      tester,
+    ) async {
       final repo = _FakeCaptureRepository([]);
       final bloc = CaptureBloc(
         saveMemoryUseCase: SaveMemoryUseCase(repo),
@@ -183,36 +174,40 @@ void main() {
 
       // In 'All' tab with 0 memories
       expect(find.text('No saved memories yet'), findsOneWidget);
-      expect(find.text('Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.'), findsOneWidget);
-    });
-
-    testWidgets('Empty state works for Pinned section when memories exist in All but none are pinned',
-        (tester) async {
-      final unpinned = createMemory(
-        id: '1',
-        title: 'Only Unpinned Note',
+      expect(
+        find.text(
+          'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
+        ),
+        findsOneWidget,
       );
-
-      final repo = _FakeCaptureRepository([unpinned]);
-      final bloc = CaptureBloc(
-        saveMemoryUseCase: SaveMemoryUseCase(repo),
-        getMemoriesUseCase: GetMemoriesUseCase(repo),
-        repository: repo,
-      )..add(LoadMemoriesEvent());
-
-      await tester.pumpWidget(createTestWidget(bloc));
-      await tester.pumpAndSettle();
-
-      // 'All' tab has the unpinned item
-      expect(find.text('Only Unpinned Note'), findsOneWidget);
-
-      // Switch to 'Pinned' tab
-      await tester.tap(find.text('Pinned'));
-      await tester.pumpAndSettle();
-
-      // Pinned empty state is shown dynamically
-      expect(find.text('Only Unpinned Note'), findsNothing);
-      expect(find.text('No pinned memories yet'), findsOneWidget);
     });
+
+    testWidgets(
+      'Empty state works for Pinned section when memories exist in All but none are pinned',
+      (tester) async {
+        final unpinned = createMemory(id: '1', title: 'Only Unpinned Note');
+
+        final repo = _FakeCaptureRepository([unpinned]);
+        final bloc = CaptureBloc(
+          saveMemoryUseCase: SaveMemoryUseCase(repo),
+          getMemoriesUseCase: GetMemoriesUseCase(repo),
+          repository: repo,
+        )..add(LoadMemoriesEvent());
+
+        await tester.pumpWidget(createTestWidget(bloc));
+        await tester.pumpAndSettle();
+
+        // 'All' tab has the unpinned item
+        expect(find.text('Only Unpinned Note'), findsOneWidget);
+
+        // Switch to 'Pinned' tab
+        await tester.tap(find.text('Pinned'));
+        await tester.pumpAndSettle();
+
+        // Pinned empty state is shown dynamically
+        expect(find.text('Only Unpinned Note'), findsNothing);
+        expect(find.text('No pinned memories yet'), findsOneWidget);
+      },
+    );
   });
 }

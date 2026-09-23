@@ -6,25 +6,27 @@ class TikTokLinkExtractor {
   final Dio _dio;
 
   TikTokLinkExtractor({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
-                sendTimeout: const Duration(seconds: 5),
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                  'Accept': 'application/json,text/html,*/*',
-                },
-                followRedirects: true,
-                maxRedirects: 5,
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 5),
+              sendTimeout: const Duration(seconds: 5),
+              headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'application/json,text/html,*/*',
+              },
+              followRedirects: true,
+              maxRedirects: 5,
+            ),
+          );
 
   Future<RichLinkContent> extract(Uri uri) async {
     // 1. Initial canonicalization from URL path if possible
-    String canonicalUrl = LinkProviderDetector.toCanonicalTikTokUrl(uri) ??
+    String canonicalUrl =
+        LinkProviderDetector.toCanonicalTikTokUrl(uri) ??
         uri.replace(queryParameters: {}).toString();
     if (canonicalUrl.endsWith('?')) {
       canonicalUrl = canonicalUrl.substring(0, canonicalUrl.length - 1);
@@ -56,8 +58,8 @@ class TikTokLinkExtractor {
         final data = oEmbedResponse.data is Map
             ? (oEmbedResponse.data as Map)
             : (oEmbedResponse.data is String
-                ? jsonDecode(oEmbedResponse.data as String) as Map
-                : null);
+                  ? jsonDecode(oEmbedResponse.data as String) as Map
+                  : null);
 
         if (data != null) {
           title = data['title']?.toString().trim();

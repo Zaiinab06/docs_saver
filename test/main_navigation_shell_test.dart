@@ -42,18 +42,21 @@ class FakeAuthRepository implements AuthRepository {
   Stream<UserEntity?> get authStateChanges => _authController.stream;
 
   @override
-  Future<UserEntity> signIn(
-      {required String email, required String password}) async {
+  Future<UserEntity> signIn({
+    required String email,
+    required String password,
+  }) async {
     currentUser = UserEntity(id: 'u-1', email: email);
     _authController.add(currentUser);
     return currentUser!;
   }
 
   @override
-  Future<UserEntity> signUp(
-      {required String email,
-      required String password,
-      String? fullName}) async {
+  Future<UserEntity> signUp({
+    required String email,
+    required String password,
+    String? fullName,
+  }) async {
     currentUser = UserEntity(id: 'u-1', email: email, fullName: fullName);
     _authController.add(currentUser);
     return currentUser!;
@@ -77,7 +80,7 @@ class FakeCaptureRepository implements CaptureRepository {
   final List<MemoryEntity> memories;
 
   FakeCaptureRepository([List<MemoryEntity>? initial])
-      : memories = initial ?? [];
+    : memories = initial ?? [];
 
   @override
   Future<List<MemoryEntity>> getMemories({String? userId}) async =>
@@ -104,14 +107,12 @@ class FakeCaptureRepository implements CaptureRepository {
 class FakeLoadedCaptureBloc extends CaptureBloc {
   final CaptureState _stubbedState;
 
-  FakeLoadedCaptureBloc(
-    CaptureRepository repo,
-    this._stubbedState,
-  ) : super(
-          saveMemoryUseCase: SaveMemoryUseCase(repo),
-          getMemoriesUseCase: GetMemoriesUseCase(repo),
-          repository: repo,
-        );
+  FakeLoadedCaptureBloc(CaptureRepository repo, this._stubbedState)
+    : super(
+        saveMemoryUseCase: SaveMemoryUseCase(repo),
+        getMemoriesUseCase: GetMemoriesUseCase(repo),
+        repository: repo,
+      );
 
   @override
   CaptureState get state => _stubbedState;
@@ -175,8 +176,9 @@ void main() {
     captureBloc = CaptureBloc(
       saveMemoryUseCase: SaveMemoryUseCase(fakeCaptureRepository),
       getMemoriesUseCase: GetMemoriesUseCase(fakeCaptureRepository),
-      subscribeToMemoriesUseCase:
-          SubscribeToMemoriesUseCase(fakeCaptureRepository),
+      subscribeToMemoriesUseCase: SubscribeToMemoriesUseCase(
+        fakeCaptureRepository,
+      ),
       repository: fakeCaptureRepository,
     )..add(LoadMemoriesEvent());
   });
@@ -204,22 +206,25 @@ void main() {
   }
 
   group('MainNavigationShell — Structure & Tab Switching Tests', () {
-    testWidgets('renders all 5 bottom navigation destinations: Home, Search, +, Saved, Settings',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'renders all 5 bottom navigation destinations: Home, Search, +, Saved, Settings',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Search'), findsOneWidget);
-      expect(find.byKey(const Key('bottom_nav_add_btn')), findsOneWidget);
-      expect(find.text('+'), findsOneWidget);
-      expect(find.text('Saved'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
-    });
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.text('Search'), findsOneWidget);
+        expect(find.byKey(const Key('bottom_nav_add_btn')), findsOneWidget);
+        expect(find.text('+'), findsOneWidget);
+        expect(find.text('Saved'), findsOneWidget);
+        expect(find.text('Settings'), findsOneWidget);
+      },
+    );
 
-    testWidgets('starts on Home tab displaying HomeScreen and greeting',
-        (tester) async {
+    testWidgets('starts on Home tab displaying HomeScreen and greeting', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
@@ -227,8 +232,9 @@ void main() {
       expect(find.text('Hello Alex Mercer'), findsOneWidget);
     });
 
-    testWidgets('tapping Search tab switches to existing SearchScreen',
-        (tester) async {
+    testWidgets('tapping Search tab switches to existing SearchScreen', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
@@ -238,74 +244,81 @@ void main() {
       expect(find.byType(SearchScreen), findsOneWidget);
     });
 
-    testWidgets('tapping center + button opens existing capture options sheet with 6 options',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping center + button opens existing capture options sheet with 6 options',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
+        await tester.pumpAndSettle();
 
-      expect(find.text('What do you want to save?'), findsOneWidget);
-      expect(find.text('Take Photo'), findsOneWidget);
-      expect(find.text('Scan Document'), findsOneWidget);
-      expect(find.text('Add Link'), findsOneWidget);
-      expect(find.text('Add Note'), findsOneWidget);
-      expect(find.text('Record Voice'), findsOneWidget);
-      expect(find.text('Choose File'), findsOneWidget);
-    });
+        expect(find.text('What do you want to save?'), findsOneWidget);
+        expect(find.text('Take Photo'), findsOneWidget);
+        expect(find.text('Scan Document'), findsOneWidget);
+        expect(find.text('Add Link'), findsOneWidget);
+        expect(find.text('Add Note'), findsOneWidget);
+        expect(find.text('Record Voice'), findsOneWidget);
+        expect(find.text('Choose File'), findsOneWidget);
+      },
+    );
 
-    testWidgets('tapping Saved tab switches to SavedScreen with segmented control and filters',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping Saved tab switches to SavedScreen with segmented control and filters',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Saved'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Saved'));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(SavedScreen), findsOneWidget);
-      expect(find.text('All'), findsOneWidget);
-      expect(find.text('Pinned'), findsOneWidget);
+        expect(find.byType(SavedScreen), findsOneWidget);
+        expect(find.text('All'), findsOneWidget);
+        expect(find.text('Pinned'), findsOneWidget);
 
-      // Default 'All' tab shows all saved memories
-      expect(find.text('Important Pinned Note'), findsOneWidget);
-      expect(find.text('Regular Grocery List'), findsOneWidget);
+        // Default 'All' tab shows all saved memories
+        expect(find.text('Important Pinned Note'), findsOneWidget);
+        expect(find.text('Regular Grocery List'), findsOneWidget);
 
-      // Switch to 'Pinned' tab
-      await tester.tap(find.text('Pinned'));
-      await tester.pumpAndSettle();
+        // Switch to 'Pinned' tab
+        await tester.tap(find.text('Pinned'));
+        await tester.pumpAndSettle();
 
-      // Only pinned memory appears
-      expect(find.text('Important Pinned Note'), findsOneWidget);
-      expect(find.text('Regular Grocery List'), findsNothing);
-    });
+        // Only pinned memory appears
+        expect(find.text('Important Pinned Note'), findsOneWidget);
+        expect(find.text('Regular Grocery List'), findsNothing);
+      },
+    );
 
-    testWidgets('tapping Settings tab switches to SettingsScreen with sections',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping Settings tab switches to SettingsScreen with sections',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(find.text('ACCOUNT'), findsOneWidget);
-      expect(find.text('APPEARANCE'), findsOneWidget);
-      expect(find.text('NOTIFICATIONS'), findsOneWidget);
-      expect(find.text('Alex Mercer'), findsOneWidget);
-      expect(find.text('tester@secondbrain.app'), findsAtLeastNWidgets(1));
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        expect(find.text('ACCOUNT'), findsOneWidget);
+        expect(find.text('APPEARANCE'), findsOneWidget);
+        expect(find.text('NOTIFICATIONS'), findsOneWidget);
+        expect(find.text('Alex Mercer'), findsOneWidget);
+        expect(find.text('tester@secondbrain.app'), findsAtLeastNWidgets(1));
 
-      await tester.scrollUntilVisible(find.text('DATA & STORAGE'), 200);
-      expect(find.text('DATA & STORAGE'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('DATA & STORAGE'), 200);
+        expect(find.text('DATA & STORAGE'), findsOneWidget);
 
-      await tester.scrollUntilVisible(find.text('ABOUT'), 200);
-      expect(find.text('ABOUT'), findsOneWidget);
-    });
+        await tester.scrollUntilVisible(find.text('ABOUT'), 200);
+        expect(find.text('ABOUT'), findsOneWidget);
+      },
+    );
   });
 
   group('MainNavigationShell — Single Capture Entry Point Tests', () {
-    testWidgets('Home tab does not display floating ActionButton (+)',
-        (tester) async {
+    testWidgets('Home tab does not display floating ActionButton (+)', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
@@ -315,136 +328,149 @@ void main() {
       expect(find.byKey(const Key('bottom_nav_add_btn')), findsOneWidget);
     });
 
-    testWidgets('all tabs have no FloatingActionButton and use center + as single capture point',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'all tabs have no FloatingActionButton and use center + as single capture point',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      expect(find.byType(FloatingActionButton), findsNothing);
+        expect(find.byType(FloatingActionButton), findsNothing);
 
-      // Switch to Search tab
-      await tester.tap(find.text('Search'));
-      await tester.pumpAndSettle();
-      expect(find.byType(FloatingActionButton), findsNothing);
+        // Switch to Search tab
+        await tester.tap(find.text('Search'));
+        await tester.pumpAndSettle();
+        expect(find.byType(FloatingActionButton), findsNothing);
 
-      // Switch to Saved tab
-      await tester.tap(find.text('Saved'));
-      await tester.pumpAndSettle();
-      expect(find.byType(FloatingActionButton), findsNothing);
+        // Switch to Saved tab
+        await tester.tap(find.text('Saved'));
+        await tester.pumpAndSettle();
+        expect(find.byType(FloatingActionButton), findsNothing);
 
-      // Switch to Settings tab
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
-      expect(find.byType(FloatingActionButton), findsNothing);
+        // Switch to Settings tab
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
+        expect(find.byType(FloatingActionButton), findsNothing);
 
-      // Center + bottom navigation remains the single capture entry point
-      expect(find.byKey(const Key('bottom_nav_add_btn')), findsOneWidget);
-    });
+        // Center + bottom navigation remains the single capture entry point
+        expect(find.byKey(const Key('bottom_nav_add_btn')), findsOneWidget);
+      },
+    );
   });
 
   group('MainNavigationShell — Home Header Shortcuts & Tab Transition Tests', () {
-    testWidgets('tapping search bar on Home switches to Search tab without duplicate shell',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping search bar on Home switches to Search tab without duplicate shell',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      // Tap search bar in home header
-      await tester.tap(find.text(AppStrings.homeSearchHint));
-      await tester.pumpAndSettle();
+        // Tap search bar in home header
+        await tester.tap(find.text(AppStrings.homeSearchHint));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(SearchScreen), findsOneWidget);
-      // Navigation shell must NOT be duplicated
-      expect(find.byType(MainNavigationShell), findsOneWidget);
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
-    });
+        expect(find.byType(SearchScreen), findsOneWidget);
+        // Navigation shell must NOT be duplicated
+        expect(find.byType(MainNavigationShell), findsOneWidget);
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
+      },
+    );
 
-    testWidgets('tapping center + button from Search tab opens capture sheet and preserves active tab',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping center + button from Search tab opens capture sheet and preserves active tab',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      // Switch to Search tab
-      await tester.tap(find.text('Search'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SearchScreen), findsOneWidget);
+        // Switch to Search tab
+        await tester.tap(find.text('Search'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SearchScreen), findsOneWidget);
 
-      // Tap center + button
-      await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
-      await tester.pumpAndSettle();
+        // Tap center + button
+        await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
+        await tester.pumpAndSettle();
 
-      expect(find.text('What do you want to save?'), findsOneWidget);
+        expect(find.text('What do you want to save?'), findsOneWidget);
 
-      // Dismiss bottom sheet
-      Navigator.of(tester.element(find.text('What do you want to save?'))).pop();
-      await tester.pumpAndSettle();
+        // Dismiss bottom sheet
+        Navigator.of(
+          tester.element(find.text('What do you want to save?')),
+        ).pop();
+        await tester.pumpAndSettle();
 
-      // Verified: Remains on Search tab
-      expect(find.byType(SearchScreen), findsOneWidget);
-    });
+        // Verified: Remains on Search tab
+        expect(find.byType(SearchScreen), findsOneWidget);
+      },
+    );
 
-    testWidgets('leaving Search tab and reopening it starts with empty query and results',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'leaving Search tab and reopening it starts with empty query and results',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      // Switch to Search tab
-      await tester.tap(find.text('Search'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SearchScreen), findsOneWidget);
+        // Switch to Search tab
+        await tester.tap(find.text('Search'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SearchScreen), findsOneWidget);
 
-      // Type a query in search
-      await tester.enterText(find.byType(TextField), 'prayer mat');
-      await tester.pump();
-      expect(find.text('prayer mat'), findsOneWidget);
+        // Type a query in search
+        await tester.enterText(find.byType(TextField), 'prayer mat');
+        await tester.pump();
+        expect(find.text('prayer mat'), findsOneWidget);
 
-      // Navigate away to Home tab
-      await tester.tap(find.text('Home'));
-      await tester.pumpAndSettle();
-      expect(find.byType(HomeScreen), findsOneWidget);
+        // Navigate away to Home tab
+        await tester.tap(find.text('Home'));
+        await tester.pumpAndSettle();
+        expect(find.byType(HomeScreen), findsOneWidget);
 
-      // Navigate back to Search tab
-      await tester.tap(find.text('Search'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SearchScreen), findsOneWidget);
+        // Navigate back to Search tab
+        await tester.tap(find.text('Search'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SearchScreen), findsOneWidget);
 
-      // Search field is empty and semantic search initial view is shown
-      expect(find.text('prayer mat'), findsNothing);
-      expect(find.text('Semantic Search'), findsOneWidget);
-    });
+        // Search field is empty and semantic search initial view is shown
+        expect(find.text('prayer mat'), findsNothing);
+        expect(find.text('Semantic Search'), findsOneWidget);
+      },
+    );
 
-    testWidgets('when keyboard opens, bottomNavigationBar is hidden to prevent artificial blank gap',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'when keyboard opens, bottomNavigationBar is hidden to prevent artificial blank gap',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      // Switch to Search tab
-      await tester.tap(find.text('Search'));
-      await tester.pumpAndSettle();
+        // Switch to Search tab
+        await tester.tap(find.text('Search'));
+        await tester.pumpAndSettle();
 
-      // Initially, bottom navigation bar is visible
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
+        // Initially, bottom navigation bar is visible
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
 
-      // Simulate keyboard opening
-      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-      addTearDown(() => tester.view.resetViewInsets());
-      await tester.pumpAndSettle();
+        // Simulate keyboard opening
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(() => tester.view.resetViewInsets());
+        await tester.pumpAndSettle();
 
-      // Bottom navigation bar is hidden to prevent double-inset blank gap
-      expect(find.byType(BottomNavigationBar), findsNothing);
-      expect(find.byType(SearchScreen), findsOneWidget);
+        // Bottom navigation bar is hidden to prevent double-inset blank gap
+        expect(find.byType(BottomNavigationBar), findsNothing);
+        expect(find.byType(SearchScreen), findsOneWidget);
 
-      // Simulate keyboard closing
-      tester.view.resetViewInsets();
-      await tester.pumpAndSettle();
+        // Simulate keyboard closing
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
 
-      // Bottom navigation bar is restored
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
-    });
+        // Bottom navigation bar is restored
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
+      },
+    );
   });
 
   group('SavedScreen — State, Navigation & Empty View Tests', () {
-    testWidgets('SavedScreen renders empty state when no memories are pinned',
-        (tester) async {
+    testWidgets('SavedScreen renders empty state when no memories are pinned', (
+      tester,
+    ) async {
       final emptyCaptureBloc = FakeLoadedCaptureBloc(
         fakeCaptureRepository,
         const CaptureLoaded([]),
@@ -473,13 +499,15 @@ void main() {
       expect(find.text('No saved memories yet'), findsOneWidget);
       expect(
         find.text(
-            'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.'),
+          'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('tapping saved memory opens MemoryDetailScreen with exact id',
-        (tester) async {
+    testWidgets('tapping saved memory opens MemoryDetailScreen with exact id', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
@@ -499,54 +527,63 @@ void main() {
   });
 
   group('SettingsScreen — Sign Out & Storage Interaction Tests', () {
-    testWidgets('tapping Sign Out opens confirmation dialog and dispatches SignOutRequested',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping Sign Out opens confirmation dialog and dispatches SignOutRequested',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Sign Out'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Sign Out'));
+        await tester.pumpAndSettle();
 
-      expect(
-        find.text('Are you sure you want to sign out of Second Brain?'),
-        findsOneWidget,
-      );
+        expect(
+          find.text('Are you sure you want to sign out of Second Brain?'),
+          findsOneWidget,
+        );
 
-      // Confirm sign out in dialog
-      await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
-      await tester.pumpAndSettle();
+        // Confirm sign out in dialog
+        await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
+        await tester.pumpAndSettle();
 
-      expect(fakeAuthRepository.currentUser, isNull);
-    });
+        expect(fakeAuthRepository.currentUser, isNull);
+      },
+    );
 
-    testWidgets('tapping Sync Offline Memories triggers sync and shows snackbar',
-        (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping Sync Offline Memories triggers sync and shows snackbar',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(find.text('Sync Offline Memories'), 200);
-      await tester.tap(find.text('Sync Offline Memories'));
-      await tester.pump();
+        await tester.scrollUntilVisible(
+          find.text('Sync Offline Memories'),
+          200,
+        );
+        await tester.tap(find.text('Sync Offline Memories'));
+        await tester.pump();
 
-      expect(find.text('Syncing memories with cloud...'), findsOneWidget);
-    });
+        expect(find.text('Syncing memories with cloud...'), findsOneWidget);
+      },
+    );
   });
 
   group('AuthSessionGate Integration Tests', () {
-    testWidgets('AuthSessionGate renders MainNavigationShell when authenticated',
-        (tester) async {
-      await tester.pumpWidget(buildApp(home: const AuthSessionGate()));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'AuthSessionGate renders MainNavigationShell when authenticated',
+      (tester) async {
+        await tester.pumpWidget(buildApp(home: const AuthSessionGate()));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(MainNavigationShell), findsOneWidget);
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
-    });
+        expect(find.byType(MainNavigationShell), findsOneWidget);
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
+      },
+    );
   });
 }

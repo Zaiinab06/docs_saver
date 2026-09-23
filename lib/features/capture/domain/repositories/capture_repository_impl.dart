@@ -44,8 +44,9 @@ class CaptureRepositoryImpl implements CaptureRepository {
   @override
   Future<List<MemoryEntity>> getMemories({String? userId}) async {
     final effectiveUserId = userId ?? _getCurrentUserId();
-    final cachedModels =
-        await localDataSource.getCachedMemories(userId: effectiveUserId);
+    final cachedModels = await localDataSource.getCachedMemories(
+      userId: effectiveUserId,
+    );
     final entities = cachedModels.map((m) => m.toEntity()).toList();
     entities.sort(MemoryEntity.compareByPinnedAndDate);
     return entities;
@@ -54,8 +55,9 @@ class CaptureRepositoryImpl implements CaptureRepository {
   @override
   Future<void> syncPendingMemories({String? userId}) async {
     final effectiveUserId = userId ?? _getCurrentUserId();
-    final pendingModels =
-        await localDataSource.getUnsyncedMemories(userId: effectiveUserId);
+    final pendingModels = await localDataSource.getUnsyncedMemories(
+      userId: effectiveUserId,
+    );
     for (final model in pendingModels) {
       try {
         var entity = model.toEntity();
@@ -69,7 +71,8 @@ class CaptureRepositoryImpl implements CaptureRepository {
             if (file.existsSync()) {
               final bytes = await file.readAsBytes();
               final ext = entity.mediaUrl!.split('.').last;
-              final fileName = 'media_${DateTime.now().millisecondsSinceEpoch}.$ext';
+              final fileName =
+                  'media_${DateTime.now().millisecondsSinceEpoch}.$ext';
               final storageKey = '$effectiveUserId/$fileName';
               final mime = resolveMimeType(ext);
               await Supabase.instance.client.storage
@@ -114,9 +117,9 @@ class CaptureRepositoryImpl implements CaptureRepository {
 
   @override
   Stream<MemoryEntity> subscribeToMemoryUpdates(String userId) {
-    return remoteDataSource
-        .subscribeToMemoryUpdates(userId)
-        .asyncMap((model) async {
+    return remoteDataSource.subscribeToMemoryUpdates(userId).asyncMap((
+      model,
+    ) async {
       await localDataSource.updateMemoryFromRemote(model);
       return model.toEntity();
     });

@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/isar_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
 import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
 import '../../domain/services/related_memory_matcher.dart';
@@ -36,14 +35,12 @@ class _CategoryTheme {
 class MemoryDetailScreen extends StatefulWidget {
   final String memoryId;
   final MemoryEntity? initialMemory;
-  final List<LivingEntityItem>? initialEntities;
   final String? initialSummary;
 
   const MemoryDetailScreen({
     super.key,
     required this.memoryId,
     this.initialMemory,
-    this.initialEntities,
     this.initialSummary,
   });
 
@@ -57,9 +54,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   bool _notFound = false;
   bool _isPinned = false;
   bool _isExtractedContentExpanded = false;
-  bool _isKnowledgeGraphExpanded = false;
   String? _summary;
-  List<LivingEntityItem> _entities = [];
   StreamSubscription? _blocSubscription;
 
   @override
@@ -73,9 +68,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       _memory = widget.initialMemory;
       _isPinned = widget.initialMemory!.isPinned;
       _isLoading = false;
-      if (_entities.isEmpty) {
-        _entities = _buildEntitiesFromMemory(widget.initialMemory!);
-      }
     }
     _loadMemoryFromLocalDb();
   }
@@ -103,7 +95,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             _isPinned = current.isPinned;
             _isLoading = false;
             _notFound = false;
-            _entities = _buildEntitiesFromMemory(current);
           }
         }
       }
@@ -118,7 +109,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               _isPinned = updatedMemory.isPinned;
               _isLoading = false;
               _notFound = false;
-              _entities = _buildEntitiesFromMemory(updatedMemory);
             });
           }
         }
@@ -148,7 +138,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             _isPinned = entity.isPinned;
             _isLoading = false;
             _notFound = false;
-            _entities = _buildEntitiesFromMemory(entity);
           });
         } else if (_memory == null) {
           setState(() {
@@ -167,42 +156,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     }
   }
 
-  List<LivingEntityItem> _buildEntitiesFromMemory(MemoryEntity memory) {
-    final List<LivingEntityItem> list = [];
-    if (memory.category.isNotEmpty && memory.category != 'General') {
-      list.add(
-        LivingEntityItem(
-          name: memory.category,
-          type: 'CATEGORY',
-          attributes: 'Primary categorization',
-        ),
-      );
-    }
-    final isManualNote =
-        (memory.mediaUrl == null || memory.mediaUrl!.isEmpty) &&
-        !memory.content.startsWith('http://') &&
-        !memory.content.startsWith('https://');
-
-    for (final tag in memory.tags) {
-      final lower = tag.toLowerCase();
-      if (lower == 'photo' ||
-          lower == 'document' ||
-          lower == 'pinned' ||
-          lower == 'pin') {
-        continue;
-      }
-      list.add(
-        LivingEntityItem(
-          name: tag,
-          type: 'TOPIC',
-          attributes: isManualNote ? 'Note tag' : 'Extracted memory entity',
-        ),
-      );
-    }
-    return list;
-  }
-
-  List<MemoryEntity> _findRelatedMemories(MemoryEntity memory) {
+  List<RelatedMemoryMatch> _findRelatedMemoryMatches(MemoryEntity memory) {
     try {
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
       if (currentUserId == null || currentUserId != memory.userId) {
@@ -214,7 +168,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         return const [];
       }
 
-      return const RelatedMemoryMatcher().find(
+      return const RelatedMemoryMatcher().matches(
         memory: memory,
         candidates: (bloc.state as CaptureLoaded).memories,
         userId: currentUserId,
@@ -224,8 +178,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     }
   }
 
-  Widget _buildRelatedMemoriesSection(List<MemoryEntity> relatedMemories) {
-    if (relatedMemories.isEmpty) return const SizedBox.shrink();
+  Widget _buildRelatedMemoriesSection(List<RelatedMemoryMatch> matches) {
+    if (matches.isEmpty) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
@@ -255,8 +209,20 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             ),
           ),
           const Divider(height: 1, color: AppColors.chipInactiveBorder),
-          ...relatedMemories.map(
-            (relatedMemory) => ListTile(
+          ...matches.map((match) {
+            final relatedMemory = match.memory;
+            // Build a human-readable match reason
+            final String matchReason;
+            if (match.sharedTags.isNotEmpty) {
+              final tagList = match.sharedTags.take(3).join(', ');
+              matchReason = 'Shared: $tagList';
+            } else if (match.sameCategory) {
+              matchReason = 'Same category: ${relatedMemory.category}';
+            } else {
+              matchReason = relatedMemory.category;
+            }
+
+            return ListTile(
               dense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               title: Text(
@@ -272,7 +238,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 ),
               ),
               subtitle: Text(
-                relatedMemory.category,
+                matchReason,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -291,8 +257,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                   ),
                 );
               },
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
@@ -1210,7 +1176,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     }
 
     final memory = _memory!;
-    final relatedMemories = _findRelatedMemories(memory);
+    final relatedMatches = _findRelatedMemoryMatches(memory);
     final categoryTheme = _getCategoryTheme(memory.category);
     final formattedDate = DateFormat(
       'MMM d, yyyy • h:mm a',
@@ -1907,288 +1873,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // 6. Living Memory Knowledge Graph Card (Immediately below Extracted Content, collapsed by default)
-              if (_entities.isNotEmpty) ...[
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.chipInactiveBorder,
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: _isKnowledgeGraphExpanded
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                InkWell(
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(16),
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      _isKnowledgeGraphExpanded = false;
-                                    });
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 14,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.lightCyanTint,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.hub_outlined,
-                                            color: AppColors.primary,
-                                            size: 18,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Living Memory Knowledge Graph',
-                                                style: TextStyle(
-                                                  fontSize: 14.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.textPrimary,
-                                                  letterSpacing: -0.2,
-                                                ),
-                                              ),
-                                              SizedBox(height: 2),
-                                              Text(
-                                                'Category & Topic relationships',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w400,
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const Icon(
-                                          Icons.keyboard_arrow_down_rounded,
-                                          color: AppColors.primary,
-                                          size: 22,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const Divider(
-                                  height: 1,
-                                  thickness: 1,
-                                  color: AppColors.chipInactiveBorder,
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    14,
-                                    16,
-                                    16,
-                                  ),
-                                  child: LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      return Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: _entities.map((entity) {
-                                          return Container(
-                                            constraints: BoxConstraints(
-                                              maxWidth: constraints.maxWidth,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.background,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: AppColors
-                                                    .chipInactiveBorder,
-                                                width: 1.0,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 2,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.primary
-                                                        .withValues(
-                                                          alpha: 0.12,
-                                                        ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    entity.type.toUpperCase(),
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: AppColors.primary,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Flexible(
-                                                  child: Text.rich(
-                                                    TextSpan(
-                                                      children: [
-                                                        TextSpan(
-                                                          text: entity.name,
-                                                          style: const TextStyle(
-                                                            fontSize: 12.5,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color: AppColors
-                                                                .textPrimary,
-                                                          ),
-                                                        ),
-                                                        if (entity
-                                                            .attributes
-                                                            .isNotEmpty)
-                                                          TextSpan(
-                                                            text:
-                                                                ' (${entity.attributes})',
-                                                            style: const TextStyle(
-                                                              fontSize: 11,
-                                                              color: AppColors
-                                                                  .textSecondary,
-                                                              fontStyle:
-                                                                  FontStyle
-                                                                      .italic,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .normal,
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    ),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    maxLines: 1,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }).toList(),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            )
-                          : InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                setState(() {
-                                  _isKnowledgeGraphExpanded = true;
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.lightCyanTint,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.hub_outlined,
-                                        color: AppColors.primary,
-                                        size: 18,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Living Memory Knowledge Graph',
-                                            style: TextStyle(
-                                              fontSize: 14.5,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.textPrimary,
-                                              letterSpacing: -0.2,
-                                            ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Text(
-                                            'Category & Topic relationships',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.chevron_right_rounded,
-                                      color: AppColors.primary,
-                                      size: 22,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              _buildRelatedMemoriesSection(relatedMemories),
-              if (relatedMemories.isNotEmpty) const SizedBox(height: 20),
+              _buildRelatedMemoriesSection(relatedMatches),
+              if (relatedMatches.isNotEmpty) const SizedBox(height: 20),
 
               // 7. Tags Card (VERY LAST section, always expanded)
               if (memory.tags.isNotEmpty) ...[

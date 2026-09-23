@@ -36,7 +36,9 @@ class GoogleDriveLinkExtractor {
       if (segments.length >= 3) {
         final type = segments[0].toLowerCase();
         // Support documents, spreadsheets, and presentations
-        if (type == 'document' || type == 'spreadsheets' || type == 'presentation') {
+        if (type == 'document' ||
+            type == 'spreadsheets' ||
+            type == 'presentation') {
           if (segments[1].toLowerCase() == 'd') {
             final candidate = segments[2].trim();
             if (_fileIdRegex.hasMatch(candidate)) {
@@ -51,7 +53,8 @@ class GoogleDriveLinkExtractor {
     // 2. drive.google.com patterns
     if (host == 'drive.google.com' || host == 'www.drive.google.com') {
       // Reject folder URLs explicitly
-      if (uri.path.contains('/drive/folders/') || uri.path.contains('/folders/')) {
+      if (uri.path.contains('/drive/folders/') ||
+          uri.path.contains('/folders/')) {
         return null;
       }
 

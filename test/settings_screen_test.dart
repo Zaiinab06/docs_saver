@@ -38,18 +38,21 @@ class _MockAuthRepository implements AuthRepository {
   Stream<UserEntity?> get authStateChanges => _authController.stream;
 
   @override
-  Future<UserEntity> signIn(
-      {required String email, required String password}) async {
+  Future<UserEntity> signIn({
+    required String email,
+    required String password,
+  }) async {
     currentUser = UserEntity(id: 'u-1', email: email);
     _authController.add(currentUser);
     return currentUser!;
   }
 
   @override
-  Future<UserEntity> signUp(
-      {required String email,
-      required String password,
-      String? fullName}) async {
+  Future<UserEntity> signUp({
+    required String email,
+    required String password,
+    String? fullName,
+  }) async {
     currentUser = UserEntity(id: 'u-1', email: email, fullName: fullName);
     _authController.add(currentUser);
     return currentUser!;
@@ -74,7 +77,7 @@ class _MockCaptureRepository implements CaptureRepository {
   bool syncCalled = false;
 
   _MockCaptureRepository([List<MemoryEntity>? initial])
-      : memories = initial ?? [];
+    : memories = initial ?? [];
 
   @override
   Future<List<MemoryEntity>> getMemories({String? userId}) async =>
@@ -166,35 +169,37 @@ void main() {
 
   group('SettingsScreen — UI & Layout Verification', () {
     testWidgets(
-        'renders gradient header with title, subtitle, and user initial',
-        (tester) async {
-      await tester.pumpWidget(buildTestApp());
-      await tester.pumpAndSettle();
+      'renders gradient header with title, subtitle, and user initial',
+      (tester) async {
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
 
-      expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Manage your Second Brain'), findsOneWidget);
-      expect(find.text('A'), findsWidgets); // Avatar initial
+        expect(find.text('Settings'), findsOneWidget);
+        expect(find.text('Manage your Second Brain'), findsOneWidget);
+        expect(find.text('A'), findsWidgets); // Avatar initial
 
-      // Verify header container has AppColors.headerGradient and rounded bottom corners
-      final containers = tester.widgetList<Container>(find.byType(Container));
-      final headerContainer = containers.firstWhere(
-        (c) =>
-            c.decoration is BoxDecoration &&
-            (c.decoration as BoxDecoration).gradient == AppColors.headerGradient,
-      );
-      final decoration = headerContainer.decoration as BoxDecoration;
-      expect(decoration.gradient, AppColors.headerGradient);
-      expect(
-        decoration.borderRadius,
-        const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      );
+        // Verify header container has AppColors.headerGradient and rounded bottom corners
+        final containers = tester.widgetList<Container>(find.byType(Container));
+        final headerContainer = containers.firstWhere(
+          (c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration as BoxDecoration).gradient ==
+                  AppColors.headerGradient,
+        );
+        final decoration = headerContainer.decoration as BoxDecoration;
+        expect(decoration.gradient, AppColors.headerGradient);
+        expect(
+          decoration.borderRadius,
+          const BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        );
 
-      final titleText = tester.widget<Text>(find.text('Settings'));
-      expect(titleText.style?.color, AppColors.textWhite);
-    });
+        final titleText = tester.widget<Text>(find.text('Settings'));
+        expect(titleText.style?.color, AppColors.textWhite);
+      },
+    );
 
     testWidgets('renders all required section headers', (tester) async {
       await tester.pumpWidget(buildTestApp());
@@ -220,8 +225,9 @@ void main() {
       expect(find.text('ABOUT'), findsOneWidget);
     });
 
-    testWidgets('displays real user name and email from AuthBloc',
-        (tester) async {
+    testWidgets('displays real user name and email from AuthBloc', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
@@ -230,8 +236,9 @@ void main() {
       expect(find.text('Active'), findsWidgets);
     });
 
-    testWidgets('tapping account row opens account information bottom sheet',
-        (tester) async {
+    testWidgets('tapping account row opens account information bottom sheet', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
@@ -249,40 +256,43 @@ void main() {
     });
 
     testWidgets(
-        'displays Theme segmented selector with Light, Dark, System and switches modes',
-        (tester) async {
-      await tester.pumpWidget(buildTestApp());
-      await tester.pumpAndSettle();
+      'displays Theme segmented selector with Light, Dark, System and switches modes',
+      (tester) async {
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(
-          find.byKey(const Key('theme_segment_dark')), 150);
-      expect(find.text('Theme'), findsOneWidget);
-      expect(find.text('Light'), findsOneWidget);
-      expect(find.text('Dark'), findsOneWidget);
-      expect(find.text('System'), findsOneWidget);
-      expect(find.byType(Switch), findsNothing);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('theme_segment_dark')),
+          150,
+        );
+        expect(find.text('Theme'), findsOneWidget);
+        expect(find.text('Light'), findsOneWidget);
+        expect(find.text('Dark'), findsOneWidget);
+        expect(find.text('System'), findsOneWidget);
+        expect(find.byType(Switch), findsNothing);
 
-      // Tap Dark
-      await tester.tap(find.byKey(const Key('theme_segment_dark')));
-      await tester.pumpAndSettle();
+        // Tap Dark
+        await tester.tap(find.byKey(const Key('theme_segment_dark')));
+        await tester.pumpAndSettle();
 
-      expect(themeCubit.state, ThemeMode.dark);
-      expect(find.text('Dark mode active'), findsOneWidget);
+        expect(themeCubit.state, ThemeMode.dark);
+        expect(find.text('Dark mode active'), findsOneWidget);
 
-      // Tap Light
-      await tester.tap(find.byKey(const Key('theme_segment_light')));
-      await tester.pumpAndSettle();
+        // Tap Light
+        await tester.tap(find.byKey(const Key('theme_segment_light')));
+        await tester.pumpAndSettle();
 
-      expect(themeCubit.state, ThemeMode.light);
-      expect(find.text('Light mode active'), findsOneWidget);
+        expect(themeCubit.state, ThemeMode.light);
+        expect(find.text('Light mode active'), findsOneWidget);
 
-      // Tap System
-      await tester.tap(find.byKey(const Key('theme_segment_system')));
-      await tester.pumpAndSettle();
+        // Tap System
+        await tester.tap(find.byKey(const Key('theme_segment_system')));
+        await tester.pumpAndSettle();
 
-      expect(themeCubit.state, ThemeMode.system);
-      expect(find.text('Following device system theme'), findsOneWidget);
-    });
+        expect(themeCubit.state, ThemeMode.system);
+        expect(find.text('Following device system theme'), findsOneWidget);
+      },
+    );
 
     testWidgets('displays Push Notifications Enabled', (tester) async {
       await tester.pumpWidget(buildTestApp());
@@ -294,20 +304,25 @@ void main() {
     });
 
     testWidgets(
-        'tapping Sync Offline Memories dispatches sync and shows snackbar',
-        (tester) async {
-      await tester.pumpWidget(buildTestApp());
-      await tester.pumpAndSettle();
+      'tapping Sync Offline Memories dispatches sync and shows snackbar',
+      (tester) async {
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(find.text('Sync Offline Memories'), 200);
-      await tester.tap(find.text('Sync Offline Memories'));
-      await tester.pump();
+        await tester.scrollUntilVisible(
+          find.text('Sync Offline Memories'),
+          200,
+        );
+        await tester.tap(find.text('Sync Offline Memories'));
+        await tester.pump();
 
-      expect(find.text('Syncing memories with cloud...'), findsOneWidget);
-    });
+        expect(find.text('Syncing memories with cloud...'), findsOneWidget);
+      },
+    );
 
-    testWidgets('tapping AI Knowledge Engine shows AI details dialog',
-        (tester) async {
+    testWidgets('tapping AI Knowledge Engine shows AI details dialog', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
@@ -327,13 +342,16 @@ void main() {
       expect(find.text('Got It'), findsNothing);
     });
 
-    testWidgets('tapping Privacy & Data Protection shows privacy dialog',
-        (tester) async {
+    testWidgets('tapping Privacy & Data Protection shows privacy dialog', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(
-          find.text('Privacy & Data Protection'), 200);
+        find.text('Privacy & Data Protection'),
+        200,
+      );
       await tester.tap(find.text('Privacy & Data Protection'));
       await tester.pumpAndSettle();
 
@@ -350,27 +368,29 @@ void main() {
     });
 
     testWidgets(
-        'tapping Sign Out shows confirmation dialog and cancels gracefully',
-        (tester) async {
-      await tester.pumpWidget(buildTestApp());
-      await tester.pumpAndSettle();
+      'tapping Sign Out shows confirmation dialog and cancels gracefully',
+      (tester) async {
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Sign Out'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Sign Out'));
+        await tester.pumpAndSettle();
 
-      expect(
-        find.text('Are you sure you want to sign out of Second Brain?'),
-        findsOneWidget,
-      );
+        expect(
+          find.text('Are you sure you want to sign out of Second Brain?'),
+          findsOneWidget,
+        );
 
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
 
-      expect(authRepo.currentUser, isNotNull);
-    });
+        expect(authRepo.currentUser, isNotNull);
+      },
+    );
 
-    testWidgets('confirming Sign Out dispatches SignOutRequested',
-        (tester) async {
+    testWidgets('confirming Sign Out dispatches SignOutRequested', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
@@ -385,32 +405,34 @@ void main() {
   });
 
   group('ThemeCubit — Persistence & Restoration Tests', () {
-    test('theme selection persists to SharedPreferences and restores on restart',
-        () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'theme selection persists to SharedPreferences and restores on restart',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
 
-      final cubit1 = ThemeCubit(prefs);
-      expect(cubit1.state, ThemeMode.system);
+        final cubit1 = ThemeCubit(prefs);
+        expect(cubit1.state, ThemeMode.system);
 
-      await cubit1.setThemeMode(ThemeMode.dark);
-      expect(cubit1.state, ThemeMode.dark);
-      expect(prefs.getString('theme_mode'), 'dark');
-      await cubit1.close();
+        await cubit1.setThemeMode(ThemeMode.dark);
+        expect(cubit1.state, ThemeMode.dark);
+        expect(prefs.getString('theme_mode'), 'dark');
+        await cubit1.close();
 
-      // Simulate app restart by creating a new cubit with the same prefs
-      final cubit2 = ThemeCubit(prefs);
-      expect(cubit2.state, ThemeMode.dark);
+        // Simulate app restart by creating a new cubit with the same prefs
+        final cubit2 = ThemeCubit(prefs);
+        expect(cubit2.state, ThemeMode.dark);
 
-      await cubit2.setThemeMode(ThemeMode.light);
-      expect(cubit2.state, ThemeMode.light);
-      expect(prefs.getString('theme_mode'), 'light');
-      await cubit2.close();
+        await cubit2.setThemeMode(ThemeMode.light);
+        expect(cubit2.state, ThemeMode.light);
+        expect(prefs.getString('theme_mode'), 'light');
+        await cubit2.close();
 
-      // Second restart
-      final cubit3 = ThemeCubit(prefs);
-      expect(cubit3.state, ThemeMode.light);
-      await cubit3.close();
-    });
+        // Second restart
+        final cubit3 = ThemeCubit(prefs);
+        expect(cubit3.state, ThemeMode.light);
+        await cubit3.close();
+      },
+    );
   });
 }

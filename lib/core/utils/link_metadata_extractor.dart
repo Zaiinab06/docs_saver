@@ -51,19 +51,19 @@ class LinkMetadata {
       (transcript != null && transcript!.isNotEmpty);
 
   RichLinkContent toRichLinkContent() => RichLinkContent(
-        provider: provider,
-        canonicalUrl: url,
-        title: title,
-        description: description,
-        creator: creator,
-        thumbnailUrl: imageUrl,
-        readableContent: readableContent,
-        transcript: transcript,
-        siteName: siteName,
-        faviconUrl: faviconUrl,
-        wordCount: wordCount,
-        metadata: extraMetadata,
-      );
+    provider: provider,
+    canonicalUrl: url,
+    title: title,
+    description: description,
+    creator: creator,
+    thumbnailUrl: imageUrl,
+    readableContent: readableContent,
+    transcript: transcript,
+    siteName: siteName,
+    faviconUrl: faviconUrl,
+    wordCount: wordCount,
+    metadata: extraMetadata,
+  );
 
   factory LinkMetadata.fromRichLinkContent(RichLinkContent rich) {
     return LinkMetadata(
@@ -94,29 +94,28 @@ class LinkMetadataExtractor {
     YouTubeLinkExtractor? youTubeExtractor,
     TikTokLinkExtractor? tikTokExtractor,
     InstagramLinkExtractor? instagramExtractor,
-  })  : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
-                sendTimeout: const Duration(seconds: 5),
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                  'Accept':
-                      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                },
-                followRedirects: true,
-                maxRedirects: 5,
-                responseType: ResponseType.plain,
-              ),
-            ),
-        _youTubeExtractor = youTubeExtractor ??
-            YouTubeLinkExtractor(dio: dio),
-        _tikTokExtractor = tikTokExtractor ??
-            TikTokLinkExtractor(dio: dio),
-        _instagramExtractor = instagramExtractor ??
-            InstagramLinkExtractor(dio: dio);
+  }) : _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 5),
+               receiveTimeout: const Duration(seconds: 5),
+               sendTimeout: const Duration(seconds: 5),
+               headers: {
+                 'User-Agent':
+                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                 'Accept':
+                     'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+               },
+               followRedirects: true,
+               maxRedirects: 5,
+               responseType: ResponseType.plain,
+             ),
+           ),
+       _youTubeExtractor = youTubeExtractor ?? YouTubeLinkExtractor(dio: dio),
+       _tikTokExtractor = tikTokExtractor ?? TikTokLinkExtractor(dio: dio),
+       _instagramExtractor =
+           instagramExtractor ?? InstagramLinkExtractor(dio: dio);
 
   static String? validateUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) {
@@ -204,7 +203,8 @@ class LinkMetadataExtractor {
 
     // 1. Metadata Extraction via DOM query selectors
     // Title
-    String? title = document
+    String? title =
+        document
             .querySelector('meta[property="og:title"]')
             ?.attributes['content']
             ?.trim() ??
@@ -221,7 +221,8 @@ class LinkMetadataExtractor {
     title = _cleanHtmlText(title);
 
     // Description
-    String? description = document
+    String? description =
+        document
             .querySelector('meta[property="og:description"]')
             ?.attributes['content']
             ?.trim() ??
@@ -241,7 +242,8 @@ class LinkMetadataExtractor {
     description = _cleanHtmlText(description);
 
     // Image URL
-    String? imageUrl = document
+    String? imageUrl =
+        document
             .querySelector('meta[property="og:image"]')
             ?.attributes['content']
             ?.trim() ??
@@ -259,7 +261,8 @@ class LinkMetadataExtractor {
     }
 
     // Site Name
-    String? siteName = document
+    String? siteName =
+        document
             .querySelector('meta[property="og:site_name"]')
             ?.attributes['content']
             ?.trim() ??
@@ -269,7 +272,8 @@ class LinkMetadataExtractor {
 
     // Favicon URL
     String? faviconUrl;
-    final iconEl = document.querySelector('link[rel~="icon"]') ??
+    final iconEl =
+        document.querySelector('link[rel~="icon"]') ??
         document.querySelector('link[rel="shortcut icon"]');
     final iconHref = iconEl?.attributes['href']?.trim();
     if (iconHref != null && iconHref.isNotEmpty && uri != null) {
@@ -311,14 +315,16 @@ class LinkMetadataExtractor {
       imageUrl: imageUrl?.isNotEmpty == true ? imageUrl : null,
       siteName: siteName?.isNotEmpty == true ? siteName : null,
       faviconUrl: faviconUrl?.isNotEmpty == true ? faviconUrl : null,
-      readableContent:
-          readableContent?.isNotEmpty == true ? readableContent : null,
+      readableContent: readableContent?.isNotEmpty == true
+          ? readableContent
+          : null,
       wordCount: wordCount > 0 ? wordCount : null,
     );
   }
 
   static ({String? text, int wordCount}) _extractReadableBody(
-      Document document) {
+    Document document,
+  ) {
     // Clone body or work on document
     final body = document.body;
     if (body == null) {
@@ -374,8 +380,9 @@ class LinkMetadataExtractor {
     contentContainer ??= body;
 
     // Step C: Extract structural blocks
-    final structuralQuery =
-        contentContainer.querySelectorAll('h1, h2, h3, h4, p, blockquote, li, pre');
+    final structuralQuery = contentContainer.querySelectorAll(
+      'h1, h2, h3, h4, p, blockquote, li, pre',
+    );
 
     // De-duplicate parent-child matches (e.g. avoid parsing <p> inside <li> or <blockquote> twice)
     final rootElements = <Element>[];
@@ -404,9 +411,19 @@ class LinkMetadataExtractor {
       // Filter noise button labels or repetitive links
       final lower = clean.toLowerCase();
       const noiseWords = {
-        'share', 'tweet', 'like', 'follow us', 'subscribe', 'sign in',
-        'log in', 'cookie policy', 'privacy policy', 'terms of service',
-        'read more', 'click here', 'all rights reserved'
+        'share',
+        'tweet',
+        'like',
+        'follow us',
+        'subscribe',
+        'sign in',
+        'log in',
+        'cookie policy',
+        'privacy policy',
+        'terms of service',
+        'read more',
+        'click here',
+        'all rights reserved',
       };
       if (noiseWords.contains(lower)) return;
 
@@ -476,8 +493,10 @@ class LinkMetadataExtractor {
       if (paragraphBreak > 6500) {
         fullText = fullText.substring(0, paragraphBreak).trim();
       } else {
-        final sentenceBreak =
-            fullText.lastIndexOf(RegExp(r'[\.\?\!]\s'), 10000);
+        final sentenceBreak = fullText.lastIndexOf(
+          RegExp(r'[\.\?\!]\s'),
+          10000,
+        );
         if (sentenceBreak > 6500) {
           fullText = fullText.substring(0, sentenceBreak + 1).trim();
         } else {

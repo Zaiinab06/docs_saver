@@ -72,7 +72,10 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
     if (_selectedOptionIds.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('personalization_use_cases', _selectedOptionIds.toList());
+    await prefs.setStringList(
+      'personalization_use_cases',
+      _selectedOptionIds.toList(),
+    );
     await prefs.setBool('has_seen_onboarding', true);
 
     if (!mounted) return;
@@ -162,7 +165,9 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
                         color: backgroundColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected ? primaryColor : inactiveBorderColor,
+                          color: isSelected
+                              ? primaryColor
+                              : inactiveBorderColor,
                           width: isSelected ? 1.6 : 1.2,
                         ),
                         boxShadow: [
@@ -207,7 +212,8 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
                                 // Title and Subtitle
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         option.title,
@@ -240,7 +246,9 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
                                   height: 22,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: isSelected ? primaryColor : Colors.transparent,
+                                    color: isSelected
+                                        ? primaryColor
+                                        : Colors.transparent,
                                     border: Border.all(
                                       color: isSelected
                                           ? primaryColor

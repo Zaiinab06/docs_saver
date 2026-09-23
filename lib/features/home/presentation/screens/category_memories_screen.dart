@@ -217,18 +217,11 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
           decoration: BoxDecoration(
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: AppColors.chipInactiveBorder,
-              width: 1.0,
-            ),
+            border: Border.all(color: AppColors.chipInactiveBorder, width: 1.0),
           ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: AppColors.primary,
-                size: 20,
-              ),
+              Icon(icon, color: AppColors.primary, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -252,7 +245,8 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
   Widget _buildThumbnail(MemoryEntity memory) {
     final media = memory.mediaUrl;
-    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
+    final isVoice =
+        memory.tags.any((t) => t.toLowerCase() == 'voice') ||
         (media != null &&
             (media.endsWith('.m4a') ||
                 media.endsWith('.aac') ||
@@ -275,11 +269,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
     }
     if (media == null || media.isEmpty) {
       return Center(
-        child: Icon(
-          category.icon,
-          color: category.iconColor,
-          size: 22,
-        ),
+        child: Icon(category.icon, color: category.iconColor, size: 22),
       );
     }
     if (media.startsWith('http://') || media.startsWith('https://')) {
@@ -287,11 +277,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
         media,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Center(
-          child: Icon(
-            category.icon,
-            color: category.iconColor,
-            size: 22,
-          ),
+          child: Icon(category.icon, color: category.iconColor, size: 22),
         ),
       );
     }
@@ -301,20 +287,12 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
         file,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Center(
-          child: Icon(
-            category.icon,
-            color: category.iconColor,
-            size: 22,
-          ),
+          child: Icon(category.icon, color: category.iconColor, size: 22),
         ),
       );
     }
     return Center(
-      child: Icon(
-        category.icon,
-        color: category.iconColor,
-        size: 22,
-      ),
+      child: Icon(category.icon, color: category.iconColor, size: 22),
     );
   }
 
@@ -336,10 +314,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               decoration: BoxDecoration(
                 color: category.backgroundColor,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: category.borderColor,
-                  width: 1.5,
-                ),
+                border: Border.all(color: category.borderColor, width: 1.5),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.violetTwilight500.withValues(alpha: 0.08),
@@ -349,11 +324,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                 ],
               ),
               child: Center(
-                child: Icon(
-                  category.icon,
-                  size: 40,
-                  color: category.iconColor,
-                ),
+                child: Icon(category.icon, size: 40, color: category.iconColor),
               ),
             ),
             const SizedBox(height: 22),
@@ -390,15 +361,18 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               onTap: () => _handleCapture(context),
               borderRadius: BorderRadius.circular(24),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.violetTwilight500,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          AppColors.violetTwilight500.withValues(alpha: 0.28),
+                      color: AppColors.violetTwilight500.withValues(
+                        alpha: 0.28,
+                      ),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -407,11 +381,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.add_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                    Icon(Icons.add_rounded, color: Colors.white, size: 20),
                     SizedBox(width: 8),
                     Text(
                       'Add Memory',
@@ -440,10 +410,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackgroundOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.borderOf(context),
-          width: 1.2,
-        ),
+        border: Border.all(color: AppColors.borderOf(context), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: AppColors.violetTwilight500.withValues(alpha: 0.04),
@@ -551,7 +518,9 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                     children: memory.tags.map((tag) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.violetTwilight50,
                           borderRadius: BorderRadius.circular(6),
@@ -587,8 +556,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor:
-            isDark ? AppColors.darkCardBackground : Colors.white,
+        backgroundColor: isDark ? AppColors.darkCardBackground : Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
@@ -620,11 +588,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                 ),
               ),
               child: Center(
-                child: Icon(
-                  category.icon,
-                  size: 16,
-                  color: category.iconColor,
-                ),
+                child: Icon(category.icon, size: 16, color: category.iconColor),
               ),
             ),
             const SizedBox(width: 10),
@@ -670,8 +634,9 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
       body: SafeArea(
         child: BlocBuilder<CaptureBloc, CaptureState>(
           builder: (context, state) {
-            final allMemories =
-                state is CaptureLoaded ? state.memories : <MemoryEntity>[];
+            final allMemories = state is CaptureLoaded
+                ? state.memories
+                : <MemoryEntity>[];
             final categoryMemories = allMemories
                 .where((m) => _matchesCategory(m.category, category.name))
                 .toList();
@@ -680,7 +645,8 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
               return const Center(
                 child: CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.violetTwilight500),
+                    AppColors.violetTwilight500,
+                  ),
                 ),
               );
             }

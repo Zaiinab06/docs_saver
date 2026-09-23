@@ -39,7 +39,8 @@ class _VoiceAudioPlayerCardState extends State<VoiceAudioPlayerCard> {
   @override
   void initState() {
     super.initState();
-    _playerService = widget.playerService ??
+    _playerService =
+        widget.playerService ??
         (VoiceAudioPlayerCard.playerServiceFactory?.call() ??
             DefaultAudioPlayerService());
     _initSource(widget.audioSource);
@@ -81,17 +82,20 @@ class _VoiceAudioPlayerCardState extends State<VoiceAudioPlayerCard> {
     if (trimmed.isEmpty) return;
 
     String resolvedSource = trimmed;
-    bool isLocal = widget.isLocal ??
+    bool isLocal =
+        widget.isLocal ??
         (!trimmed.startsWith('http://') && !trimmed.startsWith('https://'));
 
     // Prefer existing local .m4a file if it exists on disk
     if (!isLocal) {
       try {
         final uri = Uri.tryParse(trimmed);
-        final fileName = uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : null;
+        final fileName = uri?.pathSegments.isNotEmpty == true
+            ? uri!.pathSegments.last
+            : null;
         if (fileName != null && fileName.isNotEmpty) {
-          final Directory appDir =
-              await getApplicationDocumentsDirectory().catchError((_) => Directory(''));
+          final Directory appDir = await getApplicationDocumentsDirectory()
+              .catchError((_) => Directory(''));
           if (appDir.path.isNotEmpty) {
             final localFile = File('${appDir.path}/$fileName');
             if (localFile.existsSync()) {
@@ -117,7 +121,10 @@ class _VoiceAudioPlayerCardState extends State<VoiceAudioPlayerCard> {
     }
 
     try {
-      await _playerService.setSource(_effectiveAudioSource, isLocal: _isLocalSource);
+      await _playerService.setSource(
+        _effectiveAudioSource,
+        isLocal: _isLocalSource,
+      );
       final d = await _playerService.getDuration();
       if (mounted && d != null && d > Duration.zero) {
         setState(() => _duration = d);
@@ -161,8 +168,7 @@ class _VoiceAudioPlayerCardState extends State<VoiceAudioPlayerCard> {
     final maxMs = _duration.inMilliseconds > 0
         ? _duration.inMilliseconds.toDouble()
         : 1.0;
-    final posMs =
-        _position.inMilliseconds.toDouble().clamp(0.0, maxMs);
+    final posMs = _position.inMilliseconds.toDouble().clamp(0.0, maxMs);
 
     return Container(
       width: double.infinity,
@@ -170,10 +176,7 @@ class _VoiceAudioPlayerCardState extends State<VoiceAudioPlayerCard> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.chipInactiveBorder,
-          width: 1.2,
-        ),
+        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),

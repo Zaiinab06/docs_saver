@@ -6,10 +6,7 @@ import '../../../../core/utils/link_metadata_extractor.dart';
 class AddLinkBottomSheet extends StatefulWidget {
   final String? initialUrl;
 
-  const AddLinkBottomSheet({
-    super.key,
-    this.initialUrl,
-  });
+  const AddLinkBottomSheet({super.key, this.initialUrl});
 
   static Future<String?> show(BuildContext context, {String? initialUrl}) {
     return showModalBottomSheet<String>(
@@ -293,7 +290,10 @@ class _AddLinkBottomSheetState extends State<AddLinkBottomSheet> {
                   ),
                 ),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),

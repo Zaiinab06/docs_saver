@@ -42,8 +42,7 @@ class SemanticRelevanceFilter {
       return items;
     }
 
-    final semanticItems =
-        items.where((item) => item.similarity > 0).toList();
+    final semanticItems = items.where((item) => item.similarity > 0).toList();
     if (semanticItems.isEmpty) {
       return items;
     }
@@ -61,17 +60,16 @@ class SemanticRelevanceFilter {
 
     final margin = topScore - effectiveMin;
     final adaptiveDrop = maxDrop ?? (0.03 + (0.25 * margin));
-    final dynamicCutoff =
-        (topScore - adaptiveDrop).clamp(effectiveMin, 1.0);
+    final dynamicCutoff = (topScore - adaptiveDrop).clamp(effectiveMin, 1.0);
 
     // Extract query tokens if query is provided
     final queryTokens = query != null && query.trim().isNotEmpty
         ? query
-            .toLowerCase()
-            .replaceAll(RegExp(r'[^\w\s]'), ' ')
-            .split(RegExp(r'\s+'))
-            .where((t) => t.length >= 2)
-            .toList()
+              .toLowerCase()
+              .replaceAll(RegExp(r'[^\w\s]'), ' ')
+              .split(RegExp(r'\s+'))
+              .where((t) => t.length >= 2)
+              .toList()
         : const <String>[];
 
     return semanticItems.where((item) {
@@ -92,15 +90,16 @@ class SemanticRelevanceFilter {
         final categoryLower = item.category.toLowerCase();
         final tagsLower = item.tags.map((t) => t.toLowerCase()).toList();
 
-        final hasTokenMatch = queryTokens.any((t) =>
-            titleLower.contains(t) ||
-            contentLower.contains(t) ||
-            categoryLower.contains(t) ||
-            tagsLower.any((tag) => tag.contains(t)));
+        final hasTokenMatch = queryTokens.any(
+          (t) =>
+              titleLower.contains(t) ||
+              contentLower.contains(t) ||
+              categoryLower.contains(t) ||
+              tagsLower.any((tag) => tag.contains(t)),
+        );
 
         if (hasTokenMatch) {
-          final hybridCutoff =
-              (topScore - 0.12).clamp(effectiveMin, 1.0);
+          final hybridCutoff = (topScore - 0.12).clamp(effectiveMin, 1.0);
           return item.similarity >= hybridCutoff;
         }
       }

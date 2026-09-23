@@ -24,7 +24,8 @@ class SearchMemoriesUseCase {
     final filteredResults = SemanticRelevanceFilter.filter(
       response.results,
       query: query,
-      minThreshold: matchThreshold ?? SemanticRelevanceFilter.minSimilarityThreshold,
+      minThreshold:
+          matchThreshold ?? SemanticRelevanceFilter.minSimilarityThreshold,
     );
 
     return SearchResponse(

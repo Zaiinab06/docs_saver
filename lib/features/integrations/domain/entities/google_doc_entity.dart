@@ -33,7 +33,9 @@ class GoogleDocEntity {
       content: (json['content'] as String?) ?? '',
       fileId: (json['fileId'] as String?) ?? '',
       webViewLink: (json['webViewLink'] as String?) ?? '',
-      mimeType: (json['mimeType'] as String?) ?? 'application/vnd.google-apps.document',
+      mimeType:
+          (json['mimeType'] as String?) ??
+          'application/vnd.google-apps.document',
       fileSize: json['fileSize'] as int?,
       extractionMethod: json['extractionMethod'] as String?,
       mediaBase64: json['mediaBase64'] as String?,
@@ -43,18 +45,18 @@ class GoogleDocEntity {
   }
 
   Map<String, dynamic> toJson() => {
-        'success': success,
-        'title': title,
-        'content': content,
-        'fileId': fileId,
-        'webViewLink': webViewLink,
-        'mimeType': mimeType,
-        if (fileSize != null) 'fileSize': fileSize,
-        if (extractionMethod != null) 'extractionMethod': extractionMethod,
-        if (mediaBase64 != null) 'mediaBase64': mediaBase64,
-        if (mediaType != null) 'mediaType': mediaType,
-        if (warnings != null) 'warnings': warnings,
-      };
+    'success': success,
+    'title': title,
+    'content': content,
+    'fileId': fileId,
+    'webViewLink': webViewLink,
+    'mimeType': mimeType,
+    if (fileSize != null) 'fileSize': fileSize,
+    if (extractionMethod != null) 'extractionMethod': extractionMethod,
+    if (mediaBase64 != null) 'mediaBase64': mediaBase64,
+    if (mediaType != null) 'mediaType': mediaType,
+    if (warnings != null) 'warnings': warnings,
+  };
 }
 
 /// Typed exception for Google Docs import errors with error code and user-friendly message.

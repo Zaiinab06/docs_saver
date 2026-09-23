@@ -34,7 +34,8 @@ class GoogleDocsLinkExtractor {
     final segments = uri.pathSegments;
     if (segments.length < 3) return null;
 
-    if (segments[0].toLowerCase() != 'document' || segments[1].toLowerCase() != 'd') {
+    if (segments[0].toLowerCase() != 'document' ||
+        segments[1].toLowerCase() != 'd') {
       return null;
     }
 

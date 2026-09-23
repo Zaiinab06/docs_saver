@@ -43,23 +43,21 @@ class MemoryModel {
       ..title = (map['title'] ?? '').toString()
       ..content = (map['content'] ?? '').toString()
       ..mediaUrl = map['media_url'] as String?
-      ..tags = map['tags'] != null
-          ? List<String>.from(map['tags'] as List)
-          : []
+      ..tags = map['tags'] != null ? List<String>.from(map['tags'] as List) : []
       ..category = (map['category'] ?? 'General').toString()
       ..aiStatus = (map['ai_status'] ?? 'pending').toString()
       ..isConflictCopy = map['is_conflict_copy'] as bool? ?? false
       ..clientCreatedAt = map['client_created_at'] != null
           ? DateTime.tryParse(map['client_created_at'].toString()) ??
-              DateTime.now()
+                DateTime.now()
           : DateTime.now()
       ..clientUpdatedAt = map['client_updated_at'] != null
           ? DateTime.tryParse(map['client_updated_at'].toString()) ??
-              DateTime.now()
+                DateTime.now()
           : DateTime.now()
       ..serverUpdatedAt = map['server_updated_at'] != null
           ? DateTime.tryParse(map['server_updated_at'].toString()) ??
-              DateTime.now()
+                DateTime.now()
           : DateTime.now()
       ..isSynced = isSynced;
 

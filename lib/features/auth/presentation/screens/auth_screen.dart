@@ -12,10 +12,7 @@ enum AuthMode { signIn, signUp }
 class AuthScreen extends StatefulWidget {
   final AuthMode initialMode;
 
-  const AuthScreen({
-    super.key,
-    this.initialMode = AuthMode.signIn,
-  });
+  const AuthScreen({super.key, this.initialMode = AuthMode.signIn});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -105,21 +102,20 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (_currentMode == AuthMode.signIn) {
       context.read<AuthBloc>().add(
-            SignInRequested(
-              email: email,
-              password: password,
-            ),
-          );
+        SignInRequested(email: email, password: password),
+      );
     } else {
-      print('DEBUG: Dispatching SignUpEvent with email: ${_emailController.text}');
+      print(
+        'DEBUG: Dispatching SignUpEvent with email: ${_emailController.text}',
+      );
       final fullName = _nameController.text.trim();
       context.read<AuthBloc>().add(
-            SignUpRequested(
-              email: email,
-              password: password,
-              fullName: fullName.isNotEmpty ? fullName : null,
-            ),
-          );
+        SignUpRequested(
+          email: email,
+          password: password,
+          fullName: fullName.isNotEmpty ? fullName : null,
+        ),
+      );
     }
   }
 
@@ -267,7 +263,9 @@ class _AuthScreenState extends State<AuthScreen> {
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0, vertical: 16.0),
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -288,7 +286,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.12),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.12,
+                                ),
                                 blurRadius: 20,
                                 offset: const Offset(0, 6),
                               ),
@@ -364,12 +364,15 @@ class _AuthScreenState extends State<AuthScreen> {
                                     width: tabWidth,
                                     height: double.infinity,
                                     decoration: BoxDecoration(
-                                      color: AppColors.cardBackgroundOf(context),
+                                      color: AppColors.cardBackgroundOf(
+                                        context,
+                                      ),
                                       borderRadius: BorderRadius.circular(100),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.08),
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.08,
+                                          ),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         ),
@@ -383,24 +386,31 @@ class _AuthScreenState extends State<AuthScreen> {
                                     Expanded(
                                       child: GestureDetector(
                                         behavior: HitTestBehavior.opaque,
-                                        onTap: () => _switchMode(AuthMode.signIn),
+                                        onTap: () =>
+                                            _switchMode(AuthMode.signIn),
                                         child: Center(
                                           child: AnimatedDefaultTextStyle(
-                                            duration:
-                                                const Duration(milliseconds: 200),
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
                                             style: TextStyle(
                                               fontSize: 13.5,
                                               fontWeight:
-                                                  _currentMode == AuthMode.signIn
-                                                      ? FontWeight.w600
-                                                      : FontWeight.w500,
+                                                  _currentMode ==
+                                                      AuthMode.signIn
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
                                               color:
-                                                  _currentMode == AuthMode.signIn
-                                                      ? AppColors.primary
-                                                      : AppColors.textSecondaryOf(context),
+                                                  _currentMode ==
+                                                      AuthMode.signIn
+                                                  ? AppColors.primary
+                                                  : AppColors.textSecondaryOf(
+                                                      context,
+                                                    ),
                                             ),
-                                            child:
-                                                const Text(AppStrings.signInTab),
+                                            child: const Text(
+                                              AppStrings.signInTab,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -408,24 +418,31 @@ class _AuthScreenState extends State<AuthScreen> {
                                     Expanded(
                                       child: GestureDetector(
                                         behavior: HitTestBehavior.opaque,
-                                        onTap: () => _switchMode(AuthMode.signUp),
+                                        onTap: () =>
+                                            _switchMode(AuthMode.signUp),
                                         child: Center(
                                           child: AnimatedDefaultTextStyle(
-                                            duration:
-                                                const Duration(milliseconds: 200),
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
                                             style: TextStyle(
                                               fontSize: 13.5,
                                               fontWeight:
-                                                  _currentMode == AuthMode.signUp
-                                                      ? FontWeight.w600
-                                                      : FontWeight.w500,
+                                                  _currentMode ==
+                                                      AuthMode.signUp
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
                                               color:
-                                                  _currentMode == AuthMode.signUp
-                                                      ? AppColors.primary
-                                                      : AppColors.textSecondaryOf(context),
+                                                  _currentMode ==
+                                                      AuthMode.signUp
+                                                  ? AppColors.primary
+                                                  : AppColors.textSecondaryOf(
+                                                      context,
+                                                    ),
                                             ),
-                                            child:
-                                                const Text(AppStrings.signUpTab),
+                                            child: const Text(
+                                              AppStrings.signUpTab,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -446,7 +463,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.cardBackgroundOf(context),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: AppColors.borderOf(context), width: 1),
+                          border: Border.all(
+                            color: AppColors.borderOf(context),
+                            width: 1,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: AppColors.primary.withValues(alpha: 0.06),
@@ -547,11 +567,11 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
-                                      child:
-                                          CircularProgressIndicator.adaptive(
+                                      child: CircularProgressIndicator.adaptive(
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                                AppColors.textWhite),
+                                              AppColors.textWhite,
+                                            ),
                                         strokeWidth: 2.4,
                                       ),
                                     )
@@ -586,7 +606,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.textSecondary,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                           ),
                           child: RichText(
                             text: TextSpan(
@@ -668,14 +690,12 @@ class _AuthScreenState extends State<AuthScreen> {
               fontWeight: FontWeight.w400,
               color: AppColors.textSecondary,
             ),
-            prefixIcon: Icon(
-              icon,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
+            prefixIcon: Icon(icon, size: 20, color: AppColors.textSecondary),
             suffixIcon: suffixIcon,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 15,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: AppColors.border, width: 1.2),
@@ -686,18 +706,24 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide:
-                  const BorderSide(color: AppColors.focusedBorder, width: 1.6),
+              borderSide: const BorderSide(
+                color: AppColors.focusedBorder,
+                width: 1.6,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide:
-                  const BorderSide(color: AppColors.errorBorder, width: 1.2),
+              borderSide: const BorderSide(
+                color: AppColors.errorBorder,
+                width: 1.2,
+              ),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide:
-                  const BorderSide(color: AppColors.errorBorder, width: 1.2),
+              borderSide: const BorderSide(
+                color: AppColors.errorBorder,
+                width: 1.2,
+              ),
             ),
             errorStyle: const TextStyle(
               color: AppColors.errorText,
@@ -717,10 +743,7 @@ class _AuthScreenState extends State<AuthScreen> {
       decoration: BoxDecoration(
         color: AppColors.lightCyanTint,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.categoryChipBorder,
-          width: 1.5,
-        ),
+        border: Border.all(color: AppColors.categoryChipBorder, width: 1.5),
       ),
       child: Column(
         children: [
@@ -779,15 +802,17 @@ class _AuthScreenState extends State<AuthScreen> {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () {
                 context.read<AuthBloc>().add(
-                      ResendVerificationEmailRequested(email: email),
-                    );
+                  ResendVerificationEmailRequested(email: email),
+                );
               },
               icon: const Icon(
                 Icons.refresh_rounded,

@@ -16,7 +16,8 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     String functionName, {
     Map<String, String>? headers,
     Map<String, dynamic>? body,
-  })? functionsInvoker;
+  })?
+  functionsInvoker;
 
   SearchRemoteDataSourceImpl({
     this.client,
@@ -64,10 +65,12 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     // 2. If session is null, wait briefly for auth restoration if it's currently in progress
     try {
       final authData = await clientInstance.auth.onAuthStateChange
-          .firstWhere((data) =>
-              data.event == AuthChangeEvent.initialSession ||
-              data.event == AuthChangeEvent.signedIn ||
-              data.event == AuthChangeEvent.tokenRefreshed)
+          .firstWhere(
+            (data) =>
+                data.event == AuthChangeEvent.initialSession ||
+                data.event == AuthChangeEvent.signedIn ||
+                data.event == AuthChangeEvent.tokenRefreshed,
+          )
           .timeout(const Duration(milliseconds: 1500));
       var restoredSession = authData.session;
       if (restoredSession != null && restoredSession.isExpired) {
@@ -116,17 +119,13 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       if (functionsInvoker != null) {
         response = await functionsInvoker!(
           'semantic-search',
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
+          headers: {'Authorization': 'Bearer $token'},
           body: payload,
         );
       } else {
         response = await clientInstance!.functions.invoke(
           'semantic-search',
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
+          headers: {'Authorization': 'Bearer $token'},
           body: payload,
         );
       }
@@ -144,7 +143,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     if (response.status != 200) {
       final errorMsg = response.data is Map
           ? (response.data['error'] ??
-              'Search failed with HTTP ${response.status}')
+                'Search failed with HTTP ${response.status}')
           : 'Search failed with HTTP ${response.status}';
       throw Exception(errorMsg);
     }
@@ -154,8 +153,10 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       final list = data['results'] as List;
       return list
           .whereType<Map>()
-          .map((item) =>
-              SearchResultModel.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                SearchResultModel.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     }
 

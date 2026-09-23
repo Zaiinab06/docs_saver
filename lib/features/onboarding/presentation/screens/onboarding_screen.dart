@@ -43,14 +43,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _SlideData(
       image: 'assets/images/onboarding2.png',
       title: 'Connect the dots',
-      subtitle:
-          'Your ideas surface connections you never noticed before.',
+      subtitle: 'Your ideas surface connections you never noticed before.',
     ),
     _SlideData(
       image: 'assets/images/onboarding3.png',
       title: 'Find it by meaning',
-      subtitle:
-          'Search by concept, feeling, or context — not just keywords.',
+      subtitle: 'Search by concept, feeling, or context — not just keywords.',
     ),
   ];
 
@@ -61,11 +59,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _navigateToPersonalize() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const PersonalizeScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PersonalizeScreen()));
   }
 
   void _onNextPressed() {
@@ -88,7 +84,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             // Top Bar: Skip Button (Fixed position)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 8.0,
+              ),
               child: SizedBox(
                 height: 44,
                 child: Row(
@@ -147,23 +146,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   // Page Indicator: Active smooth pill (24x6) and inactive dots (6x6)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      _slides.length,
-                      (index) {
-                        final isActive = index == _currentPage;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeInOut,
-                          margin: const EdgeInsets.symmetric(horizontal: 3.0),
-                          height: 6,
-                          width: isActive ? 24 : 6,
-                          decoration: BoxDecoration(
-                            color: isActive ? pillActiveColor : pillInactiveColor,
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        );
-                      },
-                    ),
+                    children: List.generate(_slides.length, (index) {
+                      final isActive = index == _currentPage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOut,
+                        margin: const EdgeInsets.symmetric(horizontal: 3.0),
+                        height: 6,
+                        width: isActive ? 24 : 6,
+                        decoration: BoxDecoration(
+                          color: isActive ? pillActiveColor : pillInactiveColor,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      );
+                    }),
                   ),
 
                   const SizedBox(height: 28),
@@ -268,7 +264,8 @@ class OnboardingIllustration extends StatelessWidget {
       contentMaxX: 1138,
       contentMinY: 115,
       contentMaxY: 1309,
-      scaleMultiplier: 1.09, // +9% size adjustment to match visual footprint with Screens 2 & 3
+      scaleMultiplier:
+          1.09, // +9% size adjustment to match visual footprint with Screens 2 & 3
     ),
     'assets/images/onboarding2.png': _IllustrationBounds(
       canvasWidth: 1376,
@@ -294,8 +291,7 @@ class OnboardingIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveHeight =
-        height ?? MediaQuery.of(context).size.height * 0.32;
+    final effectiveHeight = height ?? MediaQuery.of(context).size.height * 0.32;
     final bounds = _assetBounds[imagePath];
 
     final double scale = bounds != null

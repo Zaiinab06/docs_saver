@@ -77,7 +77,10 @@ class CategoryDetailScreen extends StatelessWidget {
             children: [
               // Subtle badge with section icon and category count
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.toggleBackgroundOf(context),
                   borderRadius: BorderRadius.circular(10),
@@ -132,7 +135,11 @@ class CategoryDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, CategoryCardItem category, bool isDark) {
+  Widget _buildCategoryCard(
+    BuildContext context,
+    CategoryCardItem category,
+    bool isDark,
+  ) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -153,7 +160,9 @@ class CategoryDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCardBackground : category.backgroundColor,
+            color: isDark
+                ? AppColors.darkCardBackground
+                : category.backgroundColor,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isDark
@@ -184,7 +193,9 @@ class CategoryDetailScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.violetTwilight500.withValues(alpha: 0.06),
+                      color: AppColors.violetTwilight500.withValues(
+                        alpha: 0.06,
+                      ),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),

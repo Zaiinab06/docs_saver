@@ -37,8 +37,10 @@ class FakeAuthRepository implements AuthRepository {
   Stream<UserEntity?> get authStateChanges => _authController.stream;
 
   @override
-  Future<UserEntity> signIn(
-      {required String email, required String password}) async {
+  Future<UserEntity> signIn({
+    required String email,
+    required String password,
+  }) async {
     if (pendingSignInCompleter != null) {
       final user = await pendingSignInCompleter!.future;
       currentUser = user;
@@ -51,12 +53,12 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<UserEntity> signUp(
-      {required String email,
-      required String password,
-      String? fullName}) async {
-    currentUser =
-        UserEntity(id: 'user-123', email: email, fullName: fullName);
+  Future<UserEntity> signUp({
+    required String email,
+    required String password,
+    String? fullName,
+  }) async {
+    currentUser = UserEntity(id: 'user-123', email: email, fullName: fullName);
     _authController.add(currentUser);
     return currentUser!;
   }
@@ -80,7 +82,7 @@ class FakeCaptureRepository implements CaptureRepository {
   int getMemoriesCallCount = 0;
 
   FakeCaptureRepository([List<MemoryEntity>? initial])
-      : memories = initial ?? [];
+    : memories = initial ?? [];
 
   @override
   Future<List<MemoryEntity>> getMemories({String? userId}) async {
@@ -123,9 +125,7 @@ void main() {
     captureBloc.close();
   });
 
-  Widget buildTestWidget({
-    required AuthBloc authBloc,
-  }) {
+  Widget buildTestWidget({required AuthBloc authBloc}) {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AuthBloc>.value(value: authBloc),
@@ -142,8 +142,9 @@ void main() {
   }
 
   group('AuthSessionGate State Rendering Tests', () {
-    testWidgets('renders CircularProgressIndicator when state is AuthLoading',
-        (tester) async {
+    testWidgets('renders CircularProgressIndicator when state is AuthLoading', (
+      tester,
+    ) async {
       final completer = Completer<UserEntity>();
       fakeAuthRepository.pendingSignInCompleter = completer;
 
@@ -180,8 +181,9 @@ void main() {
       await tester.runAsync(authBloc.close);
     });
 
-    testWidgets('renders AuthScreen when user is unauthenticated',
-        (tester) async {
+    testWidgets('renders AuthScreen when user is unauthenticated', (
+      tester,
+    ) async {
       fakeAuthRepository.currentUser = null;
       final authBloc = AuthBloc(
         signUpUseCase: SignUpUseCase(fakeAuthRepository),
@@ -205,112 +207,122 @@ void main() {
       await tester.runAsync(authBloc.close);
     });
 
-    testWidgets('renders HomeScreen and loads memories when user is authenticated',
-        (tester) async {
-      fakeAuthRepository.currentUser = const UserEntity(
-        id: 'user-saved-session',
-        email: 'user@example.com',
-        fullName: 'Jane Doe',
-      );
+    testWidgets(
+      'renders HomeScreen and loads memories when user is authenticated',
+      (tester) async {
+        fakeAuthRepository.currentUser = const UserEntity(
+          id: 'user-saved-session',
+          email: 'user@example.com',
+          fullName: 'Jane Doe',
+        );
 
-      final authBloc = AuthBloc(
-        signUpUseCase: SignUpUseCase(fakeAuthRepository),
-        signInUseCase: SignInUseCase(fakeAuthRepository),
-        signOutUseCase: SignOutUseCase(fakeAuthRepository),
-        getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
-        authRepository: fakeAuthRepository,
-      );
+        final authBloc = AuthBloc(
+          signUpUseCase: SignUpUseCase(fakeAuthRepository),
+          signInUseCase: SignInUseCase(fakeAuthRepository),
+          signOutUseCase: SignOutUseCase(fakeAuthRepository),
+          getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
+          authRepository: fakeAuthRepository,
+        );
 
-      // Dispatch check
-      authBloc.add(AuthCheckRequested());
+        // Dispatch check
+        authBloc.add(AuthCheckRequested());
 
-      await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.byType(AuthScreen), findsNothing);
-      expect(fakeCaptureRepository.getMemoriesCallCount, greaterThanOrEqualTo(1));
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(AuthScreen), findsNothing);
+        expect(
+          fakeCaptureRepository.getMemoriesCallCount,
+          greaterThanOrEqualTo(1),
+        );
 
-      await tester.runAsync(authBloc.close);
-    });
+        await tester.runAsync(authBloc.close);
+      },
+    );
 
     testWidgets(
-        'transitions from AuthScreen to HomeScreen upon successful sign in',
-        (tester) async {
-      fakeAuthRepository.currentUser = null;
+      'transitions from AuthScreen to HomeScreen upon successful sign in',
+      (tester) async {
+        fakeAuthRepository.currentUser = null;
 
-      final authBloc = AuthBloc(
-        signUpUseCase: SignUpUseCase(fakeAuthRepository),
-        signInUseCase: SignInUseCase(fakeAuthRepository),
-        signOutUseCase: SignOutUseCase(fakeAuthRepository),
-        getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
-        authRepository: fakeAuthRepository,
-      );
+        final authBloc = AuthBloc(
+          signUpUseCase: SignUpUseCase(fakeAuthRepository),
+          signInUseCase: SignInUseCase(fakeAuthRepository),
+          signOutUseCase: SignOutUseCase(fakeAuthRepository),
+          getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
+          authRepository: fakeAuthRepository,
+        );
 
-      authBloc.add(AuthCheckRequested());
+        authBloc.add(AuthCheckRequested());
 
-      await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
+        await tester.pumpAndSettle();
 
-      // Verify on AuthScreen initially
-      expect(find.byType(AuthScreen), findsOneWidget);
+        // Verify on AuthScreen initially
+        expect(find.byType(AuthScreen), findsOneWidget);
 
-      // Trigger sign in
-      authBloc.add(
-        const SignInRequested(
-          email: 'valid@example.com',
-          password: 'password123',
-        ),
-      );
+        // Trigger sign in
+        authBloc.add(
+          const SignInRequested(
+            email: 'valid@example.com',
+            password: 'password123',
+          ),
+        );
 
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
 
-      // Gate has transitioned to HomeScreen
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(fakeCaptureRepository.getMemoriesCallCount, greaterThanOrEqualTo(1));
+        // Gate has transitioned to HomeScreen
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(
+          fakeCaptureRepository.getMemoriesCallCount,
+          greaterThanOrEqualTo(1),
+        );
 
-      await tester.runAsync(authBloc.close);
-    });
+        await tester.runAsync(authBloc.close);
+      },
+    );
 
     testWidgets(
-        'transitions from AuthScreen to HomeScreen upon successful sign up',
-        (tester) async {
-      fakeAuthRepository.currentUser = null;
+      'transitions from AuthScreen to HomeScreen upon successful sign up',
+      (tester) async {
+        fakeAuthRepository.currentUser = null;
 
-      final authBloc = AuthBloc(
-        signUpUseCase: SignUpUseCase(fakeAuthRepository),
-        signInUseCase: SignInUseCase(fakeAuthRepository),
-        signOutUseCase: SignOutUseCase(fakeAuthRepository),
-        getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
-        authRepository: fakeAuthRepository,
-      );
+        final authBloc = AuthBloc(
+          signUpUseCase: SignUpUseCase(fakeAuthRepository),
+          signInUseCase: SignInUseCase(fakeAuthRepository),
+          signOutUseCase: SignOutUseCase(fakeAuthRepository),
+          getCurrentUserUseCase: GetCurrentUserUseCase(fakeAuthRepository),
+          authRepository: fakeAuthRepository,
+        );
 
-      authBloc.add(AuthCheckRequested());
+        authBloc.add(AuthCheckRequested());
 
-      await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildTestWidget(authBloc: authBloc));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(AuthScreen), findsOneWidget);
+        expect(find.byType(AuthScreen), findsOneWidget);
 
-      // Trigger sign up
-      authBloc.add(
-        const SignUpRequested(
-          email: 'newuser@example.com',
-          password: 'password123',
-          fullName: 'New User',
-        ),
-      );
+        // Trigger sign up
+        authBloc.add(
+          const SignUpRequested(
+            email: 'newuser@example.com',
+            password: 'password123',
+            fullName: 'New User',
+          ),
+        );
 
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
 
-      // Gate has transitioned to HomeScreen
-      expect(find.byType(HomeScreen), findsOneWidget);
+        // Gate has transitioned to HomeScreen
+        expect(find.byType(HomeScreen), findsOneWidget);
 
-      await tester.runAsync(authBloc.close);
-    });
+        await tester.runAsync(authBloc.close);
+      },
+    );
   });
 }

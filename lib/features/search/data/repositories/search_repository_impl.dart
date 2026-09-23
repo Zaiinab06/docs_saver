@@ -64,7 +64,8 @@ class SearchRepositoryImpl implements SearchRepository {
         final relevantItems = SemanticRelevanceFilter.filter(
           items,
           query: cleanQuery,
-          minThreshold: matchThreshold ?? SemanticRelevanceFilter.minSimilarityThreshold,
+          minThreshold:
+              matchThreshold ?? SemanticRelevanceFilter.minSimilarityThreshold,
         );
 
         return SearchResponse(
@@ -75,7 +76,8 @@ class SearchRepositoryImpl implements SearchRepository {
       } catch (e) {
         // Never treat authentication or token errors as offline mode
         final errString = e.toString().toLowerCase();
-        final isAuthError = e is AuthException ||
+        final isAuthError =
+            e is AuthException ||
             errString.contains('unauthorized') ||
             errString.contains('authentication') ||
             errString.contains('jwt') ||
@@ -86,9 +88,11 @@ class SearchRepositoryImpl implements SearchRepository {
         }
 
         // Verify whether the remote failure was due to genuine network loss/disconnection
-        final stillOnline =
-            await NetworkChecker.isConnected(forceRefresh: true);
-        final isNetworkDisconnect = !stillOnline ||
+        final stillOnline = await NetworkChecker.isConnected(
+          forceRefresh: true,
+        );
+        final isNetworkDisconnect =
+            !stillOnline ||
             errString.contains('socketexception') ||
             errString.contains('connection refused') ||
             errString.contains('network is unreachable') ||
@@ -104,8 +108,9 @@ class SearchRepositoryImpl implements SearchRepository {
             cleanQuery,
             userId: userId,
           );
-          final items =
-              localModels.map((m) => m.toEntity(isOffline: true)).toList();
+          final items = localModels
+              .map((m) => m.toEntity(isOffline: true))
+              .toList();
 
           return SearchResponse(
             results: items,
@@ -123,14 +128,11 @@ class SearchRepositoryImpl implements SearchRepository {
         cleanQuery,
         userId: userId,
       );
-      final items =
-          localModels.map((m) => m.toEntity(isOffline: true)).toList();
+      final items = localModels
+          .map((m) => m.toEntity(isOffline: true))
+          .toList();
 
-      return SearchResponse(
-        results: items,
-        isOffline: true,
-        query: cleanQuery,
-      );
+      return SearchResponse(results: items, isOffline: true, query: cleanQuery);
     }
   }
 }

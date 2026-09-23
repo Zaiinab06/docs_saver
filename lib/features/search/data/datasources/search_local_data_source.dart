@@ -69,8 +69,10 @@ class SearchLocalDataSourceImpl implements SearchLocalDataSource {
       return [];
     }
 
-    final queryTokens =
-        cleanQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final queryTokens = cleanQuery
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     final matched = <_ScoredMemory>[];
 

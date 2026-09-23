@@ -47,7 +47,8 @@ class FakeCaptureRepository implements CaptureRepository {
   final List<MemoryEntity> savedMemories = [];
 
   @override
-  Future<List<MemoryEntity>> getMemories({String? userId}) async => savedMemories;
+  Future<List<MemoryEntity>> getMemories({String? userId}) async =>
+      savedMemories;
 
   @override
   Future<void> saveMemory(MemoryEntity memory) async {
@@ -74,7 +75,8 @@ void main() {
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync();
-      dummyImage = File('${tempDir.path}/test_image.jpg')..writeAsBytesSync([1, 2, 3]);
+      dummyImage = File('${tempDir.path}/test_image.jpg')
+        ..writeAsBytesSync([1, 2, 3]);
       repo = FakeCaptureRepository();
       fakeAiRepo = FakeAiRepository();
       captureBloc = CaptureBloc(
@@ -86,8 +88,8 @@ void main() {
       const channel = MethodChannel('plugins.flutter.io/path_provider');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-        return tempDir.path;
-      });
+            return tempDir.path;
+          });
     });
 
     tearDown(() {
@@ -105,9 +107,7 @@ void main() {
       IngestMemoryUseCase? useCase,
     }) {
       return MultiBlocProvider(
-        providers: [
-          BlocProvider<CaptureBloc>.value(value: captureBloc),
-        ],
+        providers: [BlocProvider<CaptureBloc>.value(value: captureBloc)],
         child: MaterialApp(
           home: MemoryReviewScreen(
             imageFile: dummyImage,
@@ -125,30 +125,37 @@ void main() {
       );
     }
 
-    testWidgets('Status row does not overflow on narrow screens (320px width)',
-        (tester) async {
+    testWidgets(
+      'Status row does not overflow on narrow screens (320px width)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          createTestWidget(isOffline: false, aiStatus: 'pending'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('AI Ingestion Pending'), findsOneWidget);
+        expect(find.text('Analyze with AI'), findsOneWidget);
+        expect(find.text('Sep 14, 2026 • 1:55 PM'), findsOneWidget);
+      },
+    );
+
+    testWidgets('Status row does not overflow on narrow screens when offline', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(createTestWidget(isOffline: false, aiStatus: 'pending'));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('AI Ingestion Pending'), findsOneWidget);
-      expect(find.text('Analyze with AI'), findsOneWidget);
-      expect(find.text('Sep 14, 2026 • 1:55 PM'), findsOneWidget);
-    });
-
-    testWidgets('Status row does not overflow on narrow screens when offline',
-        (tester) async {
-      tester.view.physicalSize = const Size(320, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(createTestWidget(isOffline: true, aiStatus: 'pending'));
+      await tester.pumpWidget(
+        createTestWidget(isOffline: true, aiStatus: 'pending'),
+      );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -157,167 +164,191 @@ void main() {
       expect(find.text('Sep 14, 2026 • 1:55 PM'), findsOneWidget);
     });
 
-    testWidgets('Offline state: shows "You\'re offline" with yellow dot and hides analyze action',
-        (tester) async {
-      await tester.pumpWidget(createTestWidget(isOffline: true, aiStatus: 'pending'));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Offline state: shows "You\'re offline" with yellow dot and hides analyze action',
+      (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(isOffline: true, aiStatus: 'pending'),
+        );
+        await tester.pumpAndSettle();
 
-      // "Analyze with AI" must NOT be present
-      expect(find.text('Analyze with AI'), findsNothing);
+        // "Analyze with AI" must NOT be present
+        expect(find.text('Analyze with AI'), findsNothing);
 
-      // Shows exact offline text "You're offline"
-      expect(find.text("You're offline"), findsOneWidget);
+        // Shows exact offline text "You're offline"
+        expect(find.text("You're offline"), findsOneWidget);
 
-      // Yellow status dot is rendered beside it
-      final yellowDotFinder = find.byWidgetPredicate((widget) {
-        return widget is Container &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration as BoxDecoration).color == const Color(0xFFF59E0B) &&
-            (widget.decoration as BoxDecoration).shape == BoxShape.circle;
-      });
-      expect(yellowDotFinder, findsOneWidget);
+        // Yellow status dot is rendered beside it
+        final yellowDotFinder = find.byWidgetPredicate((widget) {
+          return widget is Container &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).color ==
+                  const Color(0xFFF59E0B) &&
+              (widget.decoration as BoxDecoration).shape == BoxShape.circle;
+        });
+        expect(yellowDotFinder, findsOneWidget);
 
-      // Raw OCR section is removed from Review & Save UI
-      expect(find.text('Extracted Content'), findsNothing);
-      expect(find.text('View extracted text'), findsNothing);
-    });
+        // Raw OCR section is removed from Review & Save UI
+        expect(find.text('Extracted Content'), findsNothing);
+        expect(find.text('View extracted text'), findsNothing);
+      },
+    );
 
-    testWidgets('Online restored: reveals "Analyze with AI" automatically without scroll or pull',
-        (tester) async {
-      // Start offline
-      NetworkChecker.testOverride = false;
-      await tester.pumpWidget(createTestWidget(isOffline: true, aiStatus: 'pending'));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Online restored: reveals "Analyze with AI" automatically without scroll or pull',
+      (tester) async {
+        // Start offline
+        NetworkChecker.testOverride = false;
+        await tester.pumpWidget(
+          createTestWidget(isOffline: true, aiStatus: 'pending'),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text("You're offline"), findsOneWidget);
-      expect(find.text('Analyze with AI'), findsNothing);
+        expect(find.text("You're offline"), findsOneWidget);
+        expect(find.text('Analyze with AI'), findsNothing);
 
-      // Network becomes available again
-      NetworkChecker.testOverride = true;
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pump();
+        // Network becomes available again
+        NetworkChecker.testOverride = true;
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
 
-      // Status updates immediately to show device is online
-      expect(find.text('AI Ingestion Pending'), findsOneWidget);
-      expect(find.text("You're offline"), findsNothing);
+        // Status updates immediately to show device is online
+        expect(find.text('AI Ingestion Pending'), findsOneWidget);
+        expect(find.text("You're offline"), findsNothing);
 
-      // Clearly tappable "Analyze with AI" action appears without pull-to-refresh
-      expect(find.text('Analyze with AI'), findsOneWidget);
-    });
+        // Clearly tappable "Analyze with AI" action appears without pull-to-refresh
+        expect(find.text('Analyze with AI'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Analyze with AI: updates title, category, tags, and summary, replacing action with processed state',
-        (tester) async {
-      NetworkChecker.testOverride = true;
-      fakeAiRepo.delay = const Duration(milliseconds: 50);
+    testWidgets(
+      'Analyze with AI: updates title, category, tags, and summary, replacing action with processed state',
+      (tester) async {
+        NetworkChecker.testOverride = true;
+        fakeAiRepo.delay = const Duration(milliseconds: 50);
 
-      await tester.pumpWidget(createTestWidget(
-        isOffline: false,
-        aiStatus: 'pending',
-        initialTitle: '',
-        rawOcrText: 'Roadmap notes for Q4 launch',
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(
+            isOffline: false,
+            aiStatus: 'pending',
+            initialTitle: '',
+            rawOcrText: 'Roadmap notes for Q4 launch',
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Analyze with AI'), findsOneWidget);
-      expect(find.text('AI Summary'), findsNothing);
+        expect(find.text('Analyze with AI'), findsOneWidget);
+        expect(find.text('AI Summary'), findsNothing);
 
-      // Tap Analyze with AI
-      await tester.tap(find.text('Analyze with AI'));
-      await tester.pump();
+        // Tap Analyze with AI
+        await tester.tap(find.text('Analyze with AI'));
+        await tester.pump();
 
-      // Shows loading state while analyzing
-      expect(find.text('Analyzing...'), findsOneWidget);
+        // Shows loading state while analyzing
+        expect(find.text('Analyzing...'), findsOneWidget);
 
-      // Let AI analysis complete
-      await tester.pump(const Duration(milliseconds: 60));
-      await tester.pumpAndSettle();
+        // Let AI analysis complete
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.pumpAndSettle();
 
-      // Title updated with real AI result
-      expect(find.text('Project Roadmap Notes'), findsOneWidget);
+        // Title updated with real AI result
+        expect(find.text('Project Roadmap Notes'), findsOneWidget);
 
-      // Category updated to Work
-      expect(find.text('Work'), findsWidgets);
+        // Category updated to Work
+        expect(find.text('Work'), findsWidgets);
 
-      // Tags updated
-      expect(find.text('#roadmap'), findsOneWidget);
-      expect(find.text('#strategy'), findsOneWidget);
+        // Tags updated
+        expect(find.text('#roadmap'), findsOneWidget);
+        expect(find.text('#strategy'), findsOneWidget);
 
-      // Concise semantic summary card is displayed (max 1-2 points)
-      expect(find.text('AI Summary'), findsOneWidget);
-      expect(find.text('• Key milestone deliverables\n• Target launch in Q4'), findsOneWidget);
+        // Concise semantic summary card is displayed (max 1-2 points)
+        expect(find.text('AI Summary'), findsOneWidget);
+        expect(
+          find.text('• Key milestone deliverables\n• Target launch in Q4'),
+          findsOneWidget,
+        );
 
-      // Action replaced with successful processed state
-      expect(find.text('AI Organized'), findsOneWidget);
-      expect(find.text('Analyze with AI'), findsNothing);
-    });
+        // Action replaced with successful processed state
+        expect(find.text('AI Organized'), findsOneWidget);
+        expect(find.text('Analyze with AI'), findsNothing);
+      },
+    );
 
-    testWidgets('Analyze with AI: preserves user-edited title and does not overwrite it',
-        (tester) async {
-      NetworkChecker.testOverride = true;
-      fakeAiRepo.delay = Duration.zero;
+    testWidgets(
+      'Analyze with AI: preserves user-edited title and does not overwrite it',
+      (tester) async {
+        NetworkChecker.testOverride = true;
+        fakeAiRepo.delay = Duration.zero;
 
-      await tester.pumpWidget(createTestWidget(
-        isOffline: false,
-        aiStatus: 'pending',
-        initialTitle: '',
-        rawOcrText: 'Meeting action items',
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(
+            isOffline: false,
+            aiStatus: 'pending',
+            initialTitle: '',
+            rawOcrText: 'Meeting action items',
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // User manually enters a custom title before tapping Analyze
-      final titleField = find.byType(TextField).first;
-      await tester.enterText(titleField, 'My Custom User Title');
-      await tester.pumpAndSettle();
+        // User manually enters a custom title before tapping Analyze
+        final titleField = find.byType(TextField).first;
+        await tester.enterText(titleField, 'My Custom User Title');
+        await tester.pumpAndSettle();
 
-      expect(find.text('My Custom User Title'), findsOneWidget);
+        expect(find.text('My Custom User Title'), findsOneWidget);
 
-      // Tap Analyze with AI
-      await tester.tap(find.text('Analyze with AI'));
-      await tester.pumpAndSettle();
+        // Tap Analyze with AI
+        await tester.tap(find.text('Analyze with AI'));
+        await tester.pumpAndSettle();
 
-      // AI updates category, tags, and summary, but keeps user's custom title
-      expect(find.text('My Custom User Title'), findsOneWidget);
-      expect(find.text('Project Roadmap Notes'), findsNothing);
-      expect(find.text('#roadmap'), findsOneWidget);
-    });
+        // AI updates category, tags, and summary, but keeps user's custom title
+        expect(find.text('My Custom User Title'), findsOneWidget);
+        expect(find.text('Project Roadmap Notes'), findsNothing);
+        expect(find.text('#roadmap'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Analyze with AI: shows clear error state and retry action when AI analysis fails',
-        (tester) async {
-      fakeAiRepo.shouldFail = true;
-      fakeAiRepo.delay = Duration.zero;
-      NetworkChecker.testOverride = true;
+    testWidgets(
+      'Analyze with AI: shows clear error state and retry action when AI analysis fails',
+      (tester) async {
+        fakeAiRepo.shouldFail = true;
+        fakeAiRepo.delay = Duration.zero;
+        NetworkChecker.testOverride = true;
 
-      await tester.pumpWidget(createTestWidget(
-        isOffline: false,
-        aiStatus: 'pending',
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(isOffline: false, aiStatus: 'pending'),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Analyze with AI'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Analyze with AI'));
+        await tester.pumpAndSettle();
 
-      // Error state is displayed
-      expect(find.text('AI Analysis Failed'), findsOneWidget);
-      expect(find.text('Retry AI'), findsOneWidget);
+        // Error state is displayed
+        expect(find.text('AI Analysis Failed'), findsOneWidget);
+        expect(find.text('Retry AI'), findsOneWidget);
 
-      // Now fix AI and tap Retry AI
-      fakeAiRepo.shouldFail = false;
-      await tester.tap(find.text('Retry AI'));
-      await tester.pumpAndSettle();
+        // Now fix AI and tap Retry AI
+        fakeAiRepo.shouldFail = false;
+        await tester.tap(find.text('Retry AI'));
+        await tester.pumpAndSettle();
 
-      // Re-analysis succeeds
-      expect(find.text('AI Organized'), findsOneWidget);
-      expect(find.text('Retry AI'), findsNothing);
-    });
+        // Re-analysis succeeds
+        expect(find.text('AI Organized'), findsOneWidget);
+        expect(find.text('Retry AI'), findsNothing);
+      },
+    );
 
-    testWidgets('Offline state: saves memory locally without fake AI data',
-        (tester) async {
-      await tester.pumpWidget(createTestWidget(
-        isOffline: true,
-        aiStatus: 'pending',
-        initialTitle: '',
-        rawOcrText: 'My receipt: Coffee \$4.50',
-      ));
+    testWidgets('Offline state: saves memory locally without fake AI data', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          isOffline: true,
+          aiStatus: 'pending',
+          initialTitle: '',
+          rawOcrText: 'My receipt: Coffee \$4.50',
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Scroll to and tap Save Memory

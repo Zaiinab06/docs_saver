@@ -1,9 +1,4 @@
-enum LinkProvider {
-  genericWeb,
-  youtube,
-  tiktok,
-  instagram,
-}
+enum LinkProvider { genericWeb, youtube, tiktok, instagram }
 
 class RichLinkContent {
   final LinkProvider provider;

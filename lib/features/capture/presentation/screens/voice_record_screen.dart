@@ -12,21 +12,13 @@ import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../widgets/voice_audio_player_card.dart';
 
-enum VoiceRecordState {
-  idle,
-  recording,
-  paused,
-  review,
-}
+enum VoiceRecordState { idle, recording, paused, review }
 
 class _CategoryChoice {
   final String name;
   final IconData icon;
 
-  const _CategoryChoice({
-    required this.name,
-    required this.icon,
-  });
+  const _CategoryChoice({required this.name, required this.icon});
 }
 
 class VoiceRecordScreen extends StatefulWidget {
@@ -74,10 +66,7 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
       name: AppStrings.categoryWork,
       icon: Icons.work_outline_rounded,
     ),
-    _CategoryChoice(
-      name: AppStrings.categoryStudy,
-      icon: Icons.school_rounded,
-    ),
+    _CategoryChoice(name: AppStrings.categoryStudy, icon: Icons.school_rounded),
     _CategoryChoice(
       name: AppStrings.categoryTravel,
       icon: Icons.flight_takeoff_rounded,
@@ -146,7 +135,8 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
         return;
       }
 
-      final Directory appDir = widget.customDocumentsDirectory ??
+      final Directory appDir =
+          widget.customDocumentsDirectory ??
           await getApplicationDocumentsDirectory();
       final String filePath =
           '${appDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
@@ -239,8 +229,10 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
   }
 
   void _addCustomTag() {
-    final rawTag =
-        _tagInputController.text.trim().replaceAll('#', '').toLowerCase();
+    final rawTag = _tagInputController.text
+        .trim()
+        .replaceAll('#', '')
+        .toLowerCase();
     if (rawTag.isNotEmpty && !_tags.contains(rawTag)) {
       setState(() {
         _tags.add(rawTag);
@@ -268,15 +260,16 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
       }
 
       context.read<CaptureBloc>().add(
-            AddMemoryEvent(
-              title: title,
-              content: '', // Truthful: empty until real Gemini speech-to-text finishes
-              category: category,
-              tags: tags,
-              mediaUrl: _recordedFilePath,
-              aiStatus: 'pending',
-            ),
-          );
+        AddMemoryEvent(
+          title: title,
+          content:
+              '', // Truthful: empty until real Gemini speech-to-text finishes
+          category: category,
+          tags: tags,
+          mediaUrl: _recordedFilePath,
+          aiStatus: 'pending',
+        ),
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -316,8 +309,10 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded,
-              color: AppColors.textPrimaryOf(context)),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimaryOf(context),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -362,8 +357,11 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.mic_off_rounded,
-                        color: AppColors.errorText, size: 22),
+                    const Icon(
+                      Icons.mic_off_rounded,
+                      color: AppColors.errorText,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -399,12 +397,14 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
               isRecording
                   ? 'Recording audio...'
                   : isPaused
-                      ? 'Recording paused'
-                      : 'Tap microphone to start recording',
+                  ? 'Recording paused'
+                  : 'Tap microphone to start recording',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
-                color: isRecording ? AppColors.primary : AppColors.textSecondary,
+                color: isRecording
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
               ),
             ),
 
@@ -455,8 +455,8 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                       isRecording
                           ? Icons.pause_rounded
                           : isPaused
-                              ? Icons.play_arrow_rounded
-                              : Icons.mic_rounded,
+                          ? Icons.play_arrow_rounded
+                          : Icons.mic_rounded,
                       color: AppColors.textWhite,
                       size: 46,
                     ),
@@ -475,8 +475,10 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                   // Discard button
                   IconButton.filledTonal(
                     onPressed: _discardAndReset,
-                    icon: const Icon(Icons.close_rounded,
-                        color: AppColors.errorText),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.errorText,
+                    ),
                     tooltip: 'Discard',
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.categoryPersonalBackground,
@@ -498,7 +500,9 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.textWhite,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 14),
+                        horizontal: 28,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(100),
                       ),
@@ -552,22 +556,28 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
               ),
               filled: true,
               fillColor: AppColors.cardBackground,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    const BorderSide(color: AppColors.chipInactiveBorder),
+                borderSide: const BorderSide(
+                  color: AppColors.chipInactiveBorder,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    const BorderSide(color: AppColors.chipInactiveBorder),
+                borderSide: const BorderSide(
+                  color: AppColors.chipInactiveBorder,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    const BorderSide(color: AppColors.primary, width: 1.5),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
@@ -599,12 +609,19 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                     label: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.auto_awesome_rounded,
-                            size: 14, color: AppColors.primary),
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
                         SizedBox(width: 5),
-                        Text('Auto (AI)',
-                            style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w700)),
+                        Text(
+                          'Auto (AI)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                     backgroundColor: AppColors.cardBackground,
@@ -628,20 +645,24 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                       label: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(cat.icon,
-                              size: 14,
+                          Icon(
+                            cat.icon,
+                            size: 14,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            cat.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                               color: isSelected
                                   ? AppColors.primary
-                                  : AppColors.textSecondary),
-                          const SizedBox(width: 5),
-                          Text(cat.name,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? AppColors.primary
-                                    : AppColors.textPrimary,
-                              )),
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                       backgroundColor: AppColors.cardBackground,
@@ -691,21 +712,27 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                     filled: true,
                     fillColor: AppColors.cardBackground,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          const BorderSide(color: AppColors.chipInactiveBorder),
+                      borderSide: const BorderSide(
+                        color: AppColors.chipInactiveBorder,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          const BorderSide(color: AppColors.chipInactiveBorder),
+                      borderSide: const BorderSide(
+                        color: AppColors.chipInactiveBorder,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   onSubmitted: (_) => _addCustomTag(),
@@ -734,18 +761,23 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
               children: _tags.map((t) {
                 final isVoiceTag = t == 'voice';
                 return Chip(
-                  label: Text('#$t',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      )),
+                  label: Text(
+                    '#$t',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   backgroundColor: AppColors.lightCyanTint,
                   side: const BorderSide(color: AppColors.chipInactiveBorder),
                   deleteIcon: isVoiceTag
                       ? null
-                      : const Icon(Icons.close_rounded,
-                          size: 14, color: AppColors.primary),
+                      : const Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
                   onDeleted: isVoiceTag
                       ? null
                       : () {
@@ -768,8 +800,10 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textSecondary,
                   side: const BorderSide(color: AppColors.chipInactiveBorder),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(100),
                   ),
@@ -786,7 +820,8 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.textWhite),
+                              AppColors.textWhite,
+                            ),
                           ),
                         )
                       : const Icon(Icons.check_rounded, size: 20),

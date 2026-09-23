@@ -29,10 +29,7 @@ class GoogleAuthActionRouter {
     final normalized = normalizeAction(action);
 
     if (!allowedActions.contains(normalized)) {
-      return {
-        'status': 400,
-        'error': 'Unknown action: $normalized',
-      };
+      return {'status': 400, 'error': 'Unknown action: $normalized'};
     }
 
     if (normalized == 'start' || normalized == 'start_picker') {
@@ -50,10 +47,7 @@ class GoogleAuthActionRouter {
       };
     }
 
-    return {
-      'status': 200,
-      'action': normalized,
-    };
+    return {'status': 200, 'action': normalized};
   }
 }
 
@@ -76,10 +70,7 @@ void main() {
 
       expect(result['isPicker'], isTrue);
       expect(result['triggerOnepick'], isTrue);
-      expect(
-        result['scope'],
-        'https://www.googleapis.com/auth/drive.file',
-      );
+      expect(result['scope'], 'https://www.googleapis.com/auth/drive.file');
       expect(result['scope'], isNot(contains('email')));
       expect(result['scope'], isNot(contains('profile')));
     });

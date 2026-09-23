@@ -79,7 +79,8 @@ class GoogleDocsImportContractValidator {
       return {
         'status': 429,
         'error': 'RATE_LIMITED',
-        'message': 'Google Drive API rate limit exceeded. Please try again shortly.',
+        'message':
+            'Google Drive API rate limit exceeded. Please try again shortly.',
       };
     }
     if (statusCode != 200 || metaData == null) {
@@ -148,7 +149,8 @@ class GoogleDocsImportContractValidator {
         'title': metaData['name'] ?? 'Untitled Google Doc',
         'content': content,
         'fileId': metaData['id'],
-        'webViewLink': metaData['webViewLink'] ??
+        'webViewLink':
+            metaData['webViewLink'] ??
             'https://docs.google.com/document/d/${metaData['id']}/edit',
         'mimeType': metaData['mimeType'],
       },
@@ -159,13 +161,15 @@ class GoogleDocsImportContractValidator {
 void main() {
   group('Phase 2A — Google Docs Import Backend Contract & Validation Tests', () {
     test('Reject missing, null, or whitespace-only fileId', () {
-      final nullResult =
-          GoogleDocsImportContractValidator.validateRequest(fileId: null);
+      final nullResult = GoogleDocsImportContractValidator.validateRequest(
+        fileId: null,
+      );
       expect(nullResult?['status'], 400);
       expect(nullResult?['error'], 'INVALID_FILE_ID');
 
-      final emptyResult =
-          GoogleDocsImportContractValidator.validateRequest(fileId: '');
+      final emptyResult = GoogleDocsImportContractValidator.validateRequest(
+        fileId: '',
+      );
       expect(emptyResult?['status'], 400);
       expect(emptyResult?['error'], 'INVALID_FILE_ID');
 
@@ -175,51 +179,65 @@ void main() {
       expect(whitespaceResult?['error'], 'INVALID_FILE_ID');
     });
 
-    test('Reject malformed fileId with path traversal or illegal characters', () {
-      final traversal = GoogleDocsImportContractValidator.validateRequest(
-          fileId: '../../etc/passwd');
-      expect(traversal?['status'], 400);
-      expect(traversal?['error'], 'INVALID_FILE_ID');
+    test(
+      'Reject malformed fileId with path traversal or illegal characters',
+      () {
+        final traversal = GoogleDocsImportContractValidator.validateRequest(
+          fileId: '../../etc/passwd',
+        );
+        expect(traversal?['status'], 400);
+        expect(traversal?['error'], 'INVALID_FILE_ID');
 
-      final withSpaces = GoogleDocsImportContractValidator.validateRequest(
-          fileId: '1BxiMVs0XRA5nFMdKvBdBZjgm UUqptlbs74OgvE2upms');
-      expect(withSpaces?['status'], 400);
-      expect(withSpaces?['error'], 'INVALID_FILE_ID');
+        final withSpaces = GoogleDocsImportContractValidator.validateRequest(
+          fileId: '1BxiMVs0XRA5nFMdKvBdBZjgm UUqptlbs74OgvE2upms',
+        );
+        expect(withSpaces?['status'], 400);
+        expect(withSpaces?['error'], 'INVALID_FILE_ID');
 
-      final tooShort =
-          GoogleDocsImportContractValidator.validateRequest(fileId: 'abc12');
-      expect(tooShort?['status'], 400);
-      expect(tooShort?['error'], 'INVALID_FILE_ID');
-    });
+        final tooShort = GoogleDocsImportContractValidator.validateRequest(
+          fileId: 'abc12',
+        );
+        expect(tooShort?['status'], 400);
+        expect(tooShort?['error'], 'INVALID_FILE_ID');
+      },
+    );
 
     test('Accept valid Google Drive fileId format', () {
       final valid1 = GoogleDocsImportContractValidator.validateRequest(
-          fileId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+        fileId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+      );
       expect(valid1, isNull);
 
       final validWithHyphen = GoogleDocsImportContractValidator.validateRequest(
-          fileId: '1_yJ0-kR27qXn4AbCdEfGhIjKlMnOpQrStUvWxYz-09');
+        fileId: '1_yJ0-kR27qXn4AbCdEfGhIjKlMnOpQrStUvWxYz-09',
+      );
       expect(validWithHyphen, isNull);
     });
 
-    test('Maps 404 to FILE_NOT_FOUND with clear drive.file scope explanation', () {
-      final result =
-          GoogleDocsImportContractValidator.handleDriveMetadata(statusCode: 404);
-      expect(result['status'], 404);
-      expect(result['error'], 'FILE_NOT_FOUND');
-      expect(result['message'], contains('Google Picker'));
-    });
+    test(
+      'Maps 404 to FILE_NOT_FOUND with clear drive.file scope explanation',
+      () {
+        final result = GoogleDocsImportContractValidator.handleDriveMetadata(
+          statusCode: 404,
+        );
+        expect(result['status'], 404);
+        expect(result['error'], 'FILE_NOT_FOUND');
+        expect(result['message'], contains('Google Picker'));
+      },
+    );
 
     test('Maps 403 to PERMISSION_DENIED', () {
-      final result =
-          GoogleDocsImportContractValidator.handleDriveMetadata(statusCode: 403);
+      final result = GoogleDocsImportContractValidator.handleDriveMetadata(
+        statusCode: 403,
+      );
       expect(result['status'], 403);
       expect(result['error'], 'PERMISSION_DENIED');
     });
 
     test('Maps 429 to RATE_LIMITED', () {
-      final result =
-          GoogleDocsImportContractValidator.handleDriveMetadata(statusCode: 429);
+      final result = GoogleDocsImportContractValidator.handleDriveMetadata(
+        statusCode: 429,
+      );
       expect(result['status'], 429);
       expect(result['error'], 'RATE_LIMITED');
     });
@@ -238,46 +256,52 @@ void main() {
       expect(result['error'], 'FILE_TRASHED');
     });
 
-    test('Rejects unsupported non-Google-Docs MIME types (e.g. PDF, Sheet, image)',
-        () {
-      final pdfResult = GoogleDocsImportContractValidator.handleDriveMetadata(
-        statusCode: 200,
-        metaData: {
-          'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          'name': 'Report.pdf',
-          'mimeType': 'application/pdf',
-          'trashed': false,
-        },
-      );
-      expect(pdfResult['status'], 400);
-      expect(pdfResult['error'], 'UNSUPPORTED_MIME_TYPE');
+    test(
+      'Rejects unsupported non-Google-Docs MIME types (e.g. PDF, Sheet, image)',
+      () {
+        final pdfResult = GoogleDocsImportContractValidator.handleDriveMetadata(
+          statusCode: 200,
+          metaData: {
+            'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+            'name': 'Report.pdf',
+            'mimeType': 'application/pdf',
+            'trashed': false,
+          },
+        );
+        expect(pdfResult['status'], 400);
+        expect(pdfResult['error'], 'UNSUPPORTED_MIME_TYPE');
 
-      final sheetResult = GoogleDocsImportContractValidator.handleDriveMetadata(
-        statusCode: 200,
-        metaData: {
-          'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          'name': 'Budget.xlsx',
-          'mimeType': 'application/vnd.google-apps.spreadsheet',
-          'trashed': false,
-        },
-      );
-      expect(sheetResult['status'], 400);
-      expect(sheetResult['error'], 'UNSUPPORTED_MIME_TYPE');
-    });
+        final sheetResult =
+            GoogleDocsImportContractValidator.handleDriveMetadata(
+              statusCode: 200,
+              metaData: {
+                'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+                'name': 'Budget.xlsx',
+                'mimeType': 'application/vnd.google-apps.spreadsheet',
+                'trashed': false,
+              },
+            );
+        expect(sheetResult['status'], 400);
+        expect(sheetResult['error'], 'UNSUPPORTED_MIME_TYPE');
+      },
+    );
 
-    test('Rejects empty document content without fabricating placeholder text', () {
-      final result = GoogleDocsImportContractValidator.handleExportedContent(
-        statusCode: 200,
-        content: '   \n\t  ',
-        metaData: {
-          'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          'name': 'Empty Doc',
-          'mimeType': 'application/vnd.google-apps.document',
-        },
-      );
-      expect(result['status'], 400);
-      expect(result['error'], 'EMPTY_DOCUMENT');
-    });
+    test(
+      'Rejects empty document content without fabricating placeholder text',
+      () {
+        final result = GoogleDocsImportContractValidator.handleExportedContent(
+          statusCode: 200,
+          content: '   \n\t  ',
+          metaData: {
+            'id': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+            'name': 'Empty Doc',
+            'mimeType': 'application/vnd.google-apps.document',
+          },
+        );
+        expect(result['status'], 400);
+        expect(result['error'], 'EMPTY_DOCUMENT');
+      },
+    );
 
     test('Rejects documents exceeding 500,000 characters to prevent DoS', () {
       final hugeContent = 'A' * 500001;
@@ -319,8 +343,10 @@ void main() {
       expect(docResult.title, 'Second Brain Specs');
       expect(docResult.content, realText);
       expect(docResult.fileId, '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
-      expect(docResult.webViewLink,
-          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
+      expect(
+        docResult.webViewLink,
+        'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+      );
       expect(docResult.mimeType, 'application/vnd.google-apps.document');
     });
   });

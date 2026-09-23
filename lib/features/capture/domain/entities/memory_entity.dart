@@ -34,7 +34,9 @@ class MemoryEntity extends Equatable {
   });
 
   bool get isPinned =>
-      tags.any((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin') ||
+      tags.any(
+        (t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin',
+      ) ||
       category.toLowerCase() == 'pinned';
 
   static int compareByPinnedAndDate(MemoryEntity a, MemoryEntity b) {

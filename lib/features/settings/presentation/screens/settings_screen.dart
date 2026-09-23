@@ -55,8 +55,13 @@ class _SettingsScreenState extends State<SettingsScreen>
       _deepLinkSubscription = _appLinks?.uriLinkStream.listen((uri) {
         if (uri.scheme == 'secondbrain' && uri.host == 'oauth') {
           final status = uri.queryParameters['status'] ?? 'missing';
-          final reason = uri.queryParameters['reason'] ?? uri.queryParameters['error'] ?? 'none';
-          debugPrint('[Google OAuth] Deep link routed to callback: status=$status, reason=$reason.');
+          final reason =
+              uri.queryParameters['reason'] ??
+              uri.queryParameters['error'] ??
+              'none';
+          debugPrint(
+            '[Google OAuth] Deep link routed to callback: status=$status, reason=$reason.',
+          );
           _googleAuthCubit.handleDeepLinkCallback(uri);
         }
       });
@@ -161,8 +166,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          backgroundColor: isDark
+              ? AppColors.darkCardBackground
+              : AppColors.cardBackground,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -203,9 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.errorText,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.errorText),
               child: const Text(
                 'Sign Out',
                 style: TextStyle(
@@ -230,8 +234,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          backgroundColor: isDark
+              ? AppColors.darkCardBackground
+              : AppColors.cardBackground,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -272,9 +277,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.errorText,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.errorText),
               child: const Text(
                 'Disconnect',
                 style: TextStyle(
@@ -310,8 +313,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor:
-          isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+      backgroundColor: isDark
+          ? AppColors.darkCardBackground
+          : AppColors.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -359,8 +363,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(sheetContext).pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          isDark ? AppColors.periwinkle300 : AppColors.primary,
+                      foregroundColor: isDark
+                          ? AppColors.periwinkle300
+                          : AppColors.primary,
                       side: BorderSide(
                         color: isDark
                             ? AppColors.periwinkle300
@@ -396,8 +401,9 @@ class _SettingsScreenState extends State<SettingsScreen>
           label,
           style: TextStyle(
             fontSize: 13.5,
-            color:
-                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.textSecondary,
           ),
         ),
         Flexible(
@@ -420,9 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     final emailUri = Uri(
       scheme: 'mailto',
       path: 'support@secondbrain.app',
-      queryParameters: {
-        'subject': 'Second Brain Support & Feedback',
-      },
+      queryParameters: {'subject': 'Second Brain Support & Feedback'},
     );
     try {
       final launched = await launchUrl(
@@ -444,8 +448,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          backgroundColor: isDark
+              ? AppColors.darkCardBackground
+              : AppColors.cardBackground,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -504,8 +509,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          backgroundColor: isDark
+              ? AppColors.darkCardBackground
+              : AppColors.cardBackground,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -523,8 +529,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color:
-                      isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
                   letterSpacing: -0.3,
                 ),
               ),
@@ -551,8 +558,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 '• Transport Security: All network sync operations occur over encrypted TLS/HTTPS connections.',
                 style: TextStyle(
                   fontSize: 13,
-                  color:
-                      isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
                   height: 1.4,
                 ),
               ),
@@ -580,8 +588,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          backgroundColor: isDark
+              ? AppColors.darkCardBackground
+              : AppColors.cardBackground,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -599,8 +608,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color:
-                      isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
                   letterSpacing: -0.3,
                 ),
               ),
@@ -629,8 +639,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 '• 768-dimensional pgvector semantic search',
                 style: TextStyle(
                   fontSize: 13,
-                  color:
-                      isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.textPrimary,
                   height: 1.5,
                 ),
               ),
@@ -680,8 +691,9 @@ class _SettingsScreenState extends State<SettingsScreen>
           'Second Brain is an AI-powered personal knowledge assistant designed to capture, organize, and retrieve your ideas, documents, audio recordings, and notes effortlessly.',
           style: TextStyle(
             fontSize: 13.5,
-            color:
-                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.textSecondary,
             height: 1.4,
           ),
         ),
@@ -730,14 +742,10 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _buildCard({
-    required List<Widget> children,
-    required bool isDark,
-  }) {
+  Widget _buildCard({required List<Widget> children, required bool isDark}) {
     return Container(
       decoration: BoxDecoration(
-        color:
-            isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+        color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
@@ -751,9 +759,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
         ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -767,17 +773,19 @@ class _SettingsScreenState extends State<SettingsScreen>
     Color? titleColor,
     required bool isDark,
   }) {
-    final effectiveTitleColor = titleColor ??
+    final effectiveTitleColor =
+        titleColor ??
         (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
-    final effectiveSubtitleColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    final effectiveSubtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.textSecondary;
     final effectiveIconColor =
         iconColor ?? (isDark ? AppColors.periwinkle300 : AppColors.primary);
     final iconBgColor = iconColor != null
         ? iconColor.withValues(alpha: 0.1)
         : (isDark
-            ? AppColors.primary.withValues(alpha: 0.2)
-            : AppColors.primary.withValues(alpha: 0.1));
+              ? AppColors.primary.withValues(alpha: 0.2)
+              : AppColors.primary.withValues(alpha: 0.1));
 
     return Material(
       color: Colors.transparent,
@@ -795,11 +803,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   color: iconBgColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: effectiveIconColor,
-                ),
+                child: Icon(icon, size: 20, color: effectiveIconColor),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -974,8 +978,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                   color: isSelected
                       ? AppColors.textWhite
                       : (isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.violetTwilight700),
+                            ? AppColors.darkTextSecondary
+                            : AppColors.violetTwilight700),
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -986,8 +990,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                     color: isSelected
                         ? AppColors.textWhite
                         : (isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.violetTwilight700),
+                              ? AppColors.darkTextSecondary
+                              : AppColors.violetTwilight700),
                   ),
                 ),
               ],
@@ -1100,8 +1104,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     } catch (_) {}
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg =
-        isDark ? AppColors.darkBackground : AppColors.background;
+    final scaffoldBg = isDark ? AppColors.darkBackground : AppColors.background;
     final userName = _getUserName(context);
     final userEmail = _getUserEmail(context);
     final userInitial = _getUserInitial(userName);
@@ -1132,8 +1135,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     // 1. Header with Overlapping Avatar
                     _buildHeader(context, userName, userInitial, isDark),
 
-                    const SizedBox(height: 52), // Clearance for overlapping avatar
-
+                    const SizedBox(
+                      height: 52,
+                    ), // Clearance for overlapping avatar
                     // Centered Real Authenticated User Name and Email
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1218,12 +1222,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   ),
                                   decoration: BoxDecoration(
                                     color: isDark
-                                        ? AppColors.primary.withValues(alpha: 0.25)
+                                        ? AppColors.primary.withValues(
+                                            alpha: 0.25,
+                                          )
                                         : AppColors.lightCyanTint,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: AppColors.primary
-                                          .withValues(alpha: 0.2),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
@@ -1251,7 +1258,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 iconColor: AppColors.errorText,
                                 title: 'Sign Out',
                                 titleColor: AppColors.errorText,
-                                subtitle: 'Sign out of your Second Brain account',
+                                subtitle:
+                                    'Sign out of your Second Brain account',
                                 onTap: () => _confirmSignOut(context, isDark),
                                 isDark: isDark,
                               ),
@@ -1267,14 +1275,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                           _buildCard(
                             isDark: isDark,
                             children: [
-                              BlocConsumer<GoogleAuthCubit, GoogleIntegrationStatus>(
+                              BlocConsumer<
+                                GoogleAuthCubit,
+                                GoogleIntegrationStatus
+                              >(
                                 bloc: _googleAuthCubit,
                                 listener: (context, googleStatus) {
                                   if (googleStatus.errorMessage != null &&
                                       googleStatus.errorMessage!.isNotEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(googleStatus.errorMessage!),
+                                        content: Text(
+                                          googleStatus.errorMessage!,
+                                        ),
                                         backgroundColor: AppColors.errorText,
                                         behavior: SnackBarBehavior.floating,
                                         duration: const Duration(seconds: 4),
@@ -1284,7 +1297,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 },
                                 builder: (context, googleStatus) {
                                   final isConnected = googleStatus.isConnected;
-                                  final isConnecting = googleStatus.isConnecting;
+                                  final isConnecting =
+                                      googleStatus.isConnecting;
                                   final email = googleStatus.email;
 
                                   String subtitle;
@@ -1315,8 +1329,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                                       height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                            AppColors.primary),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              AppColors.primary,
+                                            ),
                                       ),
                                     );
                                   } else if (isConnected) {
@@ -1325,14 +1341,18 @@ class _SettingsScreenState extends State<SettingsScreen>
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: isDark
-                                                ? AppColors.primary
-                                                    .withValues(alpha: 0.25)
+                                                ? AppColors.primary.withValues(
+                                                    alpha: 0.25,
+                                                  )
                                                 : AppColors.lightCyanTint,
-                                            borderRadius:
-                                                BorderRadius.circular(6),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                           ),
                                           child: Text(
                                             'Connected',
@@ -1348,29 +1368,33 @@ class _SettingsScreenState extends State<SettingsScreen>
                                         const SizedBox(width: 8),
                                         IconButton(
                                           icon: const Icon(
-                                              Icons.link_off_rounded,
-                                              size: 20),
+                                            Icons.link_off_rounded,
+                                            size: 20,
+                                          ),
                                           color: AppColors.errorText,
                                           tooltip: 'Disconnect Google Account',
                                           onPressed: () =>
-                                              _confirmDisconnectGoogle(
-                                                  isDark),
+                                              _confirmDisconnectGoogle(isDark),
                                         ),
                                       ],
                                     );
                                   } else {
                                     trailingWidget = Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 5),
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: isDark
-                                            ? AppColors.primary
-                                                .withValues(alpha: 0.25)
-                                                : AppColors.lightCyanTint,
+                                            ? AppColors.primary.withValues(
+                                                alpha: 0.25,
+                                              )
+                                            : AppColors.lightCyanTint,
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.2),
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.2,
+                                          ),
                                         ),
                                       ),
                                       child: Row(
@@ -1407,9 +1431,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                                     onTap: isConnecting
                                         ? null
                                         : (isConnected
-                                            ? () => _confirmDisconnectGoogle(
-                                                isDark)
-                                            : () => _googleAuthCubit.connect()),
+                                              ? () => _confirmDisconnectGoogle(
+                                                  isDark,
+                                                )
+                                              : () =>
+                                                    _googleAuthCubit.connect()),
                                     isDark: isDark,
                                   );
                                 },
@@ -1427,7 +1453,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                             isDark: isDark,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  14,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -1438,9 +1469,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                                           height: 38,
                                           decoration: BoxDecoration(
                                             color: isDark
-                                                ? AppColors.primary.withValues(alpha: 0.2)
-                                                : AppColors.primary.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                                ? AppColors.primary.withValues(
+                                                    alpha: 0.2,
+                                                  )
+                                                : AppColors.primary.withValues(
+                                                    alpha: 0.1,
+                                                  ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Icon(
                                             Icons.palette_outlined,
@@ -1453,7 +1490,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                                         const SizedBox(width: 14),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Theme',
@@ -1461,18 +1499,22 @@ class _SettingsScreenState extends State<SettingsScreen>
                                                   fontSize: 15,
                                                   fontWeight: FontWeight.w600,
                                                   color: isDark
-                                                      ? AppColors.darkTextPrimary
+                                                      ? AppColors
+                                                            .darkTextPrimary
                                                       : AppColors.textPrimary,
                                                   letterSpacing: -0.2,
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                _getThemeDescription(currentThemeMode),
+                                                _getThemeDescription(
+                                                  currentThemeMode,
+                                                ),
                                                 style: TextStyle(
                                                   fontSize: 12.5,
                                                   color: isDark
-                                                      ? AppColors.darkTextSecondary
+                                                      ? AppColors
+                                                            .darkTextSecondary
                                                       : AppColors.textSecondary,
                                                   height: 1.3,
                                                 ),
@@ -1484,7 +1526,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                                     ),
                                     const SizedBox(height: 14),
                                     _buildThemeSelector(
-                                        context, currentThemeMode, isDark),
+                                      context,
+                                      currentThemeMode,
+                                      isDark,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1541,11 +1586,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   ),
                                   decoration: BoxDecoration(
                                     color: isDark
-                                        ? AppColors.primary.withValues(alpha: 0.25)
+                                        ? AppColors.primary.withValues(
+                                            alpha: 0.25,
+                                          )
                                         : AppColors.lightCyanTint,
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: AppColors.primary.withValues(alpha: 0.2),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -1573,12 +1622,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   ),
                                 ),
                                 onTap: () {
-                                  context
-                                      .read<CaptureBloc>()
-                                      .add(SyncPendingMemoriesEvent());
+                                  context.read<CaptureBloc>().add(
+                                    SyncPendingMemoriesEvent(),
+                                  );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Syncing memories with cloud...'),
+                                      content: Text(
+                                        'Syncing memories with cloud...',
+                                      ),
                                       behavior: SnackBarBehavior.floating,
                                       duration: Duration(seconds: 2),
                                     ),
@@ -1590,7 +1641,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                               _buildTile(
                                 icon: Icons.storage_rounded,
                                 title: 'Local Database',
-                                subtitle: 'Isar Embedded Database • $totalCount saved',
+                                subtitle:
+                                    'Isar Embedded Database • $totalCount saved',
                                 trailing: Text(
                                   'Active',
                                   style: TextStyle(
@@ -1618,7 +1670,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                               _buildTile(
                                 icon: Icons.psychology_outlined,
                                 title: 'AI Knowledge Engine',
-                                subtitle: 'Google Gemini • OCR, Audio & Semantic Search',
+                                subtitle:
+                                    'Google Gemini • OCR, Audio & Semantic Search',
                                 trailing: Text(
                                   'Active',
                                   style: TextStyle(
@@ -1647,8 +1700,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                               _buildTile(
                                 icon: Icons.mail_outline_rounded,
                                 title: 'Contact Support',
-                                subtitle: 'Reach out to support@secondbrain.app',
-                                onTap: () => _handleContactSupport(context, isDark),
+                                subtitle:
+                                    'Reach out to support@secondbrain.app',
+                                onTap: () =>
+                                    _handleContactSupport(context, isDark),
                                 isDark: isDark,
                               ),
                             ],
@@ -1668,7 +1723,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 title: 'Privacy & Data Protection',
                                 subtitle:
                                     'Your memories are encrypted and tenant-isolated',
-                                onTap: () => _showPrivacyDetails(context, isDark),
+                                onTap: () =>
+                                    _showPrivacyDetails(context, isDark),
                                 isDark: isDark,
                               ),
                             ],
@@ -1688,7 +1744,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 title: 'Second Brain',
                                 subtitle:
                                     'v$_appVersion • AI-powered personal knowledge assistant',
-                                onTap: () => _showAboutSecondBrain(context, isDark),
+                                onTap: () =>
+                                    _showAboutSecondBrain(context, isDark),
                                 isDark: isDark,
                               ),
                             ],

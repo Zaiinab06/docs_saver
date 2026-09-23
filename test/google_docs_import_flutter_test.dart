@@ -19,7 +19,8 @@ class MockGoogleAuthRepository implements GoogleAuthRepository {
   String? lastImportedFileId;
 
   @override
-  Future<String> startOAuth() async => 'https://accounts.google.com/o/oauth2/auth';
+  Future<String> startOAuth() async =>
+      'https://accounts.google.com/o/oauth2/auth';
 
   @override
   Future<GoogleIntegrationStatus> getStatus() async => statusToReturn;
@@ -37,7 +38,8 @@ class MockGoogleAuthRepository implements GoogleAuthRepository {
         GoogleDocEntity(
           success: true,
           title: 'Test Google Doc',
-          content: 'This is the real extracted plain text content of the Google Doc.',
+          content:
+              'This is the real extracted plain text content of the Google Doc.',
           fileId: fileId,
           webViewLink: 'https://docs.google.com/document/d/$fileId/edit',
           mimeType: 'application/vnd.google-apps.document',
@@ -49,7 +51,8 @@ class MockGoogleAuthRepository implements GoogleAuthRepository {
       'https://accounts.google.com/o/oauth2/v2/auth?trigger_onepick=true';
 
   @override
-  Future<GoogleDocEntity> importDriveFile(String fileId) async => importDoc(fileId);
+  Future<GoogleDocEntity> importDriveFile(String fileId) async =>
+      importDoc(fileId);
 }
 
 class MockAiRepository implements AiRepository {
@@ -91,7 +94,7 @@ class MockIngestMemoryUseCase implements IngestMemoryUseCase {
   );
 
   MockIngestMemoryUseCase({AiRepository? repo})
-      : repository = repo ?? MockAiRepository();
+    : repository = repo ?? MockAiRepository();
 
   @override
   Future<AiIngestionResult> call({
@@ -116,7 +119,8 @@ void main() {
     });
 
     test('extracts fileId from /view URL with query params', () {
-      const url = 'https://docs.google.com/document/d/$validId/view?usp=sharing';
+      const url =
+          'https://docs.google.com/document/d/$validId/view?usp=sharing';
       expect(GoogleDocsLinkExtractor.extractFileId(url), equals(validId));
       expect(GoogleDocsLinkExtractor.isGoogleDocsUrl(url), isTrue);
     });
@@ -177,8 +181,18 @@ void main() {
     });
 
     test('rejects invalid or too short file IDs', () {
-      expect(GoogleDocsLinkExtractor.extractFileId('https://docs.google.com/document/d/short/edit'), isNull);
-      expect(GoogleDocsLinkExtractor.extractFileId('https://docs.google.com/document/d/'), isNull);
+      expect(
+        GoogleDocsLinkExtractor.extractFileId(
+          'https://docs.google.com/document/d/short/edit',
+        ),
+        isNull,
+      );
+      expect(
+        GoogleDocsLinkExtractor.extractFileId(
+          'https://docs.google.com/document/d/',
+        ),
+        isNull,
+      );
       expect(GoogleDocsLinkExtractor.extractFileId(''), isNull);
       expect(GoogleDocsLinkExtractor.extractFileId(null), isNull);
       expect(GoogleDocsLinkExtractor.extractFileId('not a url'), isNull);
@@ -192,16 +206,28 @@ void main() {
         'title': 'Project Architecture Spec',
         'content': 'Comprehensive plain text of the document...',
         'fileId': '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-        'webViewLink': 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        'webViewLink':
+            'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
         'mimeType': 'application/vnd.google-apps.document',
       };
 
       final entity = GoogleDocEntity.fromJson(json);
       expect(entity.success, isTrue);
       expect(entity.title, equals('Project Architecture Spec'));
-      expect(entity.content, equals('Comprehensive plain text of the document...'));
-      expect(entity.fileId, equals('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'));
-      expect(entity.webViewLink, equals('https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit'));
+      expect(
+        entity.content,
+        equals('Comprehensive plain text of the document...'),
+      );
+      expect(
+        entity.fileId,
+        equals('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'),
+      );
+      expect(
+        entity.webViewLink,
+        equals(
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        ),
+      );
       expect(entity.mimeType, equals('application/vnd.google-apps.document'));
     });
 
@@ -235,18 +261,24 @@ void main() {
       expect(json['fileId'], equals('id123'));
     });
 
-    test('GoogleDocsImportException preserves code, message, and statusCode', () {
-      const exception = GoogleDocsImportException(
-        code: 'FILE_NOT_FOUND',
-        message: 'Google Drive file not found or not accessible.',
-        statusCode: 404,
-      );
+    test(
+      'GoogleDocsImportException preserves code, message, and statusCode',
+      () {
+        const exception = GoogleDocsImportException(
+          code: 'FILE_NOT_FOUND',
+          message: 'Google Drive file not found or not accessible.',
+          statusCode: 404,
+        );
 
-      expect(exception.code, equals('FILE_NOT_FOUND'));
-      expect(exception.message, equals('Google Drive file not found or not accessible.'));
-      expect(exception.statusCode, equals(404));
-      expect(exception.toString(), contains('FILE_NOT_FOUND'));
-    });
+        expect(exception.code, equals('FILE_NOT_FOUND'));
+        expect(
+          exception.message,
+          equals('Google Drive file not found or not accessible.'),
+        );
+        expect(exception.statusCode, equals(404));
+        expect(exception.toString(), contains('FILE_NOT_FOUND'));
+      },
+    );
   });
 
   group('GoogleAuthRepository importDoc error handling contract', () {
@@ -270,7 +302,10 @@ void main() {
       final result = await repository.importDoc(fileId);
       expect(result.success, isTrue);
       expect(result.title, equals('Real Document Title'));
-      expect(result.content, equals('Verbatim text extracted from Google Docs API.'));
+      expect(
+        result.content,
+        equals('Verbatim text extracted from Google Docs API.'),
+      );
       expect(repository.lastImportedFileId, equals(fileId));
     });
 
@@ -283,7 +318,13 @@ void main() {
 
       expect(
         () => repository.importDoc('non_existent_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'FILE_NOT_FOUND')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'FILE_NOT_FOUND',
+          ),
+        ),
       );
     });
 
@@ -296,7 +337,13 @@ void main() {
 
       expect(
         () => repository.importDoc('forbidden_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'PERMISSION_DENIED')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'PERMISSION_DENIED',
+          ),
+        ),
       );
     });
 
@@ -309,7 +356,13 @@ void main() {
 
       expect(
         () => repository.importDoc('revoked_token_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'TOKEN_REVOKED')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'TOKEN_REVOKED',
+          ),
+        ),
       );
     });
 
@@ -322,7 +375,13 @@ void main() {
 
       expect(
         () => repository.importDoc('not_connected_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'GOOGLE_NOT_CONNECTED')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'GOOGLE_NOT_CONNECTED',
+          ),
+        ),
       );
     });
 
@@ -335,7 +394,13 @@ void main() {
 
       expect(
         () => repository.importDoc('sheet_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'UNSUPPORTED_MIME_TYPE')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'UNSUPPORTED_MIME_TYPE',
+          ),
+        ),
       );
     });
 
@@ -348,7 +413,13 @@ void main() {
 
       expect(
         () => repository.importDoc('empty_doc_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'EMPTY_DOCUMENT')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'EMPTY_DOCUMENT',
+          ),
+        ),
       );
     });
 
@@ -361,38 +432,73 @@ void main() {
 
       expect(
         () => repository.importDoc('huge_doc_id_123'),
-        throwsA(isA<GoogleDocsImportException>().having((e) => e.code, 'code', 'DOCUMENT_TOO_LARGE')),
+        throwsA(
+          isA<GoogleDocsImportException>().having(
+            (e) => e.code,
+            'code',
+            'DOCUMENT_TOO_LARGE',
+          ),
+        ),
       );
     });
   });
 
   group('AI Ingestion with Real Exported Google Docs Text', () {
-    test('AI ingestion use case receives actual document content, not URL or title', () async {
-      final mockAiUseCase = MockIngestMemoryUseCase();
-      const realContent = 'Section 1: Executive Summary\nThis project implements real Google Docs import.\nSection 2: Architecture\nEnd-to-end Vault security.';
+    test(
+      'AI ingestion use case receives actual document content, not URL or title',
+      () async {
+        final mockAiUseCase = MockIngestMemoryUseCase();
+        const realContent =
+            'Section 1: Executive Summary\nThis project implements real Google Docs import.\nSection 2: Architecture\nEnd-to-end Vault security.';
 
-      final result = await mockAiUseCase(ocrText: realContent);
+        final result = await mockAiUseCase(ocrText: realContent);
 
-      expect(mockAiUseCase.receivedOcrText, equals(realContent));
-      expect(mockAiUseCase.receivedOcrText, isNot(contains('https://docs.google.com')));
-      expect(result.aiStatus, equals('processed'));
-      expect(result.summary, equals('AI Generated Summary from real content'));
-    });
+        expect(mockAiUseCase.receivedOcrText, equals(realContent));
+        expect(
+          mockAiUseCase.receivedOcrText,
+          isNot(contains('https://docs.google.com')),
+        );
+        expect(result.aiStatus, equals('processed'));
+        expect(
+          result.summary,
+          equals('AI Generated Summary from real content'),
+        );
+      },
+    );
   });
 
   group('Generic Web Link Preservation', () {
-    test('LinkProviderDetector still treats non-Docs URLs as genericWeb or social platforms', () {
-      final generalUri = Uri.parse('https://example.com/blog/article');
-      expect(LinkProviderDetector.detect(generalUri), equals(LinkProvider.genericWeb));
+    test(
+      'LinkProviderDetector still treats non-Docs URLs as genericWeb or social platforms',
+      () {
+        final generalUri = Uri.parse('https://example.com/blog/article');
+        expect(
+          LinkProviderDetector.detect(generalUri),
+          equals(LinkProvider.genericWeb),
+        );
 
-      final youtubeUri = Uri.parse('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-      expect(LinkProviderDetector.detect(youtubeUri), equals(LinkProvider.youtube));
+        final youtubeUri = Uri.parse(
+          'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        );
+        expect(
+          LinkProviderDetector.detect(youtubeUri),
+          equals(LinkProvider.youtube),
+        );
 
-      // Google Docs URL is NOT detected as YouTube, TikTok, or Instagram
-      final docsUri = Uri.parse('https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
-      expect(LinkProviderDetector.detect(docsUri), equals(LinkProvider.genericWeb));
-      // But GoogleDocsLinkExtractor properly detects it
-      expect(GoogleDocsLinkExtractor.isGoogleDocsUrl(docsUri.toString()), isTrue);
-    });
+        // Google Docs URL is NOT detected as YouTube, TikTok, or Instagram
+        final docsUri = Uri.parse(
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        );
+        expect(
+          LinkProviderDetector.detect(docsUri),
+          equals(LinkProvider.genericWeb),
+        );
+        // But GoogleDocsLinkExtractor properly detects it
+        expect(
+          GoogleDocsLinkExtractor.isGoogleDocsUrl(docsUri.toString()),
+          isTrue,
+        );
+      },
+    );
   });
 }

@@ -31,7 +31,8 @@ class SearchResultModel {
     }
 
     DateTime? parsedCreatedAt;
-    final rawCreatedAt = json['client_created_at'] ??
+    final rawCreatedAt =
+        json['client_created_at'] ??
         json['created_at'] ??
         json['clientCreatedAt'] ??
         json['createdAt'];
@@ -44,7 +45,8 @@ class SearchResultModel {
       if (json['similarity'] is num) {
         parsedSimilarity = (json['similarity'] as num).toDouble();
       } else {
-        parsedSimilarity = double.tryParse(json['similarity'].toString()) ?? 0.0;
+        parsedSimilarity =
+            double.tryParse(json['similarity'].toString()) ?? 0.0;
       }
     }
 

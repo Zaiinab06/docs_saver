@@ -17,7 +17,7 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
   final SupabaseClient? _supabase;
 
   GoogleAuthRemoteDataSourceImpl({SupabaseClient? client})
-      : _supabase = client ?? _resolveClient();
+    : _supabase = client ?? _resolveClient();
 
   static SupabaseClient? _resolveClient() {
     try {
@@ -31,7 +31,9 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
   Future<String> startOAuth() async {
     final client = _supabase;
     if (client == null) {
-      debugPrint('[Google OAuth] Start failed: Supabase client is not initialized.');
+      debugPrint(
+        '[Google OAuth] Start failed: Supabase client is not initialized.',
+      );
       throw Exception('Supabase client is not initialized.');
     }
 
@@ -44,11 +46,14 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
     if (response.status == 200 &&
         response.data != null &&
         response.data['auth_url'] != null) {
-      debugPrint('[Google OAuth] Start succeeded; browser authorization URL received.');
+      debugPrint(
+        '[Google OAuth] Start succeeded; browser authorization URL received.',
+      );
       return response.data['auth_url'] as String;
     }
 
-    final errorMessage = response.data?['message'] ??
+    final errorMessage =
+        response.data?['message'] ??
         response.data?['error'] ??
         'Failed to initiate Google authentication (HTTP ${response.status}).';
     debugPrint('[Google OAuth] Start failed: HTTP ${response.status}.');
@@ -120,11 +125,15 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
   Future<void> disconnect() async {
     final client = _supabase;
     if (client == null) {
-      debugPrint('[Google OAuth] Disconnect failed: Supabase client is not initialized.');
+      debugPrint(
+        '[Google OAuth] Disconnect failed: Supabase client is not initialized.',
+      );
       throw Exception('Supabase client is not initialized.');
     }
 
-    debugPrint('[Google OAuth] Invoking deployed google-auth action=disconnect.');
+    debugPrint(
+      '[Google OAuth] Invoking deployed google-auth action=disconnect.',
+    );
     final response = await client.functions.invoke(
       'google-auth',
       body: {'action': 'disconnect'},
@@ -132,7 +141,8 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
 
     if (response.status != 200) {
       debugPrint('[Google OAuth] Disconnect failed: HTTP ${response.status}.');
-      final error = response.data?['error'] ??
+      final error =
+          response.data?['error'] ??
           'Failed to disconnect Google account (HTTP ${response.status}).';
       throw Exception(error);
     }
@@ -152,10 +162,7 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
     try {
       final response = await client.functions.invoke(
         'google-auth',
-        body: {
-          'action': 'import_doc',
-          'fileId': fileId,
-        },
+        body: {'action': 'import_doc', 'fileId': fileId},
       );
 
       final statusCode = response.status;
@@ -170,8 +177,12 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
       }
 
       // Handle non-200 or unexpected response
-      final errorCode = data is Map ? (data['error']?.toString() ?? 'IMPORT_FAILED') : 'IMPORT_FAILED';
-      final errorMessage = data is Map ? (data['message']?.toString() ?? 'Failed to import Google Doc.') : 'Failed to import Google Doc.';
+      final errorCode = data is Map
+          ? (data['error']?.toString() ?? 'IMPORT_FAILED')
+          : 'IMPORT_FAILED';
+      final errorMessage = data is Map
+          ? (data['message']?.toString() ?? 'Failed to import Google Doc.')
+          : 'Failed to import Google Doc.';
       throw GoogleDocsImportException(
         code: errorCode,
         message: errorMessage,
@@ -184,7 +195,8 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
       if (e is FunctionException) {
         final details = e.details;
         String errorCode = 'IMPORT_FAILED';
-        String errorMessage = e.reasonPhrase ?? 'Google Docs import failed (HTTP ${e.status}).';
+        String errorMessage =
+            e.reasonPhrase ?? 'Google Docs import failed (HTTP ${e.status}).';
 
         if (details is Map) {
           errorCode = details['error']?.toString() ?? errorCode;
@@ -234,22 +246,26 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
         return response.data['auth_url'] as String;
       }
 
-      final errorMessage = response.data?['message'] ??
+      final errorMessage =
+          response.data?['message'] ??
           response.data?['error'] ??
           'Failed to initiate Google Picker (HTTP ${response.status}).';
       throw Exception(errorMessage);
     } on FunctionException catch (e) {
       final details = e.details;
-      String errorMessage = e.reasonPhrase ?? 'Failed to open Google Drive (HTTP ${e.status}).';
+      String errorMessage =
+          e.reasonPhrase ?? 'Failed to open Google Drive (HTTP ${e.status}).';
       if (details is Map) {
-        errorMessage = details['message']?.toString() ??
+        errorMessage =
+            details['message']?.toString() ??
             details['error']?.toString() ??
             errorMessage;
       } else if (details is String && details.isNotEmpty) {
         try {
           final parsed = jsonDecode(details);
           if (parsed is Map) {
-            errorMessage = parsed['message']?.toString() ??
+            errorMessage =
+                parsed['message']?.toString() ??
                 parsed['error']?.toString() ??
                 errorMessage;
           }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -27,10 +28,7 @@ class _CategoryChoice {
   final String name;
   final IconData icon;
 
-  const _CategoryChoice({
-    required this.name,
-    required this.icon,
-  });
+  const _CategoryChoice({required this.name, required this.icon});
 }
 
 class CaptureScreen extends StatefulWidget {
@@ -67,10 +65,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       name: AppStrings.categoryPersonal,
       icon: Icons.favorite_rounded,
     ),
-    _CategoryChoice(
-      name: AppStrings.categoryStudy,
-      icon: Icons.school_rounded,
-    ),
+    _CategoryChoice(name: AppStrings.categoryStudy, icon: Icons.school_rounded),
     _CategoryChoice(
       name: AppStrings.categoryTravel,
       icon: Icons.flight_takeoff_rounded,
@@ -144,7 +139,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage(ImageSource source, {required bool isDocumentScan}) async {
+  Future<void> _pickImage(
+    ImageSource source, {
+    required bool isDocumentScan,
+  }) async {
     try {
       final picked = await _picker.pickImage(
         source: source,
@@ -155,8 +153,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (picked == null) return;
 
       final appDir = await getApplicationDocumentsDirectory();
-      final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
-      final savedFile = await File(picked.path).copy('${appDir.path}/$fileName');
+      final fileName =
+          'memory_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
+      final savedFile = await File(
+        picked.path,
+      ).copy('${appDir.path}/$fileName');
 
       setState(() {
         _capturedImage = savedFile;
@@ -176,9 +177,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       await _runOcrExtraction(savedFile, isDocumentScan);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Image capture error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Image capture error: $e')));
       }
     } finally {
       if (mounted) {
@@ -194,16 +195,23 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
     try {
       final bytes = await _capturedImage!.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded != null) {
+      final isPng = _capturedImage!.path.toLowerCase().endsWith('.png');
+      final encoded = await Isolate.run(() {
+        final decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
         final rotated = img.copyRotate(decoded, angle: 90);
-        final isPng = _capturedImage!.path.toLowerCase().endsWith('.png');
-        final encoded = isPng ? img.encodePng(rotated) : img.encodeJpg(rotated, quality: 90);
+        return isPng
+            ? img.encodePng(rotated)
+            : img.encodeJpg(rotated, quality: 90);
+      });
 
+      if (encoded != null) {
         final dir = _capturedImage!.parent.path;
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final ext = isPng ? 'png' : 'jpg';
-        final rotatedFile = File('$dir/rot_${timestamp}_${_capturedImage!.uri.pathSegments.last.replaceAll(RegExp(r'\.[^.]+$'), '')}.$ext');
+        final rotatedFile = File(
+          '$dir/rot_${timestamp}_${_capturedImage!.uri.pathSegments.last.replaceAll(RegExp(r'\.[^.]+$'), '')}.$ext',
+        );
         await rotatedFile.writeAsBytes(encoded, flush: true);
 
         PaintingBinding.instance.imageCache.clear();
@@ -229,7 +237,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Future<void> _runOcrExtraction(File imageFile, bool isDocumentScan) async {
     try {
       final inputImage = InputImage.fromFile(imageFile);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final textRecognizer = TextRecognizer(
+        script: TextRecognitionScript.latin,
+      );
       final recognizedText = await textRecognizer.processImage(inputImage);
       await textRecognizer.close();
 
@@ -264,13 +274,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
     } catch (_) {
       // Fallback if MLKit text recognition is unavailable on device
       if (_titleController.text.trim().isEmpty) {
-        _titleController.text = isDocumentScan ? 'Scanned Document' : 'Photo Memory';
+        _titleController.text = isDocumentScan
+            ? 'Scanned Document'
+            : 'Photo Memory';
       }
     }
   }
 
   String _extractSmartTitle(String text) {
-    final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    final lines = text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
     if (lines.isNotEmpty) {
       final firstLine = lines.first.replaceAll(RegExp(r'[#*_~`|]'), '').trim();
       if (firstLine.length > 38) {
@@ -350,15 +366,22 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   String? _detectTag(String text) {
     final lower = text.toLowerCase();
-    if (lower.contains('receipt') || lower.contains('invoice')) return 'receipt';
+    if (lower.contains('receipt') || lower.contains('invoice')) {
+      return 'receipt';
+    }
     if (lower.contains('meeting')) return 'meeting';
     if (lower.contains('code') || lower.contains('dev')) return 'coding';
-    if (lower.contains('workout') || lower.contains('fitness')) return 'fitness';
+    if (lower.contains('workout') || lower.contains('fitness')) {
+      return 'fitness';
+    }
     return null;
   }
 
   void _addCustomTag() {
-    final tag = _tagInputController.text.trim().replaceAll('#', '').toLowerCase();
+    final tag = _tagInputController.text
+        .trim()
+        .replaceAll('#', '')
+        .toLowerCase();
     if (tag.isNotEmpty && !_tags.contains(tag)) {
       setState(() {
         _tags.add(tag);
@@ -374,7 +397,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
     if (contentInput.isEmpty && _persistedImagePath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please capture an image or enter your memory content.'),
+          content: Text(
+            'Please capture an image or enter your memory content.',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -386,8 +411,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
     final title = titleInput.isNotEmpty
         ? titleInput
         : (contentInput.isNotEmpty
-            ? _extractSmartTitle(contentInput)
-            : 'Photo Memory (${DateFormat('MMM d').format(DateTime.now())})');
+              ? _extractSmartTitle(contentInput)
+              : 'Photo Memory (${DateFormat('MMM d').format(DateTime.now())})');
 
     final content = contentInput.isNotEmpty
         ? contentInput
@@ -402,14 +427,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
           final file = File(_persistedImagePath!);
           final bytes = await file.readAsBytes();
           final ext = file.path.split('.').last;
-          final storageKey = '$currentUserId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+          final storageKey =
+              '$currentUserId/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-          await Supabase.instance.client.storage.from('memories').uploadBinary(
+          await Supabase.instance.client.storage
+              .from('memories')
+              .uploadBinary(
                 storageKey,
                 bytes,
                 fileOptions: FileOptions(contentType: 'image/$ext'),
               );
-          final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+          final publicUrl = Supabase.instance.client.storage
+              .from('memories')
+              .getPublicUrl(storageKey);
           if (publicUrl.isNotEmpty) {
             mediaUrl = publicUrl;
           }
@@ -424,14 +454,14 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
     // Persist through the existing repository and BLoC data layer
     context.read<CaptureBloc>().add(
-          AddMemoryEvent(
-            title: title,
-            content: content,
-            category: _selectedCategory,
-            tags: List<String>.from(_tags),
-            mediaUrl: mediaUrl,
-          ),
-        );
+      AddMemoryEvent(
+        title: title,
+        content: content,
+        category: _selectedCategory,
+        tags: List<String>.from(_tags),
+        mediaUrl: mediaUrl,
+      ),
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -454,7 +484,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
@@ -497,7 +530,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                  border: Border.all(
+                    color: AppColors.chipInactiveBorder,
+                    width: 1.2,
+                  ),
                 ),
                 child: TextField(
                   controller: _titleController,
@@ -514,7 +550,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
                       fontWeight: FontWeight.w400,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -556,7 +595,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           height: 13,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.primary,
+                            ),
                           ),
                         ),
                         SizedBox(width: 6),
@@ -577,7 +618,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                  border: Border.all(
+                    color: AppColors.chipInactiveBorder,
+                    width: 1.2,
+                  ),
                 ),
                 child: TextField(
                   controller: _contentController,
@@ -589,7 +633,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     height: 1.45,
                   ),
                   decoration: const InputDecoration(
-                    hintText: 'Write down your thought, link, or review extracted text...',
+                    hintText:
+                        'Write down your thought, link, or review extracted text...',
                     hintStyle: TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,
@@ -624,7 +669,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         decoration: const BoxDecoration(
           color: AppColors.cardBackground,
-          border: Border(top: BorderSide(color: AppColors.chipInactiveBorder, width: 1.0)),
+          border: Border(
+            top: BorderSide(color: AppColors.chipInactiveBorder, width: 1.0),
+          ),
         ),
         child: SizedBox(
           width: double.infinity,
@@ -704,7 +751,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
               top: 12,
               left: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(100),
@@ -712,7 +762,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.document_scanner_rounded, size: 14, color: Colors.white),
+                    const Icon(
+                      Icons.document_scanner_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       _ocrPreviewBadge!,
@@ -738,7 +792,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   child: IconButton(
                     padding: EdgeInsets.zero,
                     tooltip: 'Rotate',
-                    icon: const Icon(Icons.rotate_right_rounded, size: 18, color: Colors.white),
+                    icon: const Icon(
+                      Icons.rotate_right_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     onPressed: _rotateCapturedImage,
                   ),
                 ),
@@ -748,8 +806,13 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   backgroundColor: Colors.black.withValues(alpha: 0.65),
                   child: IconButton(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.cameraswitch_rounded, size: 18, color: Colors.white),
-                    onPressed: () => _pickImage(ImageSource.camera, isDocumentScan: false),
+                    icon: const Icon(
+                      Icons.cameraswitch_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    onPressed: () =>
+                        _pickImage(ImageSource.camera, isDocumentScan: false),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -758,7 +821,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   backgroundColor: Colors.black.withValues(alpha: 0.65),
                   child: IconButton(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     onPressed: () {
                       setState(() {
                         _capturedImage = null;
@@ -782,13 +849,20 @@ class _CaptureScreenState extends State<CaptureScreen> {
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => _pickImage(ImageSource.camera, isDocumentScan: false),
-            icon: const Icon(Icons.camera_alt_outlined, size: 18, color: AppColors.primary),
+            onPressed: () =>
+                _pickImage(ImageSource.camera, isDocumentScan: false),
+            icon: const Icon(
+              Icons.camera_alt_outlined,
+              size: 18,
+              color: AppColors.primary,
+            ),
             label: const Text('Photo'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textPrimary,
               side: const BorderSide(color: AppColors.chipInactiveBorder),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
@@ -796,13 +870,20 @@ class _CaptureScreenState extends State<CaptureScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => _pickImage(ImageSource.camera, isDocumentScan: true),
-            icon: const Icon(Icons.document_scanner_outlined, size: 18, color: AppColors.primary),
+            onPressed: () =>
+                _pickImage(ImageSource.camera, isDocumentScan: true),
+            icon: const Icon(
+              Icons.document_scanner_outlined,
+              size: 18,
+              color: AppColors.primary,
+            ),
             label: const Text('Scan Doc'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textPrimary,
               side: const BorderSide(color: AppColors.chipInactiveBorder),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
@@ -810,13 +891,20 @@ class _CaptureScreenState extends State<CaptureScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => _pickImage(ImageSource.gallery, isDocumentScan: false),
-            icon: const Icon(Icons.photo_library_outlined, size: 18, color: AppColors.primary),
+            onPressed: () =>
+                _pickImage(ImageSource.gallery, isDocumentScan: false),
+            icon: const Icon(
+              Icons.photo_library_outlined,
+              size: 18,
+              color: AppColors.primary,
+            ),
             label: const Text('Gallery'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textPrimary,
               side: const BorderSide(color: AppColors.chipInactiveBorder),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
@@ -849,7 +937,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 color: isSelected ? null : AppColors.categoryChipBackground,
                 borderRadius: BorderRadius.circular(100),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.categoryChipBorder,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.categoryChipBorder,
                   width: isSelected ? 1.6 : 1.0,
                 ),
                 boxShadow: isSelected
@@ -875,8 +965,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     cat.name,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color: isSelected ? AppColors.textWhite : AppColors.primary,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: isSelected
+                          ? AppColors.textWhite
+                          : AppColors.primary,
                     ),
                   ),
                 ],
@@ -899,11 +993,16 @@ class _CaptureScreenState extends State<CaptureScreen> {
             runSpacing: 8,
             children: _tags.map((tag) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.lightCyanTint,
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -940,16 +1039,28 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.0),
+                  border: Border.all(
+                    color: AppColors.chipInactiveBorder,
+                    width: 1.0,
+                  ),
                 ),
                 child: TextField(
                   controller: _tagInputController,
-                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Add custom tag...',
-                    hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 11,
+                    ),
                   ),
                   onSubmitted: (_) => _addCustomTag(),
                 ),
@@ -958,7 +1069,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
             const SizedBox(width: 8),
             IconButton(
               onPressed: _addCustomTag,
-              icon: const Icon(Icons.add_circle_rounded, color: AppColors.primary, size: 28),
+              icon: const Icon(
+                Icons.add_circle_rounded,
+                color: AppColors.primary,
+                size: 28,
+              ),
             ),
           ],
         ),

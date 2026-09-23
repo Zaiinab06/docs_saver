@@ -10,7 +10,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   String _lastQuery = '';
 
   SearchBloc({required this.searchMemoriesUseCase})
-      : super(const SearchInitial()) {
+    : super(const SearchInitial()) {
     on<SearchQueryChanged>(_onQueryChanged);
     on<ClearSearchRequested>(_onClearSearch);
     on<RetrySearchRequested>(_onRetrySearch);
@@ -62,19 +62,13 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
-  void _onClearSearch(
-    ClearSearchRequested event,
-    Emitter<SearchState> emit,
-  ) {
+  void _onClearSearch(ClearSearchRequested event, Emitter<SearchState> emit) {
     _activeRequestId++;
     _lastQuery = '';
     emit(const SearchInitial());
   }
 
-  void _onRetrySearch(
-    RetrySearchRequested event,
-    Emitter<SearchState> emit,
-  ) {
+  void _onRetrySearch(RetrySearchRequested event, Emitter<SearchState> emit) {
     if (_lastQuery.isNotEmpty) {
       add(SearchQueryChanged(_lastQuery));
     }

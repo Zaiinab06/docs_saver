@@ -34,7 +34,9 @@ class NetworkChecker {
   }
 
   /// Starts polling for network connectivity changes in production.
-  static void startMonitoring({Duration interval = const Duration(seconds: 5)}) {
+  static void startMonitoring({
+    Duration interval = const Duration(seconds: 5),
+  }) {
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;
     if (_pollTimer != null) return;
 
@@ -98,15 +100,17 @@ class NetworkChecker {
       try {
         final supabaseHost =
             Uri.tryParse(SupabaseConstants.supabaseUrl)?.host ?? 'supabase.co';
-        final result = await InternetAddress.lookup(supabaseHost)
-            .timeout(const Duration(milliseconds: 2500));
+        final result = await InternetAddress.lookup(
+          supabaseHost,
+        ).timeout(const Duration(milliseconds: 2500));
         if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
           isReachable = true;
         }
       } catch (_) {
         try {
-          final result = await InternetAddress.lookup('google.com')
-              .timeout(const Duration(milliseconds: 2500));
+          final result = await InternetAddress.lookup(
+            'google.com',
+          ).timeout(const Duration(milliseconds: 2500));
           if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
             isReachable = true;
           }

@@ -7,11 +7,7 @@ class FullScreenImageViewer extends StatelessWidget {
   final String mediaUrl;
   final String? title;
 
-  const FullScreenImageViewer({
-    super.key,
-    required this.mediaUrl,
-    this.title,
-  });
+  const FullScreenImageViewer({super.key, required this.mediaUrl, this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +48,9 @@ class FullScreenImageViewer extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          title != null && title!.trim().isNotEmpty ? title!.trim() : 'Image Preview',
+          title != null && title!.trim().isNotEmpty
+              ? title!.trim()
+              : 'Image Preview',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -78,11 +76,7 @@ class FullScreenImageViewer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.broken_image_outlined,
-            size: 64,
-            color: Colors.white54,
-          ),
+          Icon(Icons.broken_image_outlined, size: 64, color: Colors.white54),
           SizedBox(height: 12),
           Text(
             'Could not load image',

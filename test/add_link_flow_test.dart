@@ -25,7 +25,8 @@ class FakeLinkAiRepository implements AiRepository {
 
   const FakeLinkAiRepository({
     this.title = 'Flutter Official Website',
-    this.summary = '• Flutter multi-platform UI framework\n• Build apps for mobile, web, and desktop',
+    this.summary =
+        '• Flutter multi-platform UI framework\n• Build apps for mobile, web, and desktop',
     this.category = AppStrings.categoryWork,
     this.tags = const ['flutter', 'dart', 'framework'],
   });
@@ -74,17 +75,23 @@ void main() {
 
   group('URL Validation Unit Tests', () {
     test('valid http URL is accepted', () {
-      final error = LinkMetadataExtractor.validateUrl('http://example.com/article');
+      final error = LinkMetadataExtractor.validateUrl(
+        'http://example.com/article',
+      );
       expect(error, isNull);
     });
 
     test('valid https URL is accepted', () {
-      final error = LinkMetadataExtractor.validateUrl('https://flutter.dev/docs');
+      final error = LinkMetadataExtractor.validateUrl(
+        'https://flutter.dev/docs',
+      );
       expect(error, isNull);
     });
 
     test('invalid URL without http/https is rejected', () {
-      final error = LinkMetadataExtractor.validateUrl('ftp://files.example.com');
+      final error = LinkMetadataExtractor.validateUrl(
+        'ftp://files.example.com',
+      );
       expect(error, contains('Only http:// and https://'));
     });
 
@@ -101,7 +108,10 @@ void main() {
     test('URL missing host is rejected', () {
       expect(LinkMetadataExtractor.validateUrl('http://'), isNotNull);
       expect(LinkMetadataExtractor.validateUrl('https:///'), isNotNull);
-      expect(LinkMetadataExtractor.validateUrl('https://invalidhost'), isNotNull);
+      expect(
+        LinkMetadataExtractor.validateUrl('https://invalidhost'),
+        isNotNull,
+      );
     });
   });
 
@@ -130,7 +140,10 @@ void main() {
       expect(metadata.url, 'https://flutter.dev');
       expect(metadata.title, 'Flutter Documentation');
       expect(metadata.description, contains('Build, test, and deploy'));
-      expect(metadata.imageUrl, 'https://flutter.dev/images/flutter-logo-sharing.png');
+      expect(
+        metadata.imageUrl,
+        'https://flutter.dev/images/flutter-logo-sharing.png',
+      );
       expect(metadata.siteName, 'Flutter');
       expect(metadata.faviconUrl, 'https://flutter.dev/favicon.png');
       expect(metadata.hasContent, isTrue);
@@ -175,7 +188,9 @@ void main() {
       );
 
       final extractor = LinkMetadataExtractor(dio: dio);
-      final metadata = await extractor.extract('https://offline-example.com/item');
+      final metadata = await extractor.extract(
+        'https://offline-example.com/item',
+      );
 
       expect(metadata.url, 'https://offline-example.com/item');
       expect(metadata.title, isNull);
@@ -184,8 +199,10 @@ void main() {
   });
 
   group('Readable Webpage Content Extraction Unit Tests', () {
-    test('extracts <article> container when present, ignoring noise, navigation, and sidebar', () {
-      const html = '''
+    test(
+      'extracts <article> container when present, ignoring noise, navigation, and sidebar',
+      () {
+        const html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -213,21 +230,37 @@ void main() {
 </html>
 ''';
 
-      final metadata = LinkMetadataExtractor.parseHtml(
-        'https://techblog.com/future-mobile',
-        html,
-      );
+        final metadata = LinkMetadataExtractor.parseHtml(
+          'https://techblog.com/future-mobile',
+          html,
+        );
 
-      expect(metadata.readableContent, isNotNull);
-      expect(metadata.readableContent, contains('# The Future of Mobile Computing'));
-      expect(metadata.readableContent, contains('Mobile computing has evolved dramatically'));
-      expect(metadata.readableContent, contains('Developers can now build high-performance'));
-      expect(metadata.readableContent, isNot(contains('Special Offer Advertisement')));
-      expect(metadata.readableContent, isNot(contains('All rights reserved')));
-      expect(metadata.readableContent, isNot(contains('Cookie policy')));
-      expect(metadata.readableContent, isNot(contains('Archive')));
-      expect(metadata.wordCount, greaterThan(80));
-    });
+        expect(metadata.readableContent, isNotNull);
+        expect(
+          metadata.readableContent,
+          contains('# The Future of Mobile Computing'),
+        );
+        expect(
+          metadata.readableContent,
+          contains('Mobile computing has evolved dramatically'),
+        );
+        expect(
+          metadata.readableContent,
+          contains('Developers can now build high-performance'),
+        );
+        expect(
+          metadata.readableContent,
+          isNot(contains('Special Offer Advertisement')),
+        );
+        expect(
+          metadata.readableContent,
+          isNot(contains('All rights reserved')),
+        );
+        expect(metadata.readableContent, isNot(contains('Cookie policy')));
+        expect(metadata.readableContent, isNot(contains('Archive')));
+        expect(metadata.wordCount, greaterThan(80));
+      },
+    );
 
     test('extracts <main> container when <article> is not present', () {
       const html = '''
@@ -257,8 +290,14 @@ void main() {
       );
 
       expect(metadata.readableContent, isNotNull);
-      expect(metadata.readableContent, contains('## Deep Dive into Vector Embeddings'));
-      expect(metadata.readableContent, contains('Vector embeddings transform multimodal'));
+      expect(
+        metadata.readableContent,
+        contains('## Deep Dive into Vector Embeddings'),
+      );
+      expect(
+        metadata.readableContent,
+        contains('Vector embeddings transform multimodal'),
+      );
       expect(metadata.wordCount, greaterThan(80));
     });
 
@@ -295,16 +334,33 @@ void main() {
       expect(metadata.readableContent, contains('# Top Level Header'));
       expect(metadata.readableContent, contains('## Second Level Header'));
       expect(metadata.readableContent, contains('### Third Level Header'));
-      expect(metadata.readableContent, contains('> "Knowledge is power, but memory is its foundation."'));
-      expect(metadata.readableContent, contains('• First important item in unordered list'));
-      expect(metadata.readableContent, contains('• Second critical point regarding memory safety'));
-      expect(metadata.readableContent, contains('final client = SupabaseClient(url, key);'));
+      expect(
+        metadata.readableContent,
+        contains('> "Knowledge is power, but memory is its foundation."'),
+      );
+      expect(
+        metadata.readableContent,
+        contains('• First important item in unordered list'),
+      );
+      expect(
+        metadata.readableContent,
+        contains('• Second critical point regarding memory safety'),
+      );
+      expect(
+        metadata.readableContent,
+        contains('final client = SupabaseClient(url, key);'),
+      );
       expect(metadata.wordCount, greaterThan(80));
     });
 
-    test('caps long readable content cleanly at ~10,000 characters without crashing', () {
-      final paragraph = 'This is an extensive analysis of autonomous software engineering agents and distributed systems. ' * 8;
-      final longHtml = '''
+    test(
+      'caps long readable content cleanly at ~10,000 characters without crashing',
+      () {
+        final paragraph =
+            'This is an extensive analysis of autonomous software engineering agents and distributed systems. ' *
+            8;
+        final longHtml =
+            '''
 <!DOCTYPE html>
 <html>
 <head><title>Long Document</title></head>
@@ -316,18 +372,21 @@ void main() {
 </html>
 ''';
 
-      final metadata = LinkMetadataExtractor.parseHtml(
-        'https://longtext.org/book',
-        longHtml,
-      );
+        final metadata = LinkMetadataExtractor.parseHtml(
+          'https://longtext.org/book',
+          longHtml,
+        );
 
-      expect(metadata.readableContent, isNotNull);
-      expect(metadata.readableContent!.length, lessThanOrEqualTo(10000));
-      expect(metadata.readableContent!.length, greaterThan(6500));
-    });
+        expect(metadata.readableContent, isNotNull);
+        expect(metadata.readableContent!.length, lessThanOrEqualTo(10000));
+        expect(metadata.readableContent!.length, greaterThan(6500));
+      },
+    );
 
-    test('falls back to og:title and og:description when content has fewer than 80 words', () {
-      const shortHtml = '''
+    test(
+      'falls back to og:title and og:description when content has fewer than 80 words',
+      () {
+        const shortHtml = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -343,55 +402,63 @@ void main() {
 </html>
 ''';
 
-      final metadata = LinkMetadataExtractor.parseHtml(
-        'https://micro.blog/note',
-        shortHtml,
-      );
+        final metadata = LinkMetadataExtractor.parseHtml(
+          'https://micro.blog/note',
+          shortHtml,
+        );
 
-      expect(metadata.readableContent, isNotNull);
-      expect(metadata.readableContent, contains('Micro Note Title'));
-      expect(metadata.readableContent, contains('A very concise summary describing an instant thought or idea.'));
-      expect(metadata.wordCount, greaterThan(5));
-    });
+        expect(metadata.readableContent, isNotNull);
+        expect(metadata.readableContent, contains('Micro Note Title'));
+        expect(
+          metadata.readableContent,
+          contains(
+            'A very concise summary describing an instant thought or idea.',
+          ),
+        );
+        expect(metadata.wordCount, greaterThan(5));
+      },
+    );
 
-    test('handles 403 Forbidden and network errors gracefully without failing link metadata', () async {
-      final dio = Dio();
-      dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            handler.reject(
-              DioException(
-                requestOptions: options,
-                response: Response(
+    test(
+      'handles 403 Forbidden and network errors gracefully without failing link metadata',
+      () async {
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.reject(
+                DioException(
                   requestOptions: options,
-                  statusCode: 403,
-                  statusMessage: 'Forbidden',
+                  response: Response(
+                    requestOptions: options,
+                    statusCode: 403,
+                    statusMessage: 'Forbidden',
+                  ),
+                  type: DioExceptionType.badResponse,
                 ),
-                type: DioExceptionType.badResponse,
-              ),
-            );
-          },
-        ),
-      );
+              );
+            },
+          ),
+        );
 
-      final extractor = LinkMetadataExtractor(dio: dio);
-      final metadata = await extractor.extract('https://protected.com/secret');
+        final extractor = LinkMetadataExtractor(dio: dio);
+        final metadata = await extractor.extract(
+          'https://protected.com/secret',
+        );
 
-      expect(metadata.url, 'https://protected.com/secret');
-      expect(metadata.siteName, 'protected.com');
-      expect(metadata.readableContent, isNull);
-    });
+        expect(metadata.url, 'https://protected.com/secret');
+        expect(metadata.siteName, 'protected.com');
+        expect(metadata.readableContent, isNull);
+      },
+    );
   });
 
   group('AddLinkBottomSheet Widget Tests', () {
-    testWidgets('renders input field, paste button, and continue button',
-        (tester) async {
+    testWidgets('renders input field, paste button, and continue button', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: AddLinkBottomSheet(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: AddLinkBottomSheet())),
       );
 
       expect(find.text('Add Web Link'), findsOneWidget);
@@ -400,49 +467,44 @@ void main() {
       expect(find.text('Continue'), findsOneWidget);
     });
 
-    testWidgets('shows inline validation error on empty or invalid URL submission',
-        (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: AddLinkBottomSheet(),
-          ),
-        ),
-      );
+    testWidgets(
+      'shows inline validation error on empty or invalid URL submission',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: AddLinkBottomSheet())),
+        );
 
-      // Tap continue with empty field
-      await tester.tap(find.text('Continue'));
-      await tester.pump();
+        // Tap continue with empty field
+        await tester.tap(find.text('Continue'));
+        await tester.pump();
 
-      expect(find.text('Please enter a URL'), findsOneWidget);
+        expect(find.text('Please enter a URL'), findsOneWidget);
 
-      // Enter invalid scheme
-      await tester.enterText(find.byType(TextField), 'ftp://bad-link.com');
-      await tester.tap(find.text('Continue'));
-      await tester.pump();
+        // Enter invalid scheme
+        await tester.enterText(find.byType(TextField), 'ftp://bad-link.com');
+        await tester.tap(find.text('Continue'));
+        await tester.pump();
 
-      expect(
-        find.text('Only http:// and https:// URLs are supported'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('Only http:// and https:// URLs are supported'),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('prefills clipboard URL when valid http/https URL is copied',
-        (tester) async {
+    testWidgets('prefills clipboard URL when valid http/https URL is copied', (
+      tester,
+    ) async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.getData') {
-          return {'text': 'https://github.com/flutter/flutter'};
-        }
-        return null;
-      });
+            if (call.method == 'Clipboard.getData') {
+              return {'text': 'https://github.com/flutter/flutter'};
+            }
+            return null;
+          });
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: AddLinkBottomSheet(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: AddLinkBottomSheet())),
       );
       await tester.pumpAndSettle();
 
@@ -467,89 +529,99 @@ void main() {
       captureBloc.close();
     });
 
-    testWidgets('renders styled link card without crashing when imageFile is null',
-        (tester) async {
-      await tester.pumpWidget(
-        BlocProvider<CaptureBloc>.value(
-          value: captureBloc,
-          child: MaterialApp(
-            home: MemoryReviewScreen(
-              imageFile: null,
-              linkUrl: 'https://flutter.dev',
-              previewImageUrl: null,
-              initialTitle: 'Flutter Dev Official',
-              initialContent: 'https://flutter.dev',
-              rawOcrText: 'https://flutter.dev\n\nBuild apps for any screen',
-              initialCategory: AppStrings.categoryWork,
-              initialTags: const ['flutter', 'link'],
-              initialSummary: '• Official Flutter documentation and resources',
-              aiStatus: 'processed',
-              createdAt: DateTime(2025, 1, 1),
+    testWidgets(
+      'renders styled link card without crashing when imageFile is null',
+      (tester) async {
+        await tester.pumpWidget(
+          BlocProvider<CaptureBloc>.value(
+            value: captureBloc,
+            child: MaterialApp(
+              home: MemoryReviewScreen(
+                imageFile: null,
+                linkUrl: 'https://flutter.dev',
+                previewImageUrl: null,
+                initialTitle: 'Flutter Dev Official',
+                initialContent: 'https://flutter.dev',
+                rawOcrText: 'https://flutter.dev\n\nBuild apps for any screen',
+                initialCategory: AppStrings.categoryWork,
+                initialTags: const ['flutter', 'link'],
+                initialSummary:
+                    '• Official Flutter documentation and resources',
+                aiStatus: 'processed',
+                createdAt: DateTime(2025, 1, 1),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      // Verify domain and link url in header preview card
-      expect(find.text('flutter.dev'), findsOneWidget);
-      expect(find.text('https://flutter.dev'), findsWidgets);
-      expect(find.text('Flutter Dev Official'), findsOneWidget);
-      expect(find.text('Work'), findsWidgets);
-      expect(find.text('#flutter'), findsOneWidget);
-      expect(find.text('#link'), findsOneWidget);
-      expect(find.text('• Official Flutter documentation and resources'), findsOneWidget);
-      expect(find.text('Save Memory'), findsOneWidget);
-    });
+        // Verify domain and link url in header preview card
+        expect(find.text('flutter.dev'), findsOneWidget);
+        expect(find.text('https://flutter.dev'), findsWidgets);
+        expect(find.text('Flutter Dev Official'), findsOneWidget);
+        expect(find.text('Work'), findsWidgets);
+        expect(find.text('#flutter'), findsOneWidget);
+        expect(find.text('#link'), findsOneWidget);
+        expect(
+          find.text('• Official Flutter documentation and resources'),
+          findsOneWidget,
+        );
+        expect(find.text('Save Memory'), findsOneWidget);
+      },
+    );
 
-    testWidgets('tapping Save Memory persists URL in content and navigates home',
-        (tester) async {
-      await tester.pumpWidget(
-        BlocProvider<CaptureBloc>.value(
-          value: captureBloc,
-          child: MaterialApp(
-            home: MemoryReviewScreen(
-              imageFile: null,
-              linkUrl: 'https://dart.dev',
-              previewImageUrl: 'https://dart.dev/assets/img/logo.png',
-              initialTitle: 'Dart Language Reference',
-              initialContent: 'https://dart.dev',
-              initialCategory: AppStrings.categoryStudy,
-              initialTags: const ['dart', 'programming', 'link'],
-              initialSummary: '• Fast, productive language for multi-platform apps',
-              aiStatus: 'processed',
-              createdAt: DateTime(2025, 1, 1),
+    testWidgets(
+      'tapping Save Memory persists URL in content and navigates home',
+      (tester) async {
+        await tester.pumpWidget(
+          BlocProvider<CaptureBloc>.value(
+            value: captureBloc,
+            child: MaterialApp(
+              home: MemoryReviewScreen(
+                imageFile: null,
+                linkUrl: 'https://dart.dev',
+                previewImageUrl: 'https://dart.dev/assets/img/logo.png',
+                initialTitle: 'Dart Language Reference',
+                initialContent: 'https://dart.dev',
+                initialCategory: AppStrings.categoryStudy,
+                initialTags: const ['dart', 'programming', 'link'],
+                initialSummary:
+                    '• Fast, productive language for multi-platform apps',
+                aiStatus: 'processed',
+                createdAt: DateTime(2025, 1, 1),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      // Tap Save Memory
-      await tester.ensureVisible(find.text('Save Memory'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save Memory'));
-      await tester.runAsync(() async {
-        await Future.delayed(const Duration(milliseconds: 300));
-      });
-      await tester.pump();
+        // Tap Save Memory
+        await tester.ensureVisible(find.text('Save Memory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save Memory'));
+        await tester.runAsync(() async {
+          await Future.delayed(const Duration(milliseconds: 300));
+        });
+        await tester.pump();
 
-      // Verify memory was saved in repository
-      expect(fakeRepo.memories.length, 1);
-      final saved = fakeRepo.memories.first;
-      expect(saved.title, 'Dart Language Reference');
-      expect(saved.content, 'https://dart.dev');
-      expect(saved.mediaUrl, 'https://dart.dev/assets/img/logo.png');
-      expect(saved.category, AppStrings.categoryStudy);
-      expect(saved.tags, contains('link'));
-      expect(saved.tags, contains('dart'));
-      expect(saved.aiStatus, 'processed');
-    });
+        // Verify memory was saved in repository
+        expect(fakeRepo.memories.length, 1);
+        final saved = fakeRepo.memories.first;
+        expect(saved.title, 'Dart Language Reference');
+        expect(saved.content, 'https://dart.dev');
+        expect(saved.mediaUrl, 'https://dart.dev/assets/img/logo.png');
+        expect(saved.category, AppStrings.categoryStudy);
+        expect(saved.tags, contains('link'));
+        expect(saved.tags, contains('dart'));
+        expect(saved.aiStatus, 'processed');
+      },
+    );
 
-    testWidgets('offline Add Link saves locally with aiStatus pending',
-        (tester) async {
+    testWidgets('offline Add Link saves locally with aiStatus pending', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         BlocProvider<CaptureBloc>.value(
           value: captureBloc,
@@ -592,59 +664,65 @@ void main() {
       expect(saved.aiStatus, 'pending');
     });
 
-    testWidgets('displays readable content in Extracted Content card and saves URL on line 1 with readable content',
-        (tester) async {
-      const readableText = '# Article Title\n\nDetailed readable webpage paragraph extracted cleanly.';
-      await tester.pumpWidget(
-        BlocProvider<CaptureBloc>.value(
-          value: captureBloc,
-          child: MaterialApp(
-            home: MemoryReviewScreen(
-              imageFile: null,
-              linkUrl: 'https://news.example.com/article',
-              readableContent: readableText,
-              previewImageUrl: null,
-              initialTitle: 'Article Title',
-              initialContent: 'https://news.example.com/article',
-              initialCategory: AppStrings.categoryWork,
-              initialTags: const ['article', 'link'],
-              initialSummary: '• Article summary point',
-              aiStatus: 'processed',
-              createdAt: DateTime(2025, 1, 1),
+    testWidgets(
+      'displays readable content in Extracted Content card and saves URL on line 1 with readable content',
+      (tester) async {
+        const readableText =
+            '# Article Title\n\nDetailed readable webpage paragraph extracted cleanly.';
+        await tester.pumpWidget(
+          BlocProvider<CaptureBloc>.value(
+            value: captureBloc,
+            child: MaterialApp(
+              home: MemoryReviewScreen(
+                imageFile: null,
+                linkUrl: 'https://news.example.com/article',
+                readableContent: readableText,
+                previewImageUrl: null,
+                initialTitle: 'Article Title',
+                initialContent: 'https://news.example.com/article',
+                initialCategory: AppStrings.categoryWork,
+                initialTags: const ['article', 'link'],
+                initialSummary: '• Article summary point',
+                aiStatus: 'processed',
+                createdAt: DateTime(2025, 1, 1),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      // Extracted Content card should be visible
-      expect(find.text('Extracted Content'), findsOneWidget);
-      expect(find.text('View extracted text'), findsOneWidget);
+        // Extracted Content card should be visible
+        expect(find.text('Extracted Content'), findsOneWidget);
+        expect(find.text('View extracted text'), findsOneWidget);
 
-      // Expand Extracted Content
-      await tester.ensureVisible(find.text('View extracted text'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('View extracted text'));
-      await tester.pumpAndSettle();
+        // Expand Extracted Content
+        await tester.ensureVisible(find.text('View extracted text'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('View extracted text'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Hide extracted text'), findsOneWidget);
-      expect(find.text(readableText), findsOneWidget);
+        expect(find.text('Hide extracted text'), findsOneWidget);
+        expect(find.text(readableText), findsOneWidget);
 
-      // Tap Save Memory
-      await tester.ensureVisible(find.text('Save Memory'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save Memory'));
-      await tester.runAsync(() async {
-        await Future.delayed(const Duration(milliseconds: 300));
-      });
-      await tester.pump();
+        // Tap Save Memory
+        await tester.ensureVisible(find.text('Save Memory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save Memory'));
+        await tester.runAsync(() async {
+          await Future.delayed(const Duration(milliseconds: 300));
+        });
+        await tester.pump();
 
-      expect(fakeRepo.memories.length, 1);
-      final saved = fakeRepo.memories.first;
-      expect(saved.content, 'https://news.example.com/article\n\n$readableText');
-      expect(saved.title, 'Article Title');
-    });
+        expect(fakeRepo.memories.length, 1);
+        final saved = fakeRepo.memories.first;
+        expect(
+          saved.content,
+          'https://news.example.com/article\n\n$readableText',
+        );
+        expect(saved.title, 'Article Title');
+      },
+    );
   });
 
   group('Take Photo / Scan Document Regression Verification', () {
@@ -663,12 +741,73 @@ void main() {
 
       tempDir = Directory.systemTemp.createTempSync();
       final transparentPng = <int>[
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-        0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+        0x00,
+        0x00,
+        0x00,
+        0x0D,
+        0x49,
+        0x48,
+        0x44,
+        0x52,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x08,
+        0x06,
+        0x00,
+        0x00,
+        0x00,
+        0x1F,
+        0x15,
+        0xC4,
+        0x89,
+        0x00,
+        0x00,
+        0x00,
+        0x0A,
+        0x49,
+        0x44,
+        0x41,
+        0x54,
+        0x78,
+        0x9C,
+        0x63,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x05,
+        0x00,
+        0x01,
+        0x0D,
+        0x0A,
+        0x2D,
+        0xB4,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x49,
+        0x45,
+        0x4E,
+        0x44,
+        0xAE,
+        0x42,
+        0x60,
+        0x82,
       ];
       dummyImageFile = File('${tempDir.path}/test_image.png')
         ..writeAsBytesSync(transparentPng);
@@ -681,134 +820,144 @@ void main() {
       } catch (_) {}
     });
 
-    testWidgets('MemoryReviewScreen with imageFile renders Image.file and persists image properly',
-        (tester) async {
-      await tester.pumpWidget(
-        BlocProvider<CaptureBloc>.value(
-          value: captureBloc,
-          child: MaterialApp(
-            home: MemoryReviewScreen(
-              imageFile: dummyImageFile,
-              initialTitle: 'Photo Captured Memory',
-              initialContent: 'Visual content notes',
-              initialCategory: AppStrings.categoryPersonal,
-              initialTags: const ['photo'],
-              initialSummary: '• Photo summary note',
-              aiStatus: 'processed',
-              createdAt: DateTime(2025, 1, 1),
+    testWidgets(
+      'MemoryReviewScreen with imageFile renders Image.file and persists image properly',
+      (tester) async {
+        await tester.pumpWidget(
+          BlocProvider<CaptureBloc>.value(
+            value: captureBloc,
+            child: MaterialApp(
+              home: MemoryReviewScreen(
+                imageFile: dummyImageFile,
+                initialTitle: 'Photo Captured Memory',
+                initialContent: 'Visual content notes',
+                initialCategory: AppStrings.categoryPersonal,
+                initialTags: const ['photo'],
+                initialSummary: '• Photo summary note',
+                aiStatus: 'processed',
+                createdAt: DateTime(2025, 1, 1),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      expect(find.byType(Image), findsOneWidget);
-      expect(find.text('Photo Captured Memory'), findsOneWidget);
+        expect(find.byType(Image), findsOneWidget);
+        expect(find.text('Photo Captured Memory'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Save Memory'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save Memory'));
-      await tester.runAsync(() async {
-        await Future.delayed(const Duration(milliseconds: 300));
-      });
-      await tester.pump();
+        await tester.ensureVisible(find.text('Save Memory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save Memory'));
+        await tester.runAsync(() async {
+          await Future.delayed(const Duration(milliseconds: 300));
+        });
+        await tester.pump();
 
-      expect(fakeRepo.memories.length, 1);
-      final saved = fakeRepo.memories.first;
-      expect(saved.title, 'Photo Captured Memory');
-      expect(saved.mediaUrl, isNotNull);
-    });
+        expect(fakeRepo.memories.length, 1);
+        final saved = fakeRepo.memories.first;
+        expect(saved.title, 'Photo Captured Memory');
+        expect(saved.mediaUrl, isNotNull);
+      },
+    );
 
-    testWidgets('MemoryReviewScreen with scan document parameters saves correctly with photo and summary',
-        (tester) async {
-      await tester.pumpWidget(
-        BlocProvider<CaptureBloc>.value(
-          value: captureBloc,
-          child: MaterialApp(
-            home: MemoryReviewScreen(
-              imageFile: dummyImageFile,
-              linkUrl: null,
-              readableContent: null,
-              initialTitle: 'Scanned Invoice #4021',
-              initialContent: 'Invoice #4021 Total: \$150.00 Due: Oct 1',
-              rawOcrText: 'Invoice #4021 Total: \$150.00 Due: Oct 1',
-              initialCategory: AppStrings.categoryFinance,
-              initialTags: const ['invoice', 'finance'],
-              initialSummary: '• Invoice #4021 due Oct 1 for \$150.00',
-              aiStatus: 'processed',
-              createdAt: DateTime(2025, 1, 1),
+    testWidgets(
+      'MemoryReviewScreen with scan document parameters saves correctly with photo and summary',
+      (tester) async {
+        await tester.pumpWidget(
+          BlocProvider<CaptureBloc>.value(
+            value: captureBloc,
+            child: MaterialApp(
+              home: MemoryReviewScreen(
+                imageFile: dummyImageFile,
+                linkUrl: null,
+                readableContent: null,
+                initialTitle: 'Scanned Invoice #4021',
+                initialContent: 'Invoice #4021 Total: \$150.00 Due: Oct 1',
+                rawOcrText: 'Invoice #4021 Total: \$150.00 Due: Oct 1',
+                initialCategory: AppStrings.categoryFinance,
+                initialTags: const ['invoice', 'finance'],
+                initialSummary: '• Invoice #4021 due Oct 1 for \$150.00',
+                aiStatus: 'processed',
+                createdAt: DateTime(2025, 1, 1),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      expect(find.byType(Image), findsOneWidget);
-      expect(find.text('Scanned Invoice #4021'), findsOneWidget);
+        expect(find.byType(Image), findsOneWidget);
+        expect(find.text('Scanned Invoice #4021'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Save Memory'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save Memory'));
-      await tester.runAsync(() async {
-        await Future.delayed(const Duration(milliseconds: 300));
-      });
-      await tester.pump();
+        await tester.ensureVisible(find.text('Save Memory'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save Memory'));
+        await tester.runAsync(() async {
+          await Future.delayed(const Duration(milliseconds: 300));
+        });
+        await tester.pump();
 
-      expect(fakeRepo.memories.length, 1);
-      final saved = fakeRepo.memories.first;
-      expect(saved.title, 'Scanned Invoice #4021');
-      expect(saved.content, '• Invoice #4021 due Oct 1 for \$150.00');
-      expect(saved.mediaUrl, isNotNull);
-      expect(saved.category, AppStrings.categoryFinance);
-    });
+        expect(fakeRepo.memories.length, 1);
+        final saved = fakeRepo.memories.first;
+        expect(saved.title, 'Scanned Invoice #4021');
+        expect(saved.content, '• Invoice #4021 due Oct 1 for \$150.00');
+        expect(saved.mediaUrl, isNotNull);
+        expect(saved.category, AppStrings.categoryFinance);
+      },
+    );
   });
 
   group('MemoryDetailScreen Link and Readable Content Tests', () {
-    testWidgets('displays Link Action Banner with line 1 URL and renders readable content in Extracted Content card',
-        (tester) async {
-      const url = 'https://flutter.dev/multiplatform';
-      const body = 'Flutter transforms the app development process. Build, test, and deploy beautiful apps from a single codebase.';
-      final memory = MemoryEntity(
-        id: 'mem-link-101',
-        userId: 'user-xyz',
-        title: 'Multiplatform Development with Flutter',
-        content: '$url\n\n$body',
-        category: AppStrings.categoryWork,
-        tags: const ['flutter', 'mobile', 'link'],
-        aiStatus: 'processed',
-        clientCreatedAt: DateTime(2026, 9, 15, 12, 0),
-        clientUpdatedAt: DateTime(2026, 9, 15, 12, 0),
-        serverUpdatedAt: DateTime(2026, 9, 15, 12, 0),
-      );
+    testWidgets(
+      'displays Link Action Banner with line 1 URL and renders readable content in Extracted Content card',
+      (tester) async {
+        const url = 'https://flutter.dev/multiplatform';
+        const body =
+            'Flutter transforms the app development process. Build, test, and deploy beautiful apps from a single codebase.';
+        final memory = MemoryEntity(
+          id: 'mem-link-101',
+          userId: 'user-xyz',
+          title: 'Multiplatform Development with Flutter',
+          content: '$url\n\n$body',
+          category: AppStrings.categoryWork,
+          tags: const ['flutter', 'mobile', 'link'],
+          aiStatus: 'processed',
+          clientCreatedAt: DateTime(2026, 9, 15, 12, 0),
+          clientUpdatedAt: DateTime(2026, 9, 15, 12, 0),
+          serverUpdatedAt: DateTime(2026, 9, 15, 12, 0),
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MemoryDetailScreen(
-            memoryId: memory.id,
-            initialMemory: memory,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MemoryDetailScreen(
+              memoryId: memory.id,
+              initialMemory: memory,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pump();
+        await tester.pump();
 
-      // Link Action Banner should display the URL only
-      expect(find.text(url), findsOneWidget);
-      expect(find.byIcon(Icons.open_in_new_rounded), findsOneWidget);
+        // Link Action Banner should display the URL only
+        expect(find.text(url), findsOneWidget);
+        expect(find.byIcon(Icons.open_in_new_rounded), findsOneWidget);
 
-      // Extracted Content card should be present
-      expect(find.text('Extracted Content'), findsOneWidget);
-      expect(find.text('View extracted text'), findsOneWidget);
+        // Extracted Content card should be present
+        expect(find.text('Extracted Content'), findsOneWidget);
+        expect(find.text('View extracted text'), findsOneWidget);
 
-      // Expand Extracted Content
-      await tester.tap(find.text('View extracted text'));
-      await tester.pumpAndSettle();
+        // Expand Extracted Content
+        await tester.tap(find.text('View extracted text'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Hide extracted text'), findsOneWidget);
-      // It should display the body text and NOT repeat the URL
-      expect(find.textContaining('Flutter transforms the app development process'), findsOneWidget);
-    });
+        expect(find.text('Hide extracted text'), findsOneWidget);
+        // It should display the body text and NOT repeat the URL
+        expect(
+          find.textContaining('Flutter transforms the app development process'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

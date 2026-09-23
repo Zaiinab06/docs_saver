@@ -20,11 +20,7 @@ class LivingEntityItem extends Equatable {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'type': type,
-      'attributes': attributes,
-    };
+    return {'name': name, 'type': type, 'attributes': attributes};
   }
 
   @override
@@ -71,13 +67,13 @@ class AiIngestionResult extends Equatable {
 
   @override
   List<Object?> get props => [
-        title,
-        category,
-        tags,
-        summary,
-        entities,
-        aiStatus,
-        rawOcrText,
-        documentText,
-      ];
+    title,
+    category,
+    tags,
+    summary,
+    entities,
+    aiStatus,
+    rawOcrText,
+    documentText,
+  ];
 }

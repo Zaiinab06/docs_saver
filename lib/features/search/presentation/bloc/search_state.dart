@@ -40,10 +40,7 @@ class SearchEmpty extends SearchState {
   final String query;
   final bool isOffline;
 
-  const SearchEmpty({
-    required this.query,
-    this.isOffline = false,
-  });
+  const SearchEmpty({required this.query, this.isOffline = false});
 
   @override
   List<Object?> get props => [query, isOffline];
@@ -53,10 +50,7 @@ class SearchError extends SearchState {
   final String message;
   final String query;
 
-  const SearchError({
-    required this.message,
-    required this.query,
-  });
+  const SearchError({required this.message, required this.query});
 
   @override
   List<Object?> get props => [message, query];

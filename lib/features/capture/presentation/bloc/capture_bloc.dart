@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -274,7 +275,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           final file = File(memory.mediaUrl!);
           if (file.existsSync()) {
             final bytes = await file.readAsBytes();
-            audioBase64 = base64Encode(bytes);
+            audioBase64 = await Isolate.run(() => base64Encode(bytes));
             mimeType = 'audio/m4a';
 
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -319,7 +320,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           final file = File(memory.mediaUrl!);
           if (file.existsSync()) {
             final bytes = await file.readAsBytes();
-            documentBase64 = base64Encode(bytes);
+            documentBase64 = await Isolate.run(() => base64Encode(bytes));
             mimeType = 'application/pdf';
 
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;

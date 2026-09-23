@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -21,10 +22,7 @@ class _CategoryOption {
   final String name;
   final IconData icon;
 
-  const _CategoryOption({
-    required this.name,
-    required this.icon,
-  });
+  const _CategoryOption({required this.name, required this.icon});
 }
 
 class MemoryReviewScreen extends StatefulWidget {
@@ -98,10 +96,7 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       name: AppStrings.categoryPersonal,
       icon: Icons.favorite_rounded,
     ),
-    _CategoryOption(
-      name: AppStrings.categoryStudy,
-      icon: Icons.school_rounded,
-    ),
+    _CategoryOption(name: AppStrings.categoryStudy, icon: Icons.school_rounded),
     _CategoryOption(
       name: AppStrings.categoryTravel,
       icon: Icons.flight_takeoff_rounded,
@@ -131,7 +126,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     _currentAiStatus = widget.aiStatus;
     _currentSummary = widget.initialSummary;
     _currentEntities = List.from(widget.entities);
-    _rawOcrText = (widget.readableContent != null && widget.readableContent!.trim().isNotEmpty)
+    _rawOcrText =
+        (widget.readableContent != null &&
+            widget.readableContent!.trim().isNotEmpty)
         ? widget.readableContent!.trim()
         : (widget.rawOcrText ?? widget.initialContent);
 
@@ -140,8 +137,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       _checkConnectivity();
     }
 
-    _connectivitySubscription =
-        NetworkChecker.onConnectivityChanged.listen((connected) {
+    _connectivitySubscription = NetworkChecker.onConnectivityChanged.listen((
+      connected,
+    ) {
       if (mounted && _isOffline != !connected) {
         setState(() {
           _isOffline = !connected;
@@ -169,10 +167,12 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     final initialContentText = widget.documentFile != null
         ? widget.initialContent.trim()
         : (widget.initialSummary.trim().isNotEmpty
-            ? widget.initialSummary.trim()
-            : (widget.rawOcrText != null
-                ? widget.initialContent.trim()
-                : (widget.initialContent.trim() == _rawOcrText.trim() ? '' : widget.initialContent.trim())));
+              ? widget.initialSummary.trim()
+              : (widget.rawOcrText != null
+                    ? widget.initialContent.trim()
+                    : (widget.initialContent.trim() == _rawOcrText.trim()
+                          ? ''
+                          : widget.initialContent.trim())));
     _contentController = TextEditingController(text: initialContentText);
     _selectedCategory = widget.initialCategory.isNotEmpty
         ? widget.initialCategory
@@ -209,7 +209,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
   }
 
   void _addTag() {
-    final raw = _tagInputController.text.trim().replaceAll('#', '').toLowerCase();
+    final raw = _tagInputController.text
+        .trim()
+        .replaceAll('#', '')
+        .toLowerCase();
     if (raw.isNotEmpty && !_tags.contains(raw)) {
       setState(() {
         _tags.add(raw);
@@ -222,7 +225,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     if (_isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('AI analysis unavailable offline. Please connect to the internet and try again.'),
+          content: Text(
+            'AI analysis unavailable offline. Please connect to the internet and try again.',
+          ),
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
         ),
@@ -236,7 +241,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         setState(() => _isOffline = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('AI analysis unavailable offline. Please connect to the internet and try again.'),
+            content: Text(
+              'AI analysis unavailable offline. Please connect to the internet and try again.',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -256,8 +263,13 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           final fileSize = widget.documentFile!.lengthSync();
           if (fileSize < 15 * 1024 * 1024) {
             final docBytes = widget.documentFile!.readAsBytesSync();
-            documentBase64 = base64Encode(docBytes);
-            final extension = widget.documentFile!.path.split('.').last.toLowerCase();
+            documentBase64 = docBytes.length > 512 * 1024
+                ? await Isolate.run(() => base64Encode(docBytes))
+                : base64Encode(docBytes);
+            final extension = widget.documentFile!.path
+                .split('.')
+                .last
+                .toLowerCase();
             mimeType = CaptureRepositoryImpl.resolveMimeType(extension);
           }
         } else if (widget.imageFile != null && widget.imageFile!.existsSync()) {
@@ -265,7 +277,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           if (fileSize < 8 * 1024 * 1024) {
             final imageBytes = widget.imageFile!.readAsBytesSync();
             imageBase64 = base64Encode(imageBytes);
-            final extension = widget.imageFile!.path.split('.').last.toLowerCase();
+            final extension = widget.imageFile!.path
+                .split('.')
+                .last
+                .toLowerCase();
             mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
           }
         }
@@ -273,11 +288,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         // Fallback to text-only if reading file fails
       }
 
-      final useCase = widget.ingestMemoryUseCase ??
+      final useCase =
+          widget.ingestMemoryUseCase ??
           IngestMemoryUseCase(
-            AiRepositoryImpl(
-              remoteDataSource: AiRemoteDataSourceImpl(),
-            ),
+            AiRepositoryImpl(remoteDataSource: AiRemoteDataSourceImpl()),
           );
 
       final result = await useCase(
@@ -290,8 +304,8 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       final bool isDoc = widget.documentFile != null;
       final bool isSuccess = isDoc
           ? (result.aiStatus == 'processed' &&
-              result.documentText != null &&
-              result.documentText!.trim().isNotEmpty)
+                result.documentText != null &&
+                result.documentText!.trim().isNotEmpty)
           : (result.aiStatus == 'processed');
 
       if (isSuccess && mounted) {
@@ -315,7 +329,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             }
           } else {
             // If content is empty or unedited raw OCR, prefill content with summary
-            if ((_contentController.text.trim().isEmpty || _contentController.text.trim() == _rawOcrText.trim()) && result.summary.isNotEmpty) {
+            if ((_contentController.text.trim().isEmpty ||
+                    _contentController.text.trim() == _rawOcrText.trim()) &&
+                result.summary.isNotEmpty) {
               _contentController.text = result.summary;
             }
           }
@@ -376,12 +392,15 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         try {
           final appDir = await getApplicationDocumentsDirectory();
           final extension = widget.documentFile!.path.split('.').last;
-          final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}.$extension';
+          final fileName =
+              'doc_${DateTime.now().millisecondsSinceEpoch}.$extension';
           final docDir = Directory('${appDir.path}/documents');
           if (!docDir.existsSync()) {
             docDir.createSync(recursive: true);
           }
-          final persistentFile = widget.documentFile!.copySync('${docDir.path}/$fileName');
+          final persistentFile = widget.documentFile!.copySync(
+            '${docDir.path}/$fileName',
+          );
           persistentMediaUrl = persistentFile.path;
 
           // Optional background upload to Supabase storage if reachable
@@ -391,12 +410,16 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
               final bytes = persistentFile.readAsBytesSync();
               final storageKey = '$currentUserId/$fileName';
               final mime = CaptureRepositoryImpl.resolveMimeType(extension);
-              await Supabase.instance.client.storage.from('memories').uploadBinary(
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
                     storageKey,
                     bytes,
                     fileOptions: FileOptions(contentType: mime),
                   );
-              final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+              final publicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
               if (publicUrl.isNotEmpty) {
                 persistentMediaUrl = publicUrl;
               }
@@ -412,8 +435,11 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         try {
           final appDir = await getApplicationDocumentsDirectory();
           final extension = widget.imageFile!.path.split('.').last;
-          final fileName = 'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
-          final persistentFile = widget.imageFile!.copySync('${appDir.path}/$fileName');
+          final fileName =
+              'memory_${DateTime.now().millisecondsSinceEpoch}.$extension';
+          final persistentFile = widget.imageFile!.copySync(
+            '${appDir.path}/$fileName',
+          );
           persistentMediaUrl = persistentFile.path;
 
           // Optional background upload to Supabase storage if reachable
@@ -422,12 +448,16 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             if (currentUserId != null) {
               final bytes = persistentFile.readAsBytesSync();
               final storageKey = '$currentUserId/$fileName';
-              await Supabase.instance.client.storage.from('memories').uploadBinary(
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
                     storageKey,
                     bytes,
                     fileOptions: FileOptions(contentType: 'image/$extension'),
                   );
-              final publicUrl = Supabase.instance.client.storage.from('memories').getPublicUrl(storageKey);
+              final publicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
               if (publicUrl.isNotEmpty) {
                 persistentMediaUrl = publicUrl;
               }
@@ -446,39 +476,46 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       final title = _titleController.text.trim().isNotEmpty
           ? _titleController.text.trim()
           : (widget.initialTitle.trim().isNotEmpty
-              ? widget.initialTitle.trim()
-              : (widget.linkUrl != null
-                  ? 'Web Link (${DateFormat('MMM d').format(DateTime.now())})'
-                  : (widget.documentFile != null
-                      ? widget.documentFile!.path.split('/').last.split('\\').last
-                      : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})')));
+                ? widget.initialTitle.trim()
+                : (widget.linkUrl != null
+                      ? 'Web Link (${DateFormat('MMM d').format(DateTime.now())})'
+                      : (widget.documentFile != null
+                            ? widget.documentFile!.path
+                                  .split('/')
+                                  .last
+                                  .split('\\')
+                                  .last
+                            : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})')));
 
       // For links, preserve the raw URL on line 1, followed by readable content if available.
       // For documents, preserve the exact document text (never overwrite with summary).
       // For visual memories, preserve user-edited content or AI summary.
       final content = widget.linkUrl != null && widget.linkUrl!.isNotEmpty
-          ? ((widget.readableContent != null && widget.readableContent!.trim().isNotEmpty)
-              ? '${widget.linkUrl!.trim()}\n\n${widget.readableContent!.trim()}'
-              : widget.linkUrl!)
+          ? ((widget.readableContent != null &&
+                    widget.readableContent!.trim().isNotEmpty)
+                ? '${widget.linkUrl!.trim()}\n\n${widget.readableContent!.trim()}'
+                : widget.linkUrl!)
           : (widget.documentFile != null
-              ? _contentController.text.trim()
-              : (_currentSummary.trim().isNotEmpty
-                  ? _currentSummary.trim()
-                  : (_contentController.text.trim().isNotEmpty && _contentController.text.trim() != _rawOcrText.trim()
-                      ? _contentController.text.trim()
-                      : 'Captured Visual Memory')));
+                ? _contentController.text.trim()
+                : (_currentSummary.trim().isNotEmpty
+                      ? _currentSummary.trim()
+                      : (_contentController.text.trim().isNotEmpty &&
+                                _contentController.text.trim() !=
+                                    _rawOcrText.trim()
+                            ? _contentController.text.trim()
+                            : 'Captured Visual Memory')));
 
       // 2. Persist metadata through the existing repository and data layer
       context.read<CaptureBloc>().add(
-            AddMemoryEvent(
-              title: title,
-              content: content,
-              category: _selectedCategory,
-              tags: _tags,
-              mediaUrl: persistentMediaUrl,
-              aiStatus: _currentAiStatus,
-            ),
-          );
+        AddMemoryEvent(
+          title: title,
+          content: content,
+          category: _selectedCategory,
+          tags: _tags,
+          mediaUrl: persistentMediaUrl,
+          aiStatus: _currentAiStatus,
+        ),
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -493,16 +530,18 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save memory: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save memory: $e')));
       }
     }
   }
 
   Widget _buildDocumentCard(File file) {
     final fileName = file.path.split('/').last.split('\\').last;
-    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'DOC';
+    final ext = fileName.contains('.')
+        ? fileName.split('.').last.toUpperCase()
+        : 'DOC';
     final isPdf = ext == 'PDF';
 
     String fileSizeStr = '';
@@ -523,10 +562,7 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.chipInactiveBorder,
-          width: 1.2,
-        ),
+        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
       ),
       child: Row(
         children: [
@@ -534,15 +570,11 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: isPdf
-                  ? const Color(0xFFFEE2E2)
-                  : AppColors.lightCyanTint,
+              color: isPdf ? const Color(0xFFFEE2E2) : AppColors.lightCyanTint,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isPdf
-                  ? Icons.picture_as_pdf_rounded
-                  : Icons.description_rounded,
+              isPdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
               color: isPdf ? const Color(0xFFDC2626) : AppColors.primary,
               size: 26,
             ),
@@ -626,10 +658,7 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             color: AppColors.cardBackground,
             border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
           ),
-          child: Image.file(
-            widget.imageFile!,
-            fit: BoxFit.cover,
-          ),
+          child: Image.file(widget.imageFile!, fit: BoxFit.cover),
         ),
       );
     }
@@ -659,8 +688,8 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
   Widget _buildStyledLinkCard() {
     final domain = widget.linkUrl != null
         ? (Uri.tryParse(widget.linkUrl!)?.host.isNotEmpty == true
-            ? Uri.tryParse(widget.linkUrl!)!.host
-            : widget.linkUrl!)
+              ? Uri.tryParse(widget.linkUrl!)!.host
+              : widget.linkUrl!)
         : 'Web Link';
 
     return Container(
@@ -734,7 +763,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
 
   @override
   Widget build(BuildContext context) {
-    final formattedDate = DateFormat('MMM d, yyyy • h:mm a').format(widget.createdAt);
+    final formattedDate = DateFormat(
+      'MMM d, yyyy • h:mm a',
+    ).format(widget.createdAt);
     final isAiProcessed = _currentAiStatus == 'processed';
     final isAiFailed = _currentAiStatus == 'failed';
 
@@ -745,8 +776,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded,
-              color: AppColors.textPrimaryOf(context)),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimaryOf(context),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -782,14 +815,19 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                     runSpacing: 8,
                     children: [
                       ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                        ),
                         child: Wrap(
                           crossAxisAlignment: WrapCrossAlignment.center,
                           spacing: 8,
                           runSpacing: 6,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: isAiProcessed
                                     ? AppColors.lightCyanTint
@@ -799,8 +837,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                   color: isAiProcessed
                                       ? AppColors.primary
                                       : (isAiFailed
-                                          ? AppColors.errorText.withValues(alpha: 0.6)
-                                          : AppColors.chipInactiveBorder),
+                                            ? AppColors.errorText.withValues(
+                                                alpha: 0.6,
+                                              )
+                                            : AppColors.chipInactiveBorder),
                                   width: 1.0,
                                 ),
                               ),
@@ -822,14 +862,14 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                       isAiProcessed
                                           ? Icons.auto_awesome_rounded
                                           : (isAiFailed
-                                              ? Icons.info_outline_rounded
-                                              : Icons.schedule_rounded),
+                                                ? Icons.info_outline_rounded
+                                                : Icons.schedule_rounded),
                                       size: 14,
                                       color: isAiProcessed
                                           ? AppColors.primary
                                           : (isAiFailed
-                                              ? AppColors.errorText
-                                              : AppColors.textSecondary),
+                                                ? AppColors.errorText
+                                                : AppColors.textSecondary),
                                     ),
                                     const SizedBox(width: 5),
                                   ],
@@ -838,18 +878,18 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                       isAiProcessed
                                           ? 'AI Organized'
                                           : (isAiFailed
-                                              ? 'AI Analysis Failed'
-                                              : (_isOffline
-                                                  ? "You're offline"
-                                                  : 'AI Ingestion Pending')),
+                                                ? 'AI Analysis Failed'
+                                                : (_isOffline
+                                                      ? "You're offline"
+                                                      : 'AI Ingestion Pending')),
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: isAiProcessed
                                             ? AppColors.primary
                                             : (isAiFailed
-                                                ? AppColors.errorText
-                                                : AppColors.textSecondary),
+                                                  ? AppColors.errorText
+                                                  : AppColors.textSecondary),
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -860,9 +900,14 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                             if (!isAiProcessed && !_isOffline) ...[
                               if (_isReanalyzing)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.08),
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.08,
+                                    ),
                                     borderRadius: BorderRadius.circular(100),
                                   ),
                                   child: const Row(
@@ -873,7 +918,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                         height: 12,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2.0,
-                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                AppColors.primary,
+                                              ),
                                         ),
                                       ),
                                       SizedBox(width: 6),
@@ -893,12 +941,19 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                   onTap: _retryAiAnalysis,
                                   borderRadius: BorderRadius.circular(100),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.errorText.withValues(alpha: 0.08),
+                                      color: AppColors.errorText.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       borderRadius: BorderRadius.circular(100),
                                       border: Border.all(
-                                        color: AppColors.errorText.withValues(alpha: 0.3),
+                                        color: AppColors.errorText.withValues(
+                                          alpha: 0.3,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
@@ -928,12 +983,19 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                   onTap: _retryAiAnalysis,
                                   borderRadius: BorderRadius.circular(100),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.08),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       borderRadius: BorderRadius.circular(100),
                                       border: Border.all(
-                                        color: AppColors.primary.withValues(alpha: 0.3),
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
@@ -1041,7 +1103,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                  border: Border.all(
+                    color: AppColors.chipInactiveBorder,
+                    width: 1.2,
+                  ),
                 ),
                 child: TextField(
                   controller: _titleController,
@@ -1058,7 +1123,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                       fontWeight: FontWeight.w400,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -1091,19 +1159,30 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                       borderRadius: BorderRadius.circular(100),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          gradient: isSelected ? AppColors.primaryGradient : null,
-                          color: isSelected ? null : AppColors.categoryChipBackground,
+                          gradient: isSelected
+                              ? AppColors.primaryGradient
+                              : null,
+                          color: isSelected
+                              ? null
+                              : AppColors.categoryChipBackground,
                           borderRadius: BorderRadius.circular(100),
                           border: Border.all(
-                            color: isSelected ? AppColors.primary : AppColors.categoryChipBorder,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.categoryChipBorder,
                             width: isSelected ? 1.6 : 1.0,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: AppColors.primary.withValues(alpha: 0.25),
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.25,
+                                    ),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -1116,15 +1195,21 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                             Icon(
                               cat.icon,
                               size: 16,
-                              color: isSelected ? AppColors.textWhite : AppColors.primary,
+                              color: isSelected
+                                  ? AppColors.textWhite
+                                  : AppColors.primary,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               cat.name,
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                color: isSelected ? AppColors.textWhite : AppColors.primary,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? AppColors.textWhite
+                                    : AppColors.primary,
                               ),
                             ),
                           ],
@@ -1138,7 +1223,8 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
               const SizedBox(height: 20),
 
               // 5. Extracted Content Expandable Card (For non-image sources like links and documents; raw OCR is hidden for captured photos)
-              if (widget.imageFile == null && _rawOcrText.trim().isNotEmpty) ...[
+              if (widget.imageFile == null &&
+                  _rawOcrText.trim().isNotEmpty) ...[
                 const Text(
                   'Extracted Content',
                   style: TextStyle(
@@ -1162,7 +1248,10 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                   decoration: BoxDecoration(
                     color: AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.chipInactiveBorder, width: 1.2),
+                    border: Border.all(
+                      color: AppColors.chipInactiveBorder,
+                      width: 1.2,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.02),
@@ -1201,7 +1290,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                           height: 36,
                                           decoration: BoxDecoration(
                                             color: AppColors.lightCyanTint,
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: const Icon(
                                             Icons.document_scanner_rounded,
@@ -1235,7 +1326,12 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                                   color: AppColors.chipInactiveBorder,
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    14,
+                                    16,
+                                    16,
+                                  ),
                                   child: SelectableText(
                                     _rawOcrText.trim(),
                                     style: const TextStyle(
@@ -1317,11 +1413,16 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                   runSpacing: 8,
                   children: _tags.map((tag) {
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.lightCyanTint,
                         borderRadius: BorderRadius.circular(100),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1337,7 +1438,11 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                           const SizedBox(width: 4),
                           InkWell(
                             onTap: () => setState(() => _tags.remove(tag)),
-                            child: const Icon(Icons.close_rounded, size: 14, color: AppColors.primary),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 14,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ],
                       ),
@@ -1354,16 +1459,28 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                       decoration: BoxDecoration(
                         color: AppColors.cardBackground,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.chipInactiveBorder, width: 1.0),
+                        border: Border.all(
+                          color: AppColors.chipInactiveBorder,
+                          width: 1.0,
+                        ),
                       ),
                       child: TextField(
                         controller: _tagInputController,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Add tag...',
-                          hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
                         onSubmitted: (_) => _addTag(),
                       ),
@@ -1372,7 +1489,11 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: _addTag,
-                    icon: const Icon(Icons.add_circle_rounded, color: AppColors.primary, size: 28),
+                    icon: const Icon(
+                      Icons.add_circle_rounded,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
                   ),
                 ],
               ),
@@ -1406,8 +1527,13 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                       runSpacing: 8,
                       children: _currentEntities.map((entity) {
                         return Container(
-                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(10),
@@ -1420,9 +1546,14 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -1480,7 +1611,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.cardBackground,
-          border: Border(top: BorderSide(color: AppColors.chipInactiveBorder, width: 1.0)),
+          border: Border(
+            top: BorderSide(color: AppColors.chipInactiveBorder, width: 1.0),
+          ),
         ),
         child: SafeArea(
           top: false,
@@ -1506,7 +1639,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : const Row(

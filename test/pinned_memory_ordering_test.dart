@@ -63,102 +63,108 @@ void main() {
       );
     }
 
-    test('Unit: compareByPinnedAndDate places pinned memories above unpinned memories', () {
-      final unpinnedNew = createMemory(
-        id: '1',
-        title: 'Unpinned Newer',
-        createdAt: baseTime.add(const Duration(hours: 2)),
-      );
-      final pinnedOld = createMemory(
-        id: '2',
-        title: 'Pinned Older',
-        createdAt: baseTime,
-        tags: ['pinned'],
-      );
+    test(
+      'Unit: compareByPinnedAndDate places pinned memories above unpinned memories',
+      () {
+        final unpinnedNew = createMemory(
+          id: '1',
+          title: 'Unpinned Newer',
+          createdAt: baseTime.add(const Duration(hours: 2)),
+        );
+        final pinnedOld = createMemory(
+          id: '2',
+          title: 'Pinned Older',
+          createdAt: baseTime,
+          tags: ['pinned'],
+        );
 
-      final list = [unpinnedNew, pinnedOld]..sort(MemoryEntity.compareByPinnedAndDate);
+        final list = [unpinnedNew, pinnedOld]
+          ..sort(MemoryEntity.compareByPinnedAndDate);
 
-      expect(list.first.id, '2');
-      expect(list.first.title, 'Pinned Older');
-      expect(list.last.id, '1');
-      expect(list.last.title, 'Unpinned Newer');
-    });
+        expect(list.first.id, '2');
+        expect(list.first.title, 'Pinned Older');
+        expect(list.last.id, '1');
+        expect(list.last.title, 'Unpinned Newer');
+      },
+    );
 
-    test('Unit: compareByPinnedAndDate sorts multiple pinned memories by latest date', () {
-      final pinnedOld = createMemory(
-        id: 'p1',
-        title: 'Pinned 10:00',
-        createdAt: baseTime,
-        tags: ['pinned'],
-      );
-      final pinnedNew = createMemory(
-        id: 'p2',
-        title: 'Pinned 11:00',
-        createdAt: baseTime.add(const Duration(hours: 1)),
-        tags: ['pinned'],
-      );
-      final unpinned = createMemory(
-        id: 'u1',
-        title: 'Unpinned 12:00',
-        createdAt: baseTime.add(const Duration(hours: 2)),
-      );
+    test(
+      'Unit: compareByPinnedAndDate sorts multiple pinned memories by latest date',
+      () {
+        final pinnedOld = createMemory(
+          id: 'p1',
+          title: 'Pinned 10:00',
+          createdAt: baseTime,
+          tags: ['pinned'],
+        );
+        final pinnedNew = createMemory(
+          id: 'p2',
+          title: 'Pinned 11:00',
+          createdAt: baseTime.add(const Duration(hours: 1)),
+          tags: ['pinned'],
+        );
+        final unpinned = createMemory(
+          id: 'u1',
+          title: 'Unpinned 12:00',
+          createdAt: baseTime.add(const Duration(hours: 2)),
+        );
 
-      final list = [pinnedOld, unpinned, pinnedNew]
-        ..sort(MemoryEntity.compareByPinnedAndDate);
+        final list = [pinnedOld, unpinned, pinnedNew]
+          ..sort(MemoryEntity.compareByPinnedAndDate);
 
-      // Pinned memories first, newest timestamp first
-      expect(list[0].id, 'p2');
-      expect(list[1].id, 'p1');
-      // Followed by unpinned
-      expect(list[2].id, 'u1');
-    });
+        // Pinned memories first, newest timestamp first
+        expect(list[0].id, 'p2');
+        expect(list[1].id, 'p1');
+        // Followed by unpinned
+        expect(list[2].id, 'u1');
+      },
+    );
 
-    testWidgets('HomeScreen does not display memory cards when memories exist (Recent Memories removed from Home UI)',
-        (tester) async {
-      final memoryOld = createMemory(
-        id: 'mem-1',
-        title: 'First Memory (Will Pin)',
-        createdAt: baseTime,
-        tags: ['pinned'], // Pinned
-      );
-      final memoryNewer = createMemory(
-        id: 'mem-2',
-        title: 'Second Memory (Unpinned)',
-        createdAt: baseTime.add(const Duration(hours: 1)),
-      );
+    testWidgets(
+      'HomeScreen does not display memory cards when memories exist (Recent Memories removed from Home UI)',
+      (tester) async {
+        final memoryOld = createMemory(
+          id: 'mem-1',
+          title: 'First Memory (Will Pin)',
+          createdAt: baseTime,
+          tags: ['pinned'], // Pinned
+        );
+        final memoryNewer = createMemory(
+          id: 'mem-2',
+          title: 'Second Memory (Unpinned)',
+          createdAt: baseTime.add(const Duration(hours: 1)),
+        );
 
-      final repo = FakeCaptureRepository([memoryOld, memoryNewer]);
-      final captureBloc = CaptureBloc(
-        saveMemoryUseCase: SaveMemoryUseCase(repo),
-        getMemoriesUseCase: GetMemoriesUseCase(repo),
-        repository: repo,
-      );
+        final repo = FakeCaptureRepository([memoryOld, memoryNewer]);
+        final captureBloc = CaptureBloc(
+          saveMemoryUseCase: SaveMemoryUseCase(repo),
+          getMemoriesUseCase: GetMemoriesUseCase(repo),
+          repository: repo,
+        );
 
-      await tester.pumpWidget(
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<CaptureBloc>.value(value: captureBloc),
-          ],
-          child: const MaterialApp(
-            home: HomeScreen(userName: 'Tester'),
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [BlocProvider<CaptureBloc>.value(value: captureBloc)],
+            child: const MaterialApp(home: HomeScreen(userName: 'Tester')),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Recent Memories header and memory cards are removed from HomeScreen UI
-      expect(find.text('First Memory (Will Pin)'), findsNothing);
-      expect(find.text('Second Memory (Unpinned)'), findsNothing);
-      expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
+        // Recent Memories header and memory cards are removed from HomeScreen UI
+        expect(find.text('First Memory (Will Pin)'), findsNothing);
+        expect(find.text('Second Memory (Unpinned)'), findsNothing);
+        expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
 
-      // Category Section cards are displayed
-      expect(find.text('Documents & Records'), findsOneWidget);
-      expect(find.text('Work & Learning'), findsOneWidget);
-      expect(find.text('Home & Utilities'), findsOneWidget);
-    });
+        // Category Section cards are displayed
+        expect(find.text('Documents & Records'), findsOneWidget);
+        expect(find.text('Work & Learning'), findsOneWidget);
+        expect(find.text('Home & Utilities'), findsOneWidget);
+      },
+    );
 
-    testWidgets('SavedScreen: Unpinning a memory removes it from SavedScreen',
-        (tester) async {
+    testWidgets('SavedScreen: Unpinning a memory removes it from SavedScreen', (
+      tester,
+    ) async {
       final memA = createMemory(
         id: 'a',
         title: 'Alpha Note (Pinned)',
@@ -176,12 +182,8 @@ void main() {
 
       await tester.pumpWidget(
         MultiBlocProvider(
-          providers: [
-            BlocProvider<CaptureBloc>.value(value: captureBloc),
-          ],
-          child: const MaterialApp(
-            home: SavedScreen(),
-          ),
+          providers: [BlocProvider<CaptureBloc>.value(value: captureBloc)],
+          child: const MaterialApp(home: SavedScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -205,68 +207,66 @@ void main() {
       expect(find.text('No pinned memories yet'), findsOneWidget);
     });
 
-    testWidgets('SavedScreen: Multiple pinned memories remain ordered by timestamp',
-        (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'SavedScreen: Multiple pinned memories remain ordered by timestamp',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final p1 = createMemory(
-        id: 'p1',
-        title: 'Pinned First (10:00)',
-        createdAt: baseTime,
-        tags: ['pinned'],
-      );
-      final p2 = createMemory(
-        id: 'p2',
-        title: 'Pinned Later (11:00)',
-        createdAt: baseTime.add(const Duration(hours: 1)),
-        tags: ['pinned'],
-      );
-      final u1 = createMemory(
-        id: 'u1',
-        title: 'Unpinned Latest (12:00)',
-        createdAt: baseTime.add(const Duration(hours: 2)),
-      );
+        final p1 = createMemory(
+          id: 'p1',
+          title: 'Pinned First (10:00)',
+          createdAt: baseTime,
+          tags: ['pinned'],
+        );
+        final p2 = createMemory(
+          id: 'p2',
+          title: 'Pinned Later (11:00)',
+          createdAt: baseTime.add(const Duration(hours: 1)),
+          tags: ['pinned'],
+        );
+        final u1 = createMemory(
+          id: 'u1',
+          title: 'Unpinned Latest (12:00)',
+          createdAt: baseTime.add(const Duration(hours: 2)),
+        );
 
-      final repo = FakeCaptureRepository([p1, p2, u1]);
-      final captureBloc = CaptureBloc(
-        saveMemoryUseCase: SaveMemoryUseCase(repo),
-        getMemoriesUseCase: GetMemoriesUseCase(repo),
-        repository: repo,
-      );
-      captureBloc.add(LoadMemoriesEvent());
+        final repo = FakeCaptureRepository([p1, p2, u1]);
+        final captureBloc = CaptureBloc(
+          saveMemoryUseCase: SaveMemoryUseCase(repo),
+          getMemoriesUseCase: GetMemoriesUseCase(repo),
+          repository: repo,
+        );
+        captureBloc.add(LoadMemoriesEvent());
 
-      await tester.pumpWidget(
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<CaptureBloc>.value(value: captureBloc),
-          ],
-          child: const MaterialApp(
-            home: SavedScreen(),
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [BlocProvider<CaptureBloc>.value(value: captureBloc)],
+            child: const MaterialApp(home: SavedScreen()),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Switch to Pinned tab
-      await tester.tap(find.text('Pinned'));
-      await tester.pumpAndSettle();
+        // Switch to Pinned tab
+        await tester.tap(find.text('Pinned'));
+        await tester.pumpAndSettle();
 
-      // Pinned memories are displayed on SavedScreen
-      expect(find.text('Pinned Later (11:00)'), findsOneWidget);
-      expect(find.text('Pinned First (10:00)'), findsOneWidget);
-      // Unpinned is not on SavedScreen
-      expect(find.text('Unpinned Latest (12:00)'), findsNothing);
+        // Pinned memories are displayed on SavedScreen
+        expect(find.text('Pinned Later (11:00)'), findsOneWidget);
+        expect(find.text('Pinned First (10:00)'), findsOneWidget);
+        // Unpinned is not on SavedScreen
+        expect(find.text('Unpinned Latest (12:00)'), findsNothing);
 
-      // Order on SavedScreen:
-      // 1. Pinned Later (11:00)
-      // 2. Pinned First (10:00)
-      final p2Top = tester.getTopLeft(find.text('Pinned Later (11:00)')).dy;
-      final p1Top = tester.getTopLeft(find.text('Pinned First (10:00)')).dy;
+        // Order on SavedScreen:
+        // 1. Pinned Later (11:00)
+        // 2. Pinned First (10:00)
+        final p2Top = tester.getTopLeft(find.text('Pinned Later (11:00)')).dy;
+        final p1Top = tester.getTopLeft(find.text('Pinned First (10:00)')).dy;
 
-      expect(p2Top, lessThan(p1Top));
-    });
+        expect(p2Top, lessThan(p1Top));
+      },
+    );
   });
 }

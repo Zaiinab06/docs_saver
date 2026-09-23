@@ -58,12 +58,13 @@ class _SavedScreenState extends State<SavedScreen> {
 
   Widget _buildThumbnail(MemoryEntity memory) {
     final media = memory.mediaUrl;
-    final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
+    final isVoice =
+        memory.tags.any((t) => t.toLowerCase() == 'voice') ||
         (media != null &&
             (media.endsWith('.m4a') ||
-             media.endsWith('.aac') ||
-             media.endsWith('.mp3') ||
-             media.endsWith('.wav')));
+                media.endsWith('.aac') ||
+                media.endsWith('.mp3') ||
+                media.endsWith('.wav')));
 
     if (isVoice) {
       return Container(
@@ -71,11 +72,7 @@ class _SavedScreenState extends State<SavedScreen> {
         height: double.infinity,
         color: AppColors.lightCyanTint,
         child: const Center(
-          child: Icon(
-            Icons.mic_rounded,
-            color: AppColors.primary,
-            size: 22,
-          ),
+          child: Icon(Icons.mic_rounded, color: AppColors.primary, size: 22),
         ),
       );
     }
@@ -125,25 +122,23 @@ class _SavedScreenState extends State<SavedScreen> {
       return trimmed;
     }
 
-    final lines = trimmed
-        .split(RegExp(r'\r?\n'))
-        .map((l) => l.trim())
-        .where((l) {
-          if (l.isEmpty) return false;
-          if (l.startsWith('http://') ||
-              l.startsWith('https://') ||
-              l.startsWith('www.')) {
-            return false;
-          }
-          if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(l) && l.length < 20) {
-            return false;
-          }
-          if (RegExp(r'^\d{1,3}%\s*$').hasMatch(l)) {
-            return false;
-          }
-          return true;
-        })
-        .toList();
+    final lines = trimmed.split(RegExp(r'\r?\n')).map((l) => l.trim()).where((
+      l,
+    ) {
+      if (l.isEmpty) return false;
+      if (l.startsWith('http://') ||
+          l.startsWith('https://') ||
+          l.startsWith('www.')) {
+        return false;
+      }
+      if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(l) && l.length < 20) {
+        return false;
+      }
+      if (RegExp(r'^\d{1,3}%\s*$').hasMatch(l)) {
+        return false;
+      }
+      return true;
+    }).toList();
 
     if (lines.isEmpty) return '';
     return lines.take(2).join('\n');
@@ -153,7 +148,9 @@ class _SavedScreenState extends State<SavedScreen> {
     final currentlyPinned = memory.isPinned;
     final newTags = List<String>.from(memory.tags);
     if (currentlyPinned) {
-      newTags.removeWhere((t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin');
+      newTags.removeWhere(
+        (t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin',
+      );
     } else {
       if (!newTags.contains('pinned')) {
         newTags.add('pinned');
@@ -175,10 +172,13 @@ class _SavedScreenState extends State<SavedScreen> {
         });
 
         try {
-          await Supabase.instance.client.from('memories').update({
-            'tags': newTags,
-            'client_updated_at': DateTime.now().toIso8601String(),
-          }).eq('id', memory.id);
+          await Supabase.instance.client
+              .from('memories')
+              .update({
+                'tags': newTags,
+                'client_updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', memory.id);
           model.isSynced = true;
           await isar.writeTxn(() async {
             await isar.memoryModels.put(model);
@@ -216,10 +216,8 @@ class _SavedScreenState extends State<SavedScreen> {
   void _openDetail(MemoryEntity memory) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MemoryDetailScreen(
-          memoryId: memory.id,
-          initialMemory: memory,
-        ),
+        builder: (_) =>
+            MemoryDetailScreen(memoryId: memory.id, initialMemory: memory),
       ),
     );
   }
@@ -249,10 +247,7 @@ class _SavedScreenState extends State<SavedScreen> {
         child: Container(
           decoration: const BoxDecoration(
             border: Border(
-              left: BorderSide(
-                color: AppColors.primary,
-                width: 4.0,
-              ),
+              left: BorderSide(color: AppColors.primary, width: 4.0),
             ),
           ),
           child: Material(
@@ -288,7 +283,9 @@ class _SavedScreenState extends State<SavedScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                memory.title.isEmpty ? 'Untitled Note' : memory.title,
+                                memory.title.isEmpty
+                                    ? 'Untitled Note'
+                                    : memory.title,
                                 style: TextStyle(
                                   fontSize: 15.5,
                                   fontWeight: FontWeight.w700,
@@ -322,7 +319,9 @@ class _SavedScreenState extends State<SavedScreen> {
                                 : AppColors.textSecondary,
                             size: 20,
                           ),
-                          tooltip: memory.isPinned ? 'Unpin memory' : 'Pin memory',
+                          tooltip: memory.isPinned
+                              ? 'Unpin memory'
+                              : 'Pin memory',
                           onPressed: () => _togglePinMemory(memory),
                         ),
                       ],
@@ -360,10 +359,7 @@ class _SavedScreenState extends State<SavedScreen> {
         decoration: BoxDecoration(
           color: AppColors.toggleBackgroundOf(context),
           borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: AppColors.borderOf(context),
-            width: 1.0,
-          ),
+          border: Border.all(color: AppColors.borderOf(context), width: 1.0),
         ),
         child: Row(
           children: [
@@ -462,7 +458,9 @@ class _SavedScreenState extends State<SavedScreen> {
                 ),
               ),
               child: Icon(
-                isPinnedTab ? Icons.push_pin_outlined : Icons.bookmark_border_rounded,
+                isPinnedTab
+                    ? Icons.push_pin_outlined
+                    : Icons.bookmark_border_rounded,
                 color: AppColors.primary,
                 size: 38,
               ),
@@ -543,14 +541,13 @@ class _SavedScreenState extends State<SavedScreen> {
       body: SafeArea(
         child: BlocBuilder<CaptureBloc, CaptureState>(
           builder: (context, state) {
-            final allMemories =
-                state is CaptureLoaded ? state.memories : <MemoryEntity>[];
-            final pinnedMemories =
-                allMemories.where((m) => m.isPinned).toList()
-                  ..sort(MemoryEntity.compareByPinnedAndDate);
-            final sortedAllMemories =
-                List<MemoryEntity>.from(allMemories)
-                  ..sort(MemoryEntity.compareByPinnedAndDate);
+            final allMemories = state is CaptureLoaded
+                ? state.memories
+                : <MemoryEntity>[];
+            final pinnedMemories = allMemories.where((m) => m.isPinned).toList()
+              ..sort(MemoryEntity.compareByPinnedAndDate);
+            final sortedAllMemories = List<MemoryEntity>.from(allMemories)
+              ..sort(MemoryEntity.compareByPinnedAndDate);
 
             final displayedMemories = _selectedTab == SavedTab.all
                 ? sortedAllMemories
@@ -574,7 +571,9 @@ class _SavedScreenState extends State<SavedScreen> {
                           color: AppColors.primary,
                           backgroundColor: AppColors.cardBackgroundOf(context),
                           onRefresh: () async {
-                            context.read<CaptureBloc>().add(LoadMemoriesEvent());
+                            context.read<CaptureBloc>().add(
+                              LoadMemoriesEvent(),
+                            );
                           },
                           child: ListView.builder(
                             padding: const EdgeInsets.fromLTRB(20, 6, 20, 80),

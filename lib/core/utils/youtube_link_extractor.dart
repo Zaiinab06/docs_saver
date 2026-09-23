@@ -6,26 +6,28 @@ class YouTubeLinkExtractor {
   final Dio _dio;
 
   YouTubeLinkExtractor({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
-                sendTimeout: const Duration(seconds: 5),
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                  'Accept': 'application/json,text/html,*/*',
-                },
-                followRedirects: true,
-                maxRedirects: 5,
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 5),
+              sendTimeout: const Duration(seconds: 5),
+              headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'application/json,text/html,*/*',
+              },
+              followRedirects: true,
+              maxRedirects: 5,
+            ),
+          );
 
   Future<RichLinkContent> extract(Uri uri) async {
     final videoId = LinkProviderDetector.extractYouTubeVideoId(uri);
     final canonicalUrl = videoId != null
-        ? (LinkProviderDetector.toCanonicalYouTubeUrl(videoId) ?? uri.toString())
+        ? (LinkProviderDetector.toCanonicalYouTubeUrl(videoId) ??
+              uri.toString())
         : uri.toString();
 
     String? title;
@@ -54,8 +56,8 @@ class YouTubeLinkExtractor {
         final data = oEmbedResponse.data is Map
             ? (oEmbedResponse.data as Map)
             : (oEmbedResponse.data is String
-                ? jsonDecode(oEmbedResponse.data as String) as Map
-                : null);
+                  ? jsonDecode(oEmbedResponse.data as String) as Map
+                  : null);
 
         if (data != null) {
           title = data['title']?.toString().trim();
@@ -173,7 +175,9 @@ class YouTubeLinkExtractor {
       );
 
       if (response.data != null && response.data!.contains('<text')) {
-        final matches = RegExp(r'<text[^>]*>([^<]+)<\/text>').allMatches(response.data!);
+        final matches = RegExp(
+          r'<text[^>]*>([^<]+)<\/text>',
+        ).allMatches(response.data!);
         final chunks = <String>[];
         for (final m in matches) {
           final text = m.group(1);
@@ -185,7 +189,10 @@ class YouTubeLinkExtractor {
         if (chunks.isNotEmpty) {
           var joined = chunks.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
           if (joined.length > 8000) {
-            final sentenceBreak = joined.lastIndexOf(RegExp(r'[\.\?\!]\s'), 8000);
+            final sentenceBreak = joined.lastIndexOf(
+              RegExp(r'[\.\?\!]\s'),
+              8000,
+            );
             if (sentenceBreak > 5000) {
               joined = joined.substring(0, sentenceBreak + 1).trim();
             } else {

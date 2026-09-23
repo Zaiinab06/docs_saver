@@ -8,7 +8,7 @@ class GoogleAuthCubit extends Cubit<GoogleIntegrationStatus> {
   final GoogleAuthRepository repository;
 
   GoogleAuthCubit({required this.repository})
-      : super(const GoogleIntegrationStatus());
+    : super(const GoogleIntegrationStatus());
 
   Future<void> checkStatus() async {
     try {
@@ -24,10 +24,12 @@ class GoogleAuthCubit extends Cubit<GoogleIntegrationStatus> {
   Future<void> connect() async {
     if (state.isConnecting) return; // Prevent duplicate connection attempts
 
-    emit(state.copyWith(
-      state: GoogleConnectionState.connecting,
-      errorMessage: null,
-    ));
+    emit(
+      state.copyWith(
+        state: GoogleConnectionState.connecting,
+        errorMessage: null,
+      ),
+    );
 
     try {
       debugPrint('[Google OAuth] Starting authorization.');
@@ -41,17 +43,23 @@ class GoogleAuthCubit extends Cubit<GoogleIntegrationStatus> {
 
       if (!launched) {
         debugPrint('[Google OAuth] Browser launch failed.');
-        emit(state.copyWith(
-          state: GoogleConnectionState.connectionFailed,
-          errorMessage: 'Could not open system browser for Google sign-in.',
-        ));
+        emit(
+          state.copyWith(
+            state: GoogleConnectionState.connectionFailed,
+            errorMessage: 'Could not open system browser for Google sign-in.',
+          ),
+        );
       }
     } catch (e) {
-      debugPrint('[Google OAuth] Authorization start failed: ${e.toString().replaceFirst('Exception: ', '')}.');
-      emit(state.copyWith(
-        state: GoogleConnectionState.connectionFailed,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
-      ));
+      debugPrint(
+        '[Google OAuth] Authorization start failed: ${e.toString().replaceFirst('Exception: ', '')}.',
+      );
+      emit(
+        state.copyWith(
+          state: GoogleConnectionState.connectionFailed,
+          errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -59,36 +67,50 @@ class GoogleAuthCubit extends Cubit<GoogleIntegrationStatus> {
     final status = uri.queryParameters['status'];
     final error = uri.queryParameters['error'] ?? uri.queryParameters['reason'];
 
-    debugPrint('[Google OAuth] Callback received: status=${status ?? 'missing'}, reason=${error ?? 'none'}.');
+    debugPrint(
+      '[Google OAuth] Callback received: status=${status ?? 'missing'}, reason=${error ?? 'none'}.',
+    );
 
     if (status == 'success') {
-      debugPrint('[Google OAuth] Callback succeeded; refreshing integration status.');
+      debugPrint(
+        '[Google OAuth] Callback succeeded; refreshing integration status.',
+      );
       checkStatus();
     } else if (status == 'cancelled') {
       debugPrint('[Google OAuth] Callback cancelled.');
-      emit(state.copyWith(
-        state: GoogleConnectionState.cancelled,
-        errorMessage: 'Google connection was cancelled.',
-      ));
+      emit(
+        state.copyWith(
+          state: GoogleConnectionState.cancelled,
+          errorMessage: 'Google connection was cancelled.',
+        ),
+      );
     } else {
-      debugPrint('[Google OAuth] Callback failed: ${error ?? 'unknown_error'}.');
-      emit(state.copyWith(
-        state: GoogleConnectionState.connectionFailed,
-        errorMessage: error ?? 'Google connection failed.',
-      ));
+      debugPrint(
+        '[Google OAuth] Callback failed: ${error ?? 'unknown_error'}.',
+      );
+      emit(
+        state.copyWith(
+          state: GoogleConnectionState.connectionFailed,
+          errorMessage: error ?? 'Google connection failed.',
+        ),
+      );
     }
   }
 
   Future<void> disconnect() async {
     try {
       await repository.disconnect();
-      emit(const GoogleIntegrationStatus(
-        state: GoogleConnectionState.notConnected,
-      ));
+      emit(
+        const GoogleIntegrationStatus(
+          state: GoogleConnectionState.notConnected,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 }

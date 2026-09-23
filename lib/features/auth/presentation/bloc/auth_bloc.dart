@@ -58,25 +58,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      print('DEBUG: AuthBloc handling SignUpRequested for email: ${event.email}');
+      print(
+        'DEBUG: AuthBloc handling SignUpRequested for email: ${event.email}',
+      );
       final user = await signUpUseCase(
         email: event.email,
         password: event.password,
         fullName: event.fullName,
       );
-      print('DEBUG: SignUp successful in AuthBloc for user: ${user.id}, email: ${user.email}, hasSession: ${user.hasSession}');
+      print(
+        'DEBUG: SignUp successful in AuthBloc for user: ${user.id}, email: ${user.email}, hasSession: ${user.hasSession}',
+      );
       if (user.hasSession) {
         emit(AuthSuccess(user));
         emit(Authenticated(user));
       } else {
-        emit(AuthNeedsConfirmation(
-          email: user.email ?? event.email,
-          message:
-              'Verification link sent to ${user.email ?? event.email}. Please verify your email before signing in.',
-        ));
+        emit(
+          AuthNeedsConfirmation(
+            email: user.email ?? event.email,
+            message:
+                'Verification link sent to ${user.email ?? event.email}. Please verify your email before signing in.',
+          ),
+        );
       }
     } on AuthException catch (e, stack) {
-      print('DEBUG: AuthException in AuthBloc _onSignUpRequested: ${e.message} (status: ${e.statusCode})');
+      print(
+        'DEBUG: AuthException in AuthBloc _onSignUpRequested: ${e.message} (status: ${e.statusCode})',
+      );
       print('DEBUG: Stack trace: $stack');
       emit(AuthFailure(e.message));
     } catch (e, stack) {
@@ -123,10 +131,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     try {
       await authRepository.resendVerificationEmail(email: event.email);
-      emit(AuthNeedsConfirmation(
-        email: event.email,
-        message: 'A new verification link has been sent to ${event.email}.',
-      ));
+      emit(
+        AuthNeedsConfirmation(
+          email: event.email,
+          message: 'A new verification link has been sent to ${event.email}.',
+        ),
+      );
     } catch (e) {
       emit(AuthFailure(_cleanErrorMessage(e)));
     }

@@ -11,10 +11,7 @@ class _CategoryChoice {
   final String name;
   final IconData icon;
 
-  const _CategoryChoice({
-    required this.name,
-    required this.icon,
-  });
+  const _CategoryChoice({required this.name, required this.icon});
 }
 
 class NoteComposeScreen extends StatefulWidget {
@@ -53,10 +50,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
       name: AppStrings.categoryWork,
       icon: Icons.work_outline_rounded,
     ),
-    _CategoryChoice(
-      name: AppStrings.categoryStudy,
-      icon: Icons.school_rounded,
-    ),
+    _CategoryChoice(name: AppStrings.categoryStudy, icon: Icons.school_rounded),
     _CategoryChoice(
       name: AppStrings.categoryTravel,
       icon: Icons.flight_takeoff_rounded,
@@ -83,7 +77,9 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.initialTitle ?? '');
-    _contentController = TextEditingController(text: widget.initialContent ?? '');
+    _contentController = TextEditingController(
+      text: widget.initialContent ?? '',
+    );
     _selectedCategory = widget.initialCategory;
     _tags = widget.initialTags != null
         ? List<String>.from(widget.initialTags!)
@@ -99,7 +95,10 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
   }
 
   void _addCustomTag() {
-    final rawTag = _tagInputController.text.trim().replaceAll('#', '').toLowerCase();
+    final rawTag = _tagInputController.text
+        .trim()
+        .replaceAll('#', '')
+        .toLowerCase();
     if (rawTag.isNotEmpty && !_tags.contains(rawTag)) {
       setState(() {
         _tags.add(rawTag);
@@ -149,15 +148,15 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
 
     try {
       context.read<CaptureBloc>().add(
-            AddMemoryEvent(
-              title: finalTitle,
-              content: rawContent,
-              category: _selectedCategory ?? AppStrings.categoryGeneral,
-              tags: List<String>.from(_tags),
-              mediaUrl: null,
-              aiStatus: 'pending',
-            ),
-          );
+        AddMemoryEvent(
+          title: finalTitle,
+          content: rawContent,
+          category: _selectedCategory ?? AppStrings.categoryGeneral,
+          tags: List<String>.from(_tags),
+          mediaUrl: null,
+          aiStatus: 'pending',
+        ),
+      );
 
       bool isOnline = false;
       try {
@@ -215,8 +214,13 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
               : (_selectedCategory == cat.name);
 
           return InkWell(
-            key: Key(isAuto ? 'category_chip_auto' : 'category_chip_${cat.name.toLowerCase()}'),
-            onTap: () => setState(() => _selectedCategory = isAuto ? null : cat.name),
+            key: Key(
+              isAuto
+                  ? 'category_chip_auto'
+                  : 'category_chip_${cat.name.toLowerCase()}',
+            ),
+            onTap: () =>
+                setState(() => _selectedCategory = isAuto ? null : cat.name),
             borderRadius: BorderRadius.circular(100),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
@@ -226,7 +230,9 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                 color: isSelected ? null : AppColors.categoryChipBackground,
                 borderRadius: BorderRadius.circular(100),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.categoryChipBorder,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.categoryChipBorder,
                   width: isSelected ? 1.6 : 1.0,
                 ),
                 boxShadow: isSelected
@@ -252,8 +258,12 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                     cat.name,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color: isSelected ? AppColors.textWhite : AppColors.primary,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: isSelected
+                          ? AppColors.textWhite
+                          : AppColors.primary,
                     ),
                   ),
                 ],
@@ -275,11 +285,16 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
             runSpacing: 8,
             children: _tags.map((tag) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.lightCyanTint,
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -317,17 +332,29 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.chipInactiveBorder, width: 1.0),
+                  border: Border.all(
+                    color: AppColors.chipInactiveBorder,
+                    width: 1.0,
+                  ),
                 ),
                 child: TextField(
                   key: const Key('tag_input_field'),
                   controller: _tagInputController,
-                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Add custom tag...',
-                    hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 11,
+                    ),
                   ),
                   onSubmitted: (_) => _addCustomTag(),
                 ),
@@ -337,7 +364,11 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
             IconButton(
               key: const Key('add_tag_button'),
               onPressed: _addCustomTag,
-              icon: const Icon(Icons.add_circle_rounded, color: AppColors.primary, size: 28),
+              icon: const Icon(
+                Icons.add_circle_rounded,
+                color: AppColors.primary,
+                size: 28,
+              ),
             ),
           ],
         ),
@@ -355,8 +386,10 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           key: const Key('note_compose_back_button'),
-          icon: Icon(Icons.arrow_back_rounded,
-              color: AppColors.textPrimaryOf(context)),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimaryOf(context),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -371,10 +404,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.subtleBorderOf(context),
-            height: 1,
-          ),
+          child: Container(color: AppColors.subtleBorderOf(context), height: 1),
         ),
       ),
       body: SafeArea(
@@ -399,7 +429,9 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                   color: AppColors.cardBackgroundOf(context),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: AppColors.borderOf(context), width: 1.2),
+                    color: AppColors.borderOf(context),
+                    width: 1.2,
+                  ),
                 ),
                 child: TextField(
                   key: const Key('note_title_field'),
@@ -417,8 +449,10 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                       fontWeight: FontWeight.w400,
                     ),
                     border: InputBorder.none,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -440,7 +474,9 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                   color: AppColors.cardBackgroundOf(context),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: AppColors.borderOf(context), width: 1.2),
+                    color: AppColors.borderOf(context),
+                    width: 1.2,
+                  ),
                 ),
                 child: TextField(
                   key: const Key('note_content_field'),
@@ -503,10 +539,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
         decoration: const BoxDecoration(
           color: AppColors.cardBackground,
           border: Border(
-            top: BorderSide(
-              color: AppColors.chipInactiveBorder,
-              width: 1.0,
-            ),
+            top: BorderSide(color: AppColors.chipInactiveBorder, width: 1.0),
           ),
         ),
         child: SafeArea(

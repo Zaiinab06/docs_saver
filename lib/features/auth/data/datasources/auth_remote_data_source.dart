@@ -8,10 +8,7 @@ abstract class AuthRemoteDataSource {
     String? fullName,
   });
 
-  Future<User> signIn({
-    required String email,
-    required String password,
-  });
+  Future<User> signIn({required String email, required String password});
 
   Future<void> signOut();
 
@@ -26,7 +23,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SupabaseClient supabase;
 
   AuthRemoteDataSourceImpl({SupabaseClient? supabaseClient})
-      : supabase = supabaseClient ?? Supabase.instance.client;
+    : supabase = supabaseClient ?? Supabase.instance.client;
 
   @override
   Future<User> signUp({
@@ -35,7 +32,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     String? fullName,
   }) async {
     try {
-      print('DEBUG: Calling supabase.auth.signUp with email: $email, fullName: $fullName');
+      print(
+        'DEBUG: Calling supabase.auth.signUp with email: $email, fullName: $fullName',
+      );
       final response = await supabase.auth.signUp(
         email: email,
         password: password,
@@ -43,7 +42,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
             ? {'full_name': fullName.trim()}
             : null,
       );
-      print('DEBUG: Supabase signUp response: user=${response.user?.id}, session=${response.session != null}');
+      print(
+        'DEBUG: Supabase signUp response: user=${response.user?.id}, session=${response.session != null}',
+      );
 
       if (response.user == null) {
         print('DEBUG: Supabase signUp failed: User is null in response');
@@ -66,7 +67,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       return response.user!;
     } on AuthException catch (e, stack) {
-      print('DEBUG: AuthException in supabase.auth.signUp: ${e.message} (status: ${e.statusCode})');
+      print(
+        'DEBUG: AuthException in supabase.auth.signUp: ${e.message} (status: ${e.statusCode})',
+      );
       print('DEBUG: Stack trace: $stack');
       rethrow;
     } catch (e, stack) {
@@ -77,10 +80,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<User> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<User> signIn({required String email, required String password}) async {
     final response = await supabase.auth.signInWithPassword(
       email: email,
       password: password,
@@ -98,10 +98,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<void> resendVerificationEmail({required String email}) async {
-    await supabase.auth.resend(
-      type: OtpType.signup,
-      email: email,
-    );
+    await supabase.auth.resend(type: OtpType.signup, email: email);
   }
 
   @override
