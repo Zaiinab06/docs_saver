@@ -2,11 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
 import 'package:second_brain/features/capture/data/models/memory_model.dart';
+import 'package:second_brain/features/capture/data/models/tombstone_model.dart';
 import 'package:second_brain/features/capture/domain/entities/memory_entity.dart';
 import 'package:second_brain/features/capture/domain/repositories/capture_repository_impl.dart';
 
 class MockLocalDataSource implements CaptureLocalDataSource {
   final List<MemoryModel> store = [];
+  final List<TombstoneModel> tombstoneStore = [];
 
   @override
   Future<void> cacheMemory(MemoryModel memory) async {
@@ -50,11 +52,45 @@ class MockLocalDataSource implements CaptureLocalDataSource {
       store.add(memory);
     }
   }
+
+  @override
+  Future<void> deleteMemory(String serverId) async {
+    store.removeWhere((m) => m.serverId == serverId);
+  }
+
+  @override
+  Future<void> recordTombstone(String serverId, String userId) async {
+    tombstoneStore.removeWhere((t) => t.serverId == serverId);
+    tombstoneStore.add(
+      TombstoneModel()
+        ..serverId = serverId
+        ..userId = userId
+        ..deletedAt = DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<TombstoneModel>> getPendingTombstones({String? userId}) async {
+    if (userId != null && userId.isNotEmpty) {
+      return tombstoneStore.where((t) => t.userId == userId).toList();
+    }
+    return List.from(tombstoneStore);
+  }
+
+  @override
+  Future<void> clearTombstone(String serverId) async {
+    tombstoneStore.removeWhere((t) => t.serverId == serverId);
+  }
 }
 
 class MockRemoteDataSource implements CaptureRemoteDataSource {
   final List<Map<String, dynamic>> remoteStore = [];
   final List<String> fetchedUserIds = [];
+
+  @override
+  Future<void> deleteMemory(String id) async {
+    remoteStore.removeWhere((m) => m['id'] == id);
+  }
 
   @override
   Future<void> upsertMemory(MemoryEntity memory) async {

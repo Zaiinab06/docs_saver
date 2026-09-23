@@ -40,6 +40,15 @@ class AddMemoryEvent extends CaptureEvent {
   ];
 }
 
+class DeleteMemoryEvent extends CaptureEvent {
+  final String memoryId;
+
+  const DeleteMemoryEvent(this.memoryId);
+
+  @override
+  List<Object?> get props => [memoryId];
+}
+
 class SyncPendingMemoriesEvent extends CaptureEvent {}
 
 class MemoryUpdatedEvent extends CaptureEvent {

@@ -53,8 +53,62 @@ class CaptureRepositoryImpl implements CaptureRepository {
   }
 
   @override
+  Future<void> deleteMemory(String memoryId) async {
+    String? effectiveUserId = _getCurrentUserId();
+    if (effectiveUserId == null || effectiveUserId == 'local_user') {
+      try {
+        final cached = await localDataSource.getCachedMemories();
+        for (final m in cached) {
+          if (m.serverId == memoryId &&
+              m.userId.isNotEmpty &&
+              m.userId != 'local_user') {
+            effectiveUserId = m.userId;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    effectiveUserId ??= 'local_user';
+
+    // 1. Delete from local cache instantly for zero-latency UI
+    await localDataSource.deleteMemory(memoryId);
+
+    // 2. If authenticated user, record tombstone for offline sync tracking
+    if (effectiveUserId != 'local_user') {
+      await localDataSource.recordTombstone(memoryId, effectiveUserId);
+    }
+
+    // 3. Attempt immediate remote deletion on Supabase
+    try {
+      await remoteDataSource.deleteMemory(memoryId);
+      // Success: clear tombstone from local database
+      await localDataSource.clearTombstone(memoryId);
+    } catch (_) {
+      // Offline / network failure: tombstone remains in Isar and will be synced upon reconnection
+    }
+  }
+
+  @override
   Future<void> syncPendingMemories({String? userId}) async {
     final effectiveUserId = userId ?? _getCurrentUserId();
+
+    // 1. Process pending offline deletion tombstones first
+    try {
+      final tombstones = await localDataSource.getPendingTombstones(
+        userId: effectiveUserId,
+      );
+      for (final tombstone in tombstones) {
+        try {
+          await remoteDataSource.deleteMemory(tombstone.serverId);
+          await localDataSource.clearTombstone(tombstone.serverId);
+        } catch (_) {
+          // Network dropped or Supabase error: halt deletions and retry next cycle
+          break;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Push unsynced memories to remote Supabase
     final pendingModels = await localDataSource.getUnsyncedMemories(
       userId: effectiveUserId,
     );
@@ -95,19 +149,43 @@ class CaptureRepositoryImpl implements CaptureRepository {
         await remoteDataSource.upsertMemory(entity);
         await localDataSource.markAsSynced(model.serverId);
       } catch (_) {
-        break; // Connectivity drop hui to next cycle me retry hoga
+        break; // Connectivity drop: retry in next cycle
       }
     }
 
-    // Pull down remote updates for authenticated user
+    // 3. Pull down remote updates for authenticated user
     if (effectiveUserId != null && effectiveUserId.isNotEmpty) {
       try {
+        final pendingTombstones = await localDataSource.getPendingTombstones(
+          userId: effectiveUserId,
+        );
+        final tombstoneIds = pendingTombstones.map((t) => t.serverId).toSet();
+
         final remoteMaps = await remoteDataSource.fetchRemoteMemories(
           userId: effectiveUserId,
         );
+        final remoteIds = <String>{};
         for (final map in remoteMaps) {
+          final serverId = (map['id'] ?? '').toString();
+          remoteIds.add(serverId);
+
+          // Never resurrect an item queued for deletion
+          if (tombstoneIds.contains(serverId)) {
+            continue;
+          }
+
           final model = MemoryModel.fromMap(map, isSynced: true);
           await localDataSource.updateMemoryFromRemote(model);
+        }
+
+        // Clean up any local memories that were deleted remotely
+        final cached = await localDataSource.getCachedMemories(
+          userId: effectiveUserId,
+        );
+        for (final mem in cached) {
+          if (mem.isSynced && !remoteIds.contains(mem.serverId)) {
+            await localDataSource.deleteMemory(mem.serverId);
+          }
         }
       } catch (_) {
         // Offline or network error

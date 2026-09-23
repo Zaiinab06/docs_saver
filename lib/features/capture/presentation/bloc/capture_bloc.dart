@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/network/network_checker.dart';
 import '../../../../core/services/isar_service.dart';
 import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
@@ -21,21 +22,60 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   final GetMemoriesUseCase getMemoriesUseCase;
   final SubscribeToMemoriesUseCase? subscribeToMemoriesUseCase;
   final CaptureRepository repository;
+  final Duration syncDebounceDuration;
 
   StreamSubscription<MemoryEntity>? _realtimeSubscription;
+  StreamSubscription<bool>? _connectivitySubscription;
+  Timer? _connectivityDebounceTimer;
   String? _subscribedUserId;
+  bool _wasOffline = false;
+  bool _isSyncing = false;
 
   CaptureBloc({
     required this.saveMemoryUseCase,
     required this.getMemoriesUseCase,
     this.subscribeToMemoriesUseCase,
     required this.repository,
+    this.syncDebounceDuration = const Duration(milliseconds: 500),
+    Stream<bool>? connectivityStream,
   }) : super(CaptureInitial()) {
     on<LoadMemoriesEvent>(_onLoadMemories);
     on<ClearMemoriesEvent>(_onClearMemories);
     on<AddMemoryEvent>(_onAddMemory);
+    on<DeleteMemoryEvent>(_onDeleteMemory);
     on<SyncPendingMemoriesEvent>(_onSyncPendingMemories);
     on<MemoryUpdatedEvent>(_onMemoryUpdated);
+
+    _initConnectivityListener(
+      connectivityStream ?? NetworkChecker.onConnectivityChanged,
+    );
+  }
+
+  void _initConnectivityListener(Stream<bool> connectivityStream) {
+    _connectivitySubscription = connectivityStream.listen((isOnline) {
+      if (!isOnline) {
+        _wasOffline = true;
+        _connectivityDebounceTimer?.cancel();
+        return;
+      }
+
+      // Transition to online: debounce to prevent rapid-fire sync bursts
+      if (_wasOffline || isOnline) {
+        _wasOffline = false;
+        _connectivityDebounceTimer?.cancel();
+        if (syncDebounceDuration == Duration.zero) {
+          if (!isClosed) {
+            add(SyncPendingMemoriesEvent());
+          }
+        } else {
+          _connectivityDebounceTimer = Timer(syncDebounceDuration, () {
+            if (!isClosed) {
+              add(SyncPendingMemoriesEvent());
+            }
+          });
+        }
+      }
+    });
   }
 
   void _initRealtimeSubscription() {
@@ -168,10 +208,24 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     }
   }
 
+  Future<void> _onDeleteMemory(
+    DeleteMemoryEvent event,
+    Emitter<CaptureState> emit,
+  ) async {
+    try {
+      await repository.deleteMemory(event.memoryId);
+      add(LoadMemoriesEvent());
+    } catch (e) {
+      emit(CaptureFailure(e.toString()));
+    }
+  }
+
   Future<void> _onSyncPendingMemories(
     SyncPendingMemoriesEvent event,
     Emitter<CaptureState> emit,
   ) async {
+    if (_isSyncing) return;
+    _isSyncing = true;
     try {
       String? currentUserId;
       try {
@@ -222,7 +276,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           }
         } catch (_) {}
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _isSyncing = false;
+    }
   }
 
   Future<void> _onMemoryUpdated(
@@ -516,6 +573,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
 
   @override
   Future<void> close() {
+    _connectivitySubscription?.cancel();
+    _connectivityDebounceTimer?.cancel();
     _realtimeSubscription?.cancel();
     return super.close();
   }

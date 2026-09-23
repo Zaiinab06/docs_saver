@@ -1,6 +1,7 @@
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../features/capture/data/models/memory_model.dart';
+import '../../features/capture/data/models/tombstone_model.dart';
 
 class IsarService {
   static late Isar _isar;
@@ -10,7 +11,7 @@ class IsarService {
   static Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();
     _isar = await Isar.open(
-      [MemoryModelSchema],
+      [MemoryModelSchema, TombstoneModelSchema],
       directory: dir.path,
       inspector: true,
     );

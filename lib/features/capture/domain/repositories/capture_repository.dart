@@ -5,4 +5,5 @@ abstract class CaptureRepository {
   Future<List<MemoryEntity>> getMemories({String? userId});
   Future<void> syncPendingMemories({String? userId});
   Stream<MemoryEntity> subscribeToMemoryUpdates(String userId);
+  Future<void> deleteMemory(String memoryId) async {}
 }

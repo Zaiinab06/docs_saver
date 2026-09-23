@@ -1,6 +1,7 @@
 import 'package:isar_community/isar.dart';
 import '../../../../core/services/isar_service.dart';
 import '../models/memory_model.dart';
+import '../models/tombstone_model.dart';
 
 abstract class CaptureLocalDataSource {
   Future<void> cacheMemory(MemoryModel memory);
@@ -8,6 +9,10 @@ abstract class CaptureLocalDataSource {
   Future<List<MemoryModel>> getUnsyncedMemories({String? userId});
   Future<void> markAsSynced(String serverId);
   Future<void> updateMemoryFromRemote(MemoryModel memory);
+  Future<void> deleteMemory(String serverId) async {}
+  Future<void> recordTombstone(String serverId, String userId) async {}
+  Future<List<TombstoneModel>> getPendingTombstones({String? userId}) async => [];
+  Future<void> clearTombstone(String serverId) async {}
 }
 
 class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
@@ -112,5 +117,42 @@ class CaptureLocalDataSourceImpl implements CaptureLocalDataSource {
         await isar.memoryModels.put(updatedMemory);
       });
     }
+  }
+
+  @override
+  Future<void> deleteMemory(String serverId) async {
+    await isar.writeTxn(() async {
+      await isar.memoryModels.filter().serverIdEqualTo(serverId).deleteAll();
+    });
+  }
+
+  @override
+  Future<void> recordTombstone(String serverId, String userId) async {
+    final tombstone = TombstoneModel()
+      ..serverId = serverId
+      ..userId = userId
+      ..deletedAt = DateTime.now();
+
+    await isar.writeTxn(() async {
+      await isar.tombstoneModels.put(tombstone);
+    });
+  }
+
+  @override
+  Future<List<TombstoneModel>> getPendingTombstones({String? userId}) async {
+    if (userId != null && userId.isNotEmpty) {
+      return await isar.tombstoneModels
+          .filter()
+          .userIdEqualTo(userId)
+          .findAll();
+    }
+    return await isar.tombstoneModels.where().findAll();
+  }
+
+  @override
+  Future<void> clearTombstone(String serverId) async {
+    await isar.writeTxn(() async {
+      await isar.tombstoneModels.filter().serverIdEqualTo(serverId).deleteAll();
+    });
   }
 }

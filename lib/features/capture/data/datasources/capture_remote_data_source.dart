@@ -7,6 +7,7 @@ abstract class CaptureRemoteDataSource {
   Future<void> upsertMemory(MemoryEntity memory);
   Future<List<Map<String, dynamic>>> fetchRemoteMemories({String? userId});
   Stream<MemoryModel> subscribeToMemoryUpdates(String userId);
+  Future<void> deleteMemory(String id) async {}
 }
 
 class CaptureRemoteDataSourceImpl implements CaptureRemoteDataSource {
@@ -14,6 +15,11 @@ class CaptureRemoteDataSourceImpl implements CaptureRemoteDataSource {
 
   CaptureRemoteDataSourceImpl({SupabaseClient? client})
     : supabase = client ?? Supabase.instance.client;
+
+  @override
+  Future<void> deleteMemory(String id) async {
+    await supabase.from('memories').delete().eq('id', id);
+  }
 
   @override
   Future<void> upsertMemory(MemoryEntity memory) async {

@@ -96,6 +96,9 @@ class _MockCaptureRepository implements CaptureRepository {
   @override
   Stream<MemoryEntity> subscribeToMemoryUpdates(String userId) =>
       const Stream.empty();
+
+  @override
+  Future<void> deleteMemory(String memoryId) async {}
 }
 
 void main() {

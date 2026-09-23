@@ -10,10 +10,14 @@ class NetworkChecker {
   /// Stream of network connectivity state transitions (true = online, false = offline).
   static Stream<bool> get onConnectivityChanged => _controller.stream;
 
+  /// Returns the last known reachability status synchronously.
+  static bool get isCurrentOnline => _testOverride ?? _lastKnownState;
+
   static bool? get testOverride => _testOverride;
   static set testOverride(bool? value) {
     _testOverride = value;
     if (value != null) {
+      _lastKnownState = value;
       _controller.add(value);
     }
   }
@@ -40,6 +44,7 @@ class NetworkChecker {
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;
     if (_pollTimer != null) return;
 
+    unawaited(isConnected(forceRefresh: true));
     _pollTimer = Timer.periodic(interval, (_) async {
       await isConnected(forceRefresh: true);
     });

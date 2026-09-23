@@ -581,23 +581,27 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     if (_memory == null) return;
     try {
       final memoryId = _memory!.id;
-      final isar = IsarService.instance;
-      await isar.writeTxn(() async {
-        await isar.memoryModels.filter().serverIdEqualTo(memoryId).deleteAll();
-      });
-
-      try {
-        await Supabase.instance.client
-            .from('memories')
-            .delete()
-            .eq('id', memoryId);
-      } catch (_) {}
+      // Dispatch DeleteMemoryEvent to CaptureBloc (which handles local deletion,
+      // Isar tombstone tracking, and remote Supabase deletion)
+      context.read<CaptureBloc>().add(DeleteMemoryEvent(memoryId));
 
       if (mounted) {
-        context.read<CaptureBloc>().add(LoadMemoriesEvent());
         Navigator.of(context).pop();
       }
-    } catch (_) {}
+    } catch (_) {
+      try {
+        final isar = IsarService.instance;
+        await isar.writeTxn(() async {
+          await isar.memoryModels
+              .filter()
+              .serverIdEqualTo(_memory!.id)
+              .deleteAll();
+        });
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } catch (_) {}
+    }
   }
 
   Widget _buildNotFoundView() {
