@@ -6,9 +6,9 @@
  * Fallback Embedding Model: "gemini-embedding-001" (on 429/5xx errors)
  */
 
-export const INGESTION_MODEL = "gemini-3.5-flash-lite";
-export const SYNTHESIS_MODEL = "gemini-3.8-flash";
-export const SYNTHESIS_FALLBACK_MODEL = "gemini-2.5-flash";
+export const INGESTION_MODEL = "gemini-2.0-flash";
+export const SYNTHESIS_MODEL = "gemini-2.0-flash";
+export const SYNTHESIS_FALLBACK_MODEL = "gemini-1.5-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
@@ -82,6 +82,7 @@ export interface AnalyzeMemoryInput {
   imageBase64?: string | null;
   audioBase64?: string | null;
   documentBase64?: string | null;
+  videoBase64?: string | null;
   mimeType?: string | null;
 }
 
@@ -139,6 +140,10 @@ export async function analyzeMemoryContent(
     (input.documentBase64 && input.documentBase64.trim().length > 0) ||
     (input.mimeType === "application/pdf" && input.imageBase64 && input.imageBase64.trim().length > 0)
   );
+  const isVideo = Boolean(
+    (input.videoBase64 && input.videoBase64.trim().length > 0) ||
+    (input.mimeType && (input.mimeType.startsWith("video/") || input.mimeType === "video/mp4" || input.mimeType === "video/quicktime"))
+  );
 
   const systemInstruction = isAudio
     ? `You are an expert speech recognition and audio transcription engine for a personal "Second Brain".
@@ -162,7 +167,18 @@ Read and extract the document content carefully and output clean structured JSON
 - "tags": 2 to 6 lowercase keyword tags without # describing the document. MUST include "document".
 - "summary": Write ONE concise, natural, human-readable sentence summarizing the useful meaning, subject, or core information of the document. Focus on the actual content and key facts rather than merely describing document layout. Do not invent the user's intent or reason for saving it, and only state facts supported by the document. Keep it concise enough for a memory card preview.
 - "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
-        : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
+        : (isVideo
+            ? `You are an expert video analysis, scene understanding, and multimodal transcription engine for a personal "Second Brain".
+You will receive a video recording (with visual frames and/or audio track).
+Inspect the video sequence and listen to any spoken audio carefully, then output clean structured JSON:
+- "transcript": The verbatim transcription of any spoken words or dialogue in the video. If the video has no spoken words, provide a concise, factual description of the key visual events and actions shown in the video.
+- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing what happens in the video. If the user provided an explicit non-empty title (not starting with "Video Note (" or "Quick Note"), keep that title unchanged.
+- "category": Select the single best matching category from the 8 official app categories:
+  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2 to 6 lowercase keyword tags without # describing the video content, actions, or subject matter. MUST include "video".
+- "summary": Write ONE concise, natural, human-readable sentence summarizing the key action, event, demonstration, or spoken information in the video. Focus on facts from the video rather than generic captions. Keep it concise enough for a memory card preview.
+- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
+            : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
 You will receive an image and any supporting OCR extracted text.
 Visually inspect the image carefully, read any visible text, and output clean structured JSON:
 - "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject.
@@ -195,7 +211,7 @@ Visually inspect the image carefully, read any visible text, and output clean st
 - "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
   * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
   * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
-  * "attributes": Concise contextual detail`);
+  * "attributes": Concise contextual detail`));
 
   const userPrompt = isAudio
     ? `[INPUT]
@@ -205,13 +221,17 @@ CRITICAL REQUIREMENT: Listen carefully to the attached audio and transcribe all 
         ? `[INPUT]
 User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
 CRITICAL REQUIREMENT: Read the attached PDF document and extract all document text verbatim into "document_text". Output clean structured JSON matching the schema.`
-        : `[INPUT]
+        : (isVideo
+            ? `[INPUT]
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
+CRITICAL REQUIREMENT: Analyze the attached video frames and any audio track. Transcribe spoken words or describe key visual actions into "transcript". Generate a descriptive title, category, relevant tags (including "video"), and a 1-sentence summary. Output clean structured JSON matching the schema.`
+            : `[INPUT]
 User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
 OCR Extracted Text:
 """
 ${trimmedContent || "(No text detected by OCR. Rely entirely on visual image analysis.)"}
 """
-Please visually analyze the attached image and OCR text, and return the structured JSON.`);
+Please visually analyze the attached image and OCR text, and return the structured JSON.`));
 
   const parts: any[] = [];
   if (isPdf) {
@@ -221,6 +241,18 @@ Please visually analyze the attached image and OCR text, and return the structur
         inlineData: {
           mimeType: "application/pdf",
           data: pdfData,
+        },
+      });
+    }
+  } else if (isVideo) {
+    const videoData = (input.videoBase64 || input.imageBase64)?.trim() || "";
+    if (videoData.length > 0) {
+      let vidMime = input.mimeType || "video/mp4";
+      if (vidMime === "video/mov") vidMime = "video/quicktime";
+      parts.push({
+        inlineData: {
+          mimeType: vidMime,
+          data: videoData,
         },
       });
     }
@@ -247,7 +279,7 @@ Please visually analyze the attached image and OCR text, and return the structur
     text: `${systemInstruction}\n\n${userPrompt}`,
   });
 
-  const requiredFields = isAudio
+  const requiredFields = (isAudio || isVideo)
     ? ["title", "category", "tags", "summary", "transcript"]
     : (isPdf
         ? ["title", "category", "tags", "summary", "document_text"]
@@ -314,8 +346,8 @@ Please visually analyze the attached image and OCR text, and return the structur
 
   const candidateModels = [
     INGESTION_MODEL,
-    "gemini-2.5-flash",
     "gemini-1.5-flash",
+    "gemini-2.0-flash-lite",
   ];
 
   let lastError: Error | null = null;

@@ -185,6 +185,11 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                         icon: Icons.cloud_download_outlined,
                         title: 'Google Drive',
                       ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.videocam_outlined,
+                        title: 'Add Video',
+                      ),
                     ],
                   ),
                 ],

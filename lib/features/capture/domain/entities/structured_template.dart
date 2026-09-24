@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 /// Supported structured template types
@@ -84,9 +83,7 @@ class BankCardTemplate extends Equatable {
   };
 
   String toSerializedContent() {
-    final body = toMarkdownBody();
-    final jsonStr = jsonEncode(toJson());
-    return '$body\n\n<!--template_metadata:$jsonStr-->';
+    return toMarkdownBody();
   }
 
   factory BankCardTemplate.fromJson(Map<String, dynamic> json) {
@@ -171,9 +168,7 @@ class BillTemplate extends Equatable {
   };
 
   String toSerializedContent() {
-    final body = toMarkdownBody();
-    final jsonStr = jsonEncode(toJson());
-    return '$body\n\n<!--template_metadata:$jsonStr-->';
+    return toMarkdownBody();
   }
 
   factory BillTemplate.fromJson(Map<String, dynamic> json) {

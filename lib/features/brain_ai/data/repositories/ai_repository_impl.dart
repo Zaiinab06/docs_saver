@@ -14,11 +14,13 @@ class AiRepositoryImpl implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
-    // If there is no text, no image, and no document provided, do NOT fabricate data
+    // If there is no text, no image, no document, and no video provided, do NOT fabricate data
     if (ocrText.trim().isEmpty &&
         (imageBase64 == null || imageBase64.isEmpty) &&
-        (documentBase64 == null || documentBase64.isEmpty)) {
+        (documentBase64 == null || documentBase64.isEmpty) &&
+        (videoBase64 == null || videoBase64.isEmpty)) {
       return AiIngestionResult.empty(rawOcrText: ocrText, aiStatus: 'pending');
     }
 
@@ -28,6 +30,7 @@ class AiRepositoryImpl implements AiRepository {
         imageBase64: imageBase64,
         mimeType: mimeType,
         documentBase64: documentBase64,
+        videoBase64: videoBase64,
       );
 
       final rawTitle = (data['title'] ?? '').toString().trim();
@@ -61,6 +64,11 @@ class AiRepositoryImpl implements AiRepository {
             tags.add(tag);
           }
         }
+      }
+      if (((videoBase64 != null && videoBase64.isNotEmpty) ||
+              ocrText.toLowerCase().contains('video')) &&
+          !tags.contains('video')) {
+        tags.add('video');
       }
 
       // Extract Living Memory entities

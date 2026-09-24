@@ -2,12 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/services/isar_service.dart';
+import '../../../../core/services/video_frame_extractor.dart';
+import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
+import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
+import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
+import '../../../brain_ai/domain/repositories/ai_repository.dart';
 import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
 import '../../domain/usecases/get_memories_usecase.dart';
@@ -22,6 +28,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
   final GetMemoriesUseCase getMemoriesUseCase;
   final SubscribeToMemoriesUseCase? subscribeToMemoriesUseCase;
   final CaptureRepository repository;
+  final AiRepository? aiRepository;
   final Duration syncDebounceDuration;
 
   StreamSubscription<MemoryEntity>? _realtimeSubscription;
@@ -36,6 +43,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     required this.getMemoriesUseCase,
     this.subscribeToMemoriesUseCase,
     required this.repository,
+    this.aiRepository,
     this.syncDebounceDuration = const Duration(milliseconds: 500),
     Stream<bool>? connectivityStream,
   }) : super(CaptureInitial()) {
@@ -152,6 +160,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         category: event.category,
         mediaUrl: event.mediaUrl,
         aiStatus: event.aiStatus,
+        metadata: event.metadata,
         clientCreatedAt: now,
         clientUpdatedAt: now,
         serverUpdatedAt: now,
@@ -162,9 +171,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       add(LoadMemoriesEvent());
 
       // If memory requires AI analysis or is missing an embedding, trigger background enrichment/embedding
-      bool isSupabaseAvailable = false;
+      bool isNetworkAvailable = false;
       try {
-        isSupabaseAvailable = Supabase.instance.client.auth.currentUser != null;
+        isNetworkAvailable = await NetworkChecker.isConnected();
       } catch (_) {}
 
       final needsEmbedding =
@@ -180,25 +189,42 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
           (newMemory.mediaUrl != null &&
               newMemory.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
           newMemory.tags.any((t) => t.toLowerCase() == 'pdf');
+      final isVideo =
+          newMemory.isVideo ||
+          newMemory.fileType == 'video' ||
+          newMemory.tags.any((t) => t.toLowerCase() == 'video') ||
+          (newMemory.metadata != null &&
+              newMemory.metadata!['file_type'] == 'video') ||
+          (newMemory.mediaUrl != null &&
+              (newMemory.mediaUrl!.toLowerCase().endsWith('.mp4') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.mov') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.avi') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.mkv') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.webm') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.3gp') ||
+                  newMemory.mediaUrl!.toLowerCase().endsWith('.m4v')));
       final hasMeaningfulContent =
           newMemory.content.trim().isNotEmpty ||
           newMemory.title.trim().isNotEmpty ||
           isVoice ||
-          isPdf;
+          isPdf ||
+          isVideo;
 
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
-          isSupabaseAvailable) {
+          isNetworkAvailable) {
         final isNote =
             (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) &&
             !isVoice &&
-            !isPdf;
+            !isPdf &&
+            !isVideo;
         unawaited(
           _triggerBackgroundIngestion(
             newMemory,
             isNote: isNote,
             isVoice: isVoice,
             isPdf: isPdf,
+            isVideo: isVideo,
             isEmbeddingOnly: newMemory.aiStatus == 'processed',
           ),
         );
@@ -252,15 +278,27 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                 (mem.mediaUrl != null &&
                     mem.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
                 mem.tags.any((t) => t.toLowerCase() == 'pdf');
+            final isVideo =
+                mem.isVideo ||
+                mem.fileType == 'video' ||
+                mem.tags.any((t) => t.toLowerCase() == 'video') ||
+                (mem.mediaUrl != null &&
+                    (mem.mediaUrl!.toLowerCase().endsWith('.mp4') ||
+                        mem.mediaUrl!.toLowerCase().endsWith('.mov') ||
+                        mem.mediaUrl!.toLowerCase().endsWith('.avi') ||
+                        mem.mediaUrl!.toLowerCase().endsWith('.mkv') ||
+                        mem.mediaUrl!.toLowerCase().endsWith('.webm')));
             final hasMeaningfulContent =
                 mem.content.trim().isNotEmpty ||
                 mem.title.trim().isNotEmpty ||
                 isVoice ||
-                isPdf;
+                isPdf ||
+                isVideo;
             final isNote =
                 (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) &&
                 !isVoice &&
-                !isPdf;
+                !isPdf &&
+                !isVideo;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
                 hasMeaningfulContent) {
               unawaited(
@@ -269,6 +307,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                   isNote: isNote,
                   isVoice: isVoice,
                   isPdf: isPdf,
+                  isVideo: isVideo,
                   isEmbeddingOnly: mem.aiStatus == 'processed',
                 ),
               );
@@ -320,6 +359,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     required bool isNote,
     bool isVoice = false,
     bool isPdf = false,
+    bool isVideo = false,
     required bool isEmbeddingOnly,
   }) async {
     try {
@@ -417,18 +457,112 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             }
           }
         } catch (_) {}
+      } else if (isVideo &&
+          memory.mediaUrl != null &&
+          memory.mediaUrl!.isNotEmpty) {
+        debugPrint(
+          '[VideoAI] Processing video memory with Gemini Vision: id=${memory.id}, mediaUrl=${memory.mediaUrl}',
+        );
+
+        // 1. Storage Upload for cloud playback (if authenticated)
+        String? storagePublicUrl;
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+        if (currentUserId != null && currentUserId != 'local_user') {
+          try {
+            final file = File(memory.mediaUrl!);
+            if (file.existsSync()) {
+              final isMov = memory.mediaUrl!.toLowerCase().endsWith('.mov');
+              final ext = isMov ? 'mov' : 'mp4';
+              final mime = isMov ? 'video/quicktime' : 'video/mp4';
+              final fileName =
+                  'video_${DateTime.now().millisecondsSinceEpoch}.$ext';
+              final storageKey = '$currentUserId/$fileName';
+              debugPrint('[VideoAI] Uploading video binary to storage: $storageKey');
+              final bytes = await file.readAsBytes();
+              await Supabase.instance.client.storage
+                  .from('memories')
+                  .uploadBinary(
+                    storageKey,
+                    bytes,
+                    fileOptions: FileOptions(contentType: mime),
+                  );
+              storagePublicUrl = Supabase.instance.client.storage
+                  .from('memories')
+                  .getPublicUrl(storageKey);
+              debugPrint('[VideoAI] Video storage upload success: $storagePublicUrl');
+            }
+          } catch (e) {
+            debugPrint('[VideoAI Warning] Video storage upload failed: $e');
+          }
+        }
+
+        // 2. Extract representative frame(s) using VideoFrameExtractor
+        Uint8List? frameBytes;
+        try {
+          frameBytes = await VideoFrameExtractor.extractRepresentativeFrame(
+            memory.mediaUrl!,
+          );
+        } catch (e) {
+          debugPrint('[VideoAI Warning] Frame extraction failed: $e');
+        }
+
+        if (frameBytes != null && frameBytes.isNotEmpty) {
+          // 3. Client-Side AI Ingestion via Gemini Vision pipeline (same as Photo)
+          final frameBase64 = await Isolate.run(() => base64Encode(frameBytes!));
+          const videoPrompt =
+              'Analyze this video frame/scene. Provide a concise, descriptive title, detailed bulleted summary of visible scene/objects/actions, suitable category, and 4-6 specific tags.';
+
+          final effectiveAiRepo = aiRepository ??
+              AiRepositoryImpl(
+                remoteDataSource: AiRemoteDataSourceImpl(),
+              );
+
+          debugPrint(
+            '[VideoAI] Invoking Gemini Vision pipeline with frame (${frameBytes.lengthInBytes} bytes)...',
+          );
+          final aiResult = await effectiveAiRepo.processPhotoIngestion(
+            ocrText: videoPrompt,
+            imageBase64: frameBase64,
+            mimeType: 'image/jpeg',
+          );
+          debugPrint(
+            '[VideoAI] Gemini Vision response: title="${aiResult.title}", category="${aiResult.category}", tags=${aiResult.tags}, summary="${aiResult.summary}"',
+          );
+
+          if (aiResult.title.isNotEmpty || aiResult.summary.isNotEmpty) {
+            await _updateMemoryWithVideoAiResult(
+              memoryId: memory.id,
+              aiResult: aiResult,
+              originalMemory: memory,
+              mediaUrl: storagePublicUrl,
+            );
+            return;
+          }
+        } else {
+          debugPrint(
+            '[VideoAI Warning] Frame extraction returned null. Proceeding to fallback.',
+          );
+        }
       }
 
+      final payload = {
+        'memoryId': memory.id,
+        if (isNote) 'preserve_content': true,
+        if (isEmbeddingOnly) 'embedding_only': true,
+        if (audioBase64 != null) 'audio_base64': audioBase64,
+        if (documentBase64 != null) 'document_base64': documentBase64,
+        if (mimeType != null) 'mime_type': mimeType,
+      };
+
+      debugPrint(
+        '[VideoAI] Invoking process-ingestion for ${memory.id}, keys=${payload.keys.toList()}',
+      );
       final response = await Supabase.instance.client.functions.invoke(
         'process-ingestion',
-        body: {
-          'memoryId': memory.id,
-          if (isNote) 'preserve_content': true,
-          if (isEmbeddingOnly) 'embedding_only': true,
-          if (audioBase64 != null) 'audio_base64': audioBase64,
-          if (documentBase64 != null) 'document_base64': documentBase64,
-          if (mimeType != null) 'mime_type': mimeType,
-        },
+        body: payload,
+      );
+      debugPrint(
+        '[VideoAI] Ingestion response received: status=${response.status}, data=${response.data}',
       );
 
       await _handleIngestionComplete(
@@ -436,8 +570,109 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         response,
         fallbackMemory: memory,
       );
-    } catch (_) {
-      // Background ingestion failed or network dropped — note remains in pending queue
+    } catch (e, stack) {
+      debugPrint('[VideoAI Error] Background ingestion failed: $e\n$stack');
+    }
+  }
+
+  Future<void> _updateMemoryWithVideoAiResult({
+    required String memoryId,
+    required AiIngestionResult aiResult,
+    required MemoryEntity originalMemory,
+    String? mediaUrl,
+  }) async {
+    try {
+      final isar = IsarService.instance;
+      final existing = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(memoryId)
+          .findFirst();
+
+      final effectiveTitle = aiResult.title.isNotEmpty
+          ? aiResult.title
+          : originalMemory.title;
+      final effectiveCategory = aiResult.category.isNotEmpty
+          ? aiResult.category
+          : (originalMemory.category.isNotEmpty &&
+                  originalMemory.category != 'General'
+              ? originalMemory.category
+              : 'General');
+      final effectiveContent = aiResult.summary.isNotEmpty
+          ? aiResult.summary
+          : (aiResult.title.isNotEmpty
+              ? aiResult.title
+              : originalMemory.content);
+
+      final mergedTagsSet = <String>{};
+      if (existing != null) {
+        mergedTagsSet.addAll(existing.tags);
+      } else {
+        mergedTagsSet.addAll(originalMemory.tags);
+      }
+      mergedTagsSet.addAll(aiResult.tags);
+      mergedTagsSet.add('video');
+      final effectiveTags = mergedTagsSet.toList();
+
+      final meta = Map<String, dynamic>.from(
+        originalMemory.metadata ?? {},
+      );
+      if (aiResult.summary.isNotEmpty) {
+        meta['summary'] = aiResult.summary;
+      }
+      meta['file_type'] = 'video';
+
+      // 1. Update Isar cache
+      if (existing != null) {
+        existing.title = effectiveTitle;
+        existing.category = effectiveCategory;
+        existing.tags = effectiveTags;
+        existing.content = effectiveContent;
+        existing.metadata = meta;
+        existing.aiStatus = 'processed';
+        if (mediaUrl != null && mediaUrl.isNotEmpty) {
+          existing.mediaUrl = mediaUrl;
+        }
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(existing);
+        });
+        debugPrint('[VideoAI] Isar MemoryModel updated for $memoryId');
+      }
+
+      // 2. Update Supabase DB if user is logged in
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null && currentUserId != 'local_user') {
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'title': effectiveTitle,
+            'category': effectiveCategory,
+            'tags': effectiveTags,
+            'content': effectiveContent,
+            'ai_status': 'processed',
+            'metadata': meta,
+            if (mediaUrl != null && mediaUrl.isNotEmpty) 'media_url': mediaUrl,
+          }).eq('id', memoryId);
+          debugPrint('[VideoAI] Supabase DB updated for $memoryId');
+        } catch (e) {
+          debugPrint('[VideoAI Warning] Supabase DB update error: $e');
+        }
+      }
+
+      // 3. Emit updated state to all listeners
+      final updatedEntity = (existing?.toEntity() ?? originalMemory).copyWith(
+        title: effectiveTitle,
+        category: effectiveCategory,
+        tags: effectiveTags,
+        content: effectiveContent,
+        aiStatus: 'processed',
+        metadata: meta,
+        mediaUrl: mediaUrl ?? (existing?.mediaUrl ?? originalMemory.mediaUrl),
+      );
+      add(MemoryUpdatedEvent(updatedEntity));
+      add(LoadMemoriesEvent());
+    } catch (e, stack) {
+      debugPrint(
+        '[VideoAI Error] _updateMemoryWithVideoAiResult error: $e\n$stack',
+      );
     }
   }
 
@@ -490,7 +725,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             existing.category = remoteModel.category;
             existing.tags = remoteModel.tags;
             existing.aiStatus = remoteModel.aiStatus;
-            if (remoteModel.content.isNotEmpty) {
+            if (remoteModel.content.isNotEmpty &&
+                !remoteModel.content.startsWith('Video recording saved:') &&
+                !remoteModel.content.toLowerCase().startsWith('saved video recording')) {
               existing.content = remoteModel.content;
             }
             if (remoteModel.mediaUrl != null &&
@@ -502,7 +739,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             }
             existing.serverUpdatedAt = remoteModel.serverUpdatedAt;
             existing.isSynced = true;
-          } else if (resData != null) {
+          }
+          if (resData != null) {
             if (resData['title'] != null) {
               existing.title = resData['title'].toString();
             }
@@ -512,9 +750,24 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             if (resData['tags'] != null) {
               existing.tags = List<String>.from(resData['tags'] as List);
             }
-            if (resData['content'] != null &&
-                resData['content'].toString().isNotEmpty) {
-              existing.content = resData['content'].toString();
+            final returnedContent = resData['content']?.toString() ??
+                resData['transcript']?.toString() ??
+                resData['summary']?.toString();
+            if (returnedContent != null &&
+                returnedContent.trim().isNotEmpty &&
+                !returnedContent.startsWith('Video recording saved:') &&
+                !returnedContent.toLowerCase().startsWith('saved video recording')) {
+              existing.content = returnedContent.trim();
+            }
+            if (resData['summary'] != null &&
+                resData['summary'].toString().trim().isNotEmpty) {
+              final summaryStr = resData['summary'].toString().trim();
+              final meta = Map<String, dynamic>.from(existing.metadata ?? {});
+              meta['summary'] = summaryStr;
+              if (existing.tags.contains('video')) {
+                meta['file_type'] = 'video';
+              }
+              existing.metadata = meta;
             }
             existing.aiStatus = (resData['ai_status'] ?? 'processed')
                 .toString();
@@ -526,9 +779,17 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             await isar.memoryModels.put(existing);
           });
 
+          debugPrint(
+            '[VideoAI] Memory $memoryId updated in Isar: title="${existing.title}", category="${existing.category}", tags=${existing.tags}, content="${existing.content}"',
+          );
+
           updatedEntity = existing.toEntity();
         }
-      } catch (_) {}
+      } catch (isarErr, isarStack) {
+        debugPrint(
+          '[VideoAI Error] Failed writing updated memory to Isar: $isarErr\n$isarStack',
+        );
+      }
 
       // 4. Construct updated MemoryEntity if Isar was not open
       if (updatedEntity == null) {

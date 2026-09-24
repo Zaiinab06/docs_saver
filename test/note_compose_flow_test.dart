@@ -83,9 +83,9 @@ void main() {
 
         // Verify bottom sheet appears with Add Note
         expect(find.text('Add Note'), findsWidgets);
-        expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsOneWidget);
-        expect(find.text('Add Link'), findsOneWidget);
+        expect(find.text('Take Photo'), findsWidgets);
+        expect(find.text('Scan Document'), findsWidgets);
+        expect(find.text('Add Link'), findsWidgets);
 
         // Tap "Add Note"
         await tester.tap(find.text('Add Note').last);
@@ -338,12 +338,12 @@ void main() {
         await tester.tap(find.byKey(const Key('bottom_nav_add_btn')));
         await tester.pumpAndSettle();
 
-        expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsOneWidget);
-        expect(find.text('Add Link'), findsOneWidget);
+        expect(find.text('Take Photo'), findsWidgets);
+        expect(find.text('Scan Document'), findsWidgets);
+        expect(find.text('Add Link'), findsWidgets);
         expect(find.text('Add Note'), findsWidgets);
 
-        await tester.tap(find.text('Add Link'));
+        await tester.tap(find.text('Add Link').last);
         await tester.pumpAndSettle();
         expect(find.text('Add Web Link'), findsOneWidget);
         expect(find.text('Continue'), findsOneWidget);

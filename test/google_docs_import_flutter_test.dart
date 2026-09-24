@@ -72,6 +72,7 @@ class MockAiRepository implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     receivedOcrText = ocrText;
     return resultToReturn;
@@ -102,6 +103,7 @@ class MockIngestMemoryUseCase implements IngestMemoryUseCase {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     receivedOcrText = ocrText;
     return resultToReturn;

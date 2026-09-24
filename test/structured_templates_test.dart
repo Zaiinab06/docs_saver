@@ -68,8 +68,8 @@ void main() {
       expect(markdown, contains('Payroll account'));
 
       final serialized = template.toSerializedContent();
-      expect(serialized, contains('<!--template_metadata:'));
-      expect(serialized, contains('"template":"bank_card"'));
+      expect(serialized, isNot(contains('<!--template_metadata:')));
+      expect(template.toJson()['template'], 'bank_card');
     });
 
     test('BillTemplate formats markdown and serializes metadata accurately', () {
@@ -94,8 +94,8 @@ void main() {
       expect(paidBill.toMarkdownBody(), contains('Paid ✅'));
 
       final serialized = bill.toSerializedContent();
-      expect(serialized, contains('<!--template_metadata:'));
-      expect(serialized, contains('"template":"bill"'));
+      expect(serialized, isNot(contains('<!--template_metadata:')));
+      expect(bill.toJson()['template'], 'bill');
     });
 
     test('MemoryEntity cleanly extracts template data and clean content', () {
@@ -107,14 +107,14 @@ void main() {
         expiryDate: '06/29',
       );
 
-      final serializedContent = template.toSerializedContent();
       final now = DateTime.now();
 
       final memory = MemoryEntity(
         id: 'mem-card-1',
         userId: 'user-1',
         title: 'Standard Chartered Mastercard (•••• 4444)',
-        content: serializedContent,
+        content: template.toMarkdownBody(),
+        metadata: template.toJson(),
         category: 'Finance',
         tags: const ['#card', '#finance'],
         clientCreatedAt: now,
@@ -144,7 +144,8 @@ void main() {
         'id': 'mem-bill-1',
         'user_id': 'user-1',
         'title': 'Internet Bill (NET-998877)',
-        'content': bill.toSerializedContent(),
+        'content': bill.toMarkdownBody(),
+        'metadata': bill.toJson(),
         'category': 'Finance',
         'tags': ['#bill', '#internet', '#paid'],
         'client_created_at': DateTime.now().toIso8601String(),
@@ -161,6 +162,22 @@ void main() {
       expect(entity.billTemplate!.consumerNumber, 'NET-998877');
       expect(entity.billTemplate!.amount, 'PKR 3,500');
       expect(entity.billTemplate!.isPaid, isTrue);
+    });
+
+    test('MemoryModel fromMap cleans legacy comment envelopes and preserves metadata', () {
+      const legacyContent =
+          '📄 Bill Type: Electricity\n\n<!--template_metadata:{"template":"bill","bill_type":"Electricity","consumer_number":"12345","amount":"PKR 5000","due_date":"2026-10-10","is_paid":false}-->';
+      final model = MemoryModel.fromMap({
+        'id': 'legacy-1',
+        'content': legacyContent,
+      });
+
+      expect(model.content, '📄 Bill Type: Electricity');
+      expect(model.metadata?['template'], 'bill');
+
+      final entity = model.toEntity();
+      expect(entity.isStructuredTemplate, isTrue);
+      expect(entity.billTemplate?.consumerNumber, '12345');
     });
   });
 

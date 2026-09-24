@@ -60,6 +60,7 @@ class FakeAiRepository implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     return AiIngestionResult(
       title: title,

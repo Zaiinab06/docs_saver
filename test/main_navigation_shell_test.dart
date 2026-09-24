@@ -248,7 +248,7 @@ void main() {
     });
 
     testWidgets(
-      'tapping center + button opens existing capture options sheet with 6 options',
+      'tapping center + button opens capture options sheet with all capture options',
       (tester) async {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
@@ -257,12 +257,38 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('What do you want to save?'), findsOneWidget);
-        expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsOneWidget);
-        expect(find.text('Add Link'), findsOneWidget);
-        expect(find.text('Add Note'), findsOneWidget);
-        expect(find.text('Record Voice'), findsOneWidget);
-        expect(find.text('Choose File'), findsOneWidget);
+        expect(
+          find.byKey(const Key('capture_option_Take Photo')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Scan Document')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Add Link')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Add Note')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Record Voice')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Choose File')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Google Drive')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('capture_option_Add Video')),
+          findsOneWidget,
+        );
       },
     );
 

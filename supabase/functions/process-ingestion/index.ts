@@ -82,6 +82,26 @@ class TokenBucketRateLimiter {
   }
 }
 
+// Fast, safe chunked/buffer base64 encoder avoiding CPU timeouts and call stack limits
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  try {
+    const maybeBuffer = (globalThis as any).Buffer;
+    if (maybeBuffer && typeof maybeBuffer.from === "function") {
+      return maybeBuffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
+    }
+  } catch (_) {}
+  let binary = "";
+  const len = bytes.byteLength;
+  const chunkSize = 0x8000; // 32KB chunking
+  for (let i = 0; i < len; i += chunkSize) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, Math.min(i + chunkSize, len)) as any
+    );
+  }
+  return btoa(binary);
+}
+
 // Global rate limiter instance (30 capacity, 0.5 tokens/sec refill = 30/min sustained)
 const rateLimiter = new TokenBucketRateLimiter(30, 0.5);
 
@@ -133,6 +153,7 @@ interface IngestionRecord {
   image_base64?: string | null;
   audio_base64?: string | null;
   document_base64?: string | null;
+  video_base64?: string | null;
   mime_type?: string | null;
 }
 
@@ -220,6 +241,8 @@ Deno.serve(async (req: Request) => {
     const targetImageBase64 = rawRecord.image_base64 ?? body.image_base64;
     let targetAudioBase64 = rawRecord.audio_base64 ?? body.audio_base64;
     let targetDocumentBase64 = rawRecord.document_base64 ?? body.document_base64;
+    let targetVideoBase64 = rawRecord.video_base64 ?? body.video_base64;
+    let targetStoragePath = rawRecord.storage_path ?? body.storage_path;
     let targetMimeType = rawRecord.mime_type ?? body.mime_type;
     let isEmbeddingOnly = Boolean(body.embedding_only);
     const preserveContent = Boolean(
@@ -267,7 +290,7 @@ Deno.serve(async (req: Request) => {
           existingEmbedding = dbMem.embedding;
           existingAiStatus = dbMem.ai_status;
           // If memory was already analyzed and approved by user, switch to embedding_only mode
-          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64 && !targetAudioBase64 && !targetDocumentBase64) {
+          if (existingAiStatus === "processed" && !rawRecord.imageBase64 && !targetImageBase64 && !targetAudioBase64 && !targetDocumentBase64 && !targetVideoBase64) {
             isEmbeddingOnly = true;
           }
 
@@ -326,6 +349,46 @@ Deno.serve(async (req: Request) => {
               } catch (_) { }
             }
           }
+
+          if (!targetVideoBase64 && (targetStoragePath || (dbMem.media_url && !targetImageBase64 && !targetAudioBase64 && !targetDocumentBase64))) {
+            const rawMedia = targetStoragePath || String(dbMem.media_url);
+            let storagePath = rawMedia;
+            if (storagePath.includes("/memories/")) {
+              storagePath = storagePath.split("/memories/").pop() || storagePath;
+            }
+            const isVideoUrl =
+              storagePath.toLowerCase().endsWith(".mp4") ||
+              storagePath.toLowerCase().endsWith(".mov") ||
+              storagePath.toLowerCase().endsWith(".avi") ||
+              storagePath.toLowerCase().endsWith(".mkv") ||
+              storagePath.toLowerCase().endsWith(".webm") ||
+              storagePath.toLowerCase().endsWith(".3gp") ||
+              (dbMem.tags && Array.isArray(dbMem.tags) && dbMem.tags.includes("video"));
+            if (isVideoUrl) {
+              try {
+                console.info(`[Ingestion Video] Downloading video from storage: ${storagePath}`);
+                const { data: fileData, error: dlErr } = await supabaseAdmin.storage
+                  .from("memories")
+                  .download(storagePath);
+                if (dlErr) {
+                  console.warn(`[Ingestion Video Warning] Download failed: ${dlErr.message}`);
+                } else if (fileData) {
+                  const arrayBuffer = await fileData.arrayBuffer();
+                  console.info(`[Ingestion Video] Downloaded ${arrayBuffer.byteLength} bytes.`);
+                  if (arrayBuffer.byteLength <= 25 * 1024 * 1024) {
+                    const bytes = new Uint8Array(arrayBuffer);
+                    targetVideoBase64 = uint8ArrayToBase64(bytes);
+                    targetMimeType = targetMimeType || (storagePath.toLowerCase().endsWith(".mov") ? "video/quicktime" : "video/mp4");
+                    console.info(`[Ingestion Video] Successfully converted to base64 (${targetVideoBase64.length} chars).`);
+                  } else {
+                    console.warn(`[Ingestion Video Warning] Video size (${arrayBuffer.byteLength} bytes) exceeds 25MB limit.`);
+                  }
+                }
+              } catch (dlEx: any) {
+                console.warn(`[Ingestion Video Error] Storage download exception: ${dlEx?.message}`);
+              }
+            }
+          }
         }
       } catch (_) {
         // Fall through
@@ -369,6 +432,7 @@ Deno.serve(async (req: Request) => {
       image_base64: targetImageBase64 ? String(targetImageBase64) : null,
       audio_base64: targetAudioBase64 ? String(targetAudioBase64) : null,
       document_base64: targetDocumentBase64 ? String(targetDocumentBase64) : null,
+      video_base64: targetVideoBase64 ? String(targetVideoBase64) : null,
       mime_type: targetMimeType ? String(targetMimeType) : null,
     };
 
@@ -476,6 +540,7 @@ Deno.serve(async (req: Request) => {
         imageBase64: recordToProcess.image_base64,
         audioBase64: recordToProcess.audio_base64,
         documentBase64: recordToProcess.document_base64,
+        videoBase64: recordToProcess.video_base64,
         mimeType: recordToProcess.mime_type,
       },
       signal
@@ -506,6 +571,18 @@ Deno.serve(async (req: Request) => {
       (recordToProcess.media_url && recordToProcess.media_url.endsWith(".pdf"))
     );
 
+    const isVideoMemory = Boolean(
+      recordToProcess.video_base64 ||
+      (recordToProcess.tags && Array.isArray(recordToProcess.tags) && recordToProcess.tags.includes("video")) ||
+      (recordToProcess.media_url && (
+        recordToProcess.media_url.endsWith(".mp4") ||
+        recordToProcess.media_url.endsWith(".mov") ||
+        recordToProcess.media_url.endsWith(".avi") ||
+        recordToProcess.media_url.endsWith(".mkv") ||
+        recordToProcess.media_url.endsWith(".webm")
+      ))
+    );
+
     let resolvedAiStatus = "processed";
 
     if (isVoiceMemory) {
@@ -517,6 +594,19 @@ Deno.serve(async (req: Request) => {
         // If transcript is empty/missing, do NOT mark the memory processed.
         recordToProcess.content = "";
         resolvedAiStatus = "failed";
+      }
+    } else if (isVideoMemory) {
+      if (finalTranscript && finalTranscript.trim().length > 0) {
+        recordToProcess.content = finalTranscript.trim();
+        resolvedAiStatus = "processed";
+      } else if (finalSummary && finalSummary.trim().length > 0) {
+        recordToProcess.content = finalSummary.trim();
+        resolvedAiStatus = "processed";
+      } else {
+        if (!recordToProcess.content || recordToProcess.content.startsWith("Video recording saved:")) {
+          recordToProcess.content = finalTitle || "Video recording analyzed";
+        }
+        resolvedAiStatus = "processed";
       }
     } else if (isPdfMemory) {
       if (finalDocumentText && finalDocumentText.trim().length > 0) {
@@ -542,19 +632,21 @@ Deno.serve(async (req: Request) => {
         recordToProcess.title.trim().length > 0 &&
         !recordToProcess.title.startsWith("Note (") &&
         !recordToProcess.title.startsWith("Voice Note (") &&
+        !recordToProcess.title.startsWith("Video Note (") &&
+        !recordToProcess.title.startsWith("Video (") &&
         recordToProcess.title !== "Quick Note")
     );
     const hasUserCategory = Boolean(
       body.user_provided_category ||
       (recordToProcess.category &&
         recordToProcess.category.trim().length > 0 &&
-        !["General", "Quick Notes", "All"].includes(recordToProcess.category))
+        !["General", "Quick Notes", "All", "Personal Life"].includes(recordToProcess.category))
     );
     const hasUserTags = Boolean(
       body.user_provided_tags ||
       (recordToProcess.tags &&
         recordToProcess.tags.length > 0 &&
-        !(recordToProcess.tags.length === 1 && (recordToProcess.tags[0] === "note" || recordToProcess.tags[0] === "voice")))
+        !(recordToProcess.tags.length === 1 && (recordToProcess.tags[0] === "note" || recordToProcess.tags[0] === "voice" || recordToProcess.tags[0] === "video")))
     );
 
     const resolvedTitle = hasUserTitle
@@ -582,6 +674,12 @@ Deno.serve(async (req: Request) => {
     if (recordToProcess.document_base64 || (recordToProcess.tags && recordToProcess.tags.includes("document")) || (recordToProcess.tags && recordToProcess.tags.includes("pdf"))) {
       if (!resolvedTags.includes("document")) {
         resolvedTags.push("document");
+      }
+    }
+
+    if (isVideoMemory || (recordToProcess.tags && recordToProcess.tags.includes("video"))) {
+      if (!resolvedTags.includes("video")) {
+        resolvedTags.push("video");
       }
     }
 

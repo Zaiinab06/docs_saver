@@ -6,5 +6,6 @@ abstract class AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   });
 }

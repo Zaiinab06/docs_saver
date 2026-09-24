@@ -515,8 +515,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify bottom sheet appears with Take Photo
-        expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsOneWidget);
+        expect(find.text('What do you want to save?'), findsOneWidget);
+        expect(find.text('Take Photo'), findsNWidgets(2));
+        expect(find.text('Scan Document'), findsNWidgets(2));
       },
     );
   });

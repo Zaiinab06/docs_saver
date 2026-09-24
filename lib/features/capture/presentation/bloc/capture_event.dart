@@ -19,6 +19,7 @@ class AddMemoryEvent extends CaptureEvent {
   final String category;
   final String? mediaUrl;
   final String aiStatus;
+  final Map<String, dynamic>? metadata;
 
   const AddMemoryEvent({
     required this.title,
@@ -27,6 +28,7 @@ class AddMemoryEvent extends CaptureEvent {
     this.category = 'General',
     this.mediaUrl,
     this.aiStatus = 'pending',
+    this.metadata,
   });
 
   @override
@@ -37,6 +39,7 @@ class AddMemoryEvent extends CaptureEvent {
     category,
     mediaUrl,
     aiStatus,
+    metadata,
   ];
 }
 

@@ -25,6 +25,7 @@ class FakeAiRepository implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     if (delay > Duration.zero) {
       await Future.delayed(delay);

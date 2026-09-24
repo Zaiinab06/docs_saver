@@ -11,12 +11,14 @@ class IngestMemoryUseCase {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) {
     return repository.processPhotoIngestion(
       ocrText: ocrText,
       imageBase64: imageBase64,
       mimeType: mimeType,
       documentBase64: documentBase64,
+      videoBase64: videoBase64,
     );
   }
 }

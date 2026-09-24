@@ -27,6 +27,28 @@ class MemoryModel {
 
   String aiStatus = 'pending'; // 'pending', 'processed', 'failed'
 
+  String? rawMetadataJson;
+
+  @ignore
+  Map<String, dynamic>? get metadata {
+    if (rawMetadataJson == null || rawMetadataJson!.trim().isEmpty) {
+      return null;
+    }
+    try {
+      return jsonDecode(rawMetadataJson!) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  set metadata(Map<String, dynamic>? val) {
+    if (val == null || val.isEmpty) {
+      rawMetadataJson = null;
+    } else {
+      rawMetadataJson = jsonEncode(val);
+    }
+  }
+
   bool isConflictCopy = false;
 
   late DateTime clientCreatedAt;
@@ -39,12 +61,36 @@ class MemoryModel {
 
   static MemoryModel fromMap(Map<String, dynamic> map, {bool isSynced = true}) {
     var contentStr = (map['content'] ?? '').toString();
-    if (map['metadata'] is Map &&
-        (map['metadata'] as Map).isNotEmpty &&
-        !contentStr.contains('<!--template_metadata:')) {
-      contentStr =
-          '$contentStr\n\n<!--template_metadata:${jsonEncode(map['metadata'])}-->'
-              .trim();
+    Map<String, dynamic>? meta;
+    if (map['metadata'] is Map && (map['metadata'] as Map).isNotEmpty) {
+      meta = Map<String, dynamic>.from(map['metadata'] as Map);
+    } else if (map['metadata'] is String &&
+        (map['metadata'] as String).trim().isNotEmpty) {
+      try {
+        meta = jsonDecode(map['metadata'] as String) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    // Strip legacy <!--template_metadata:...--> comment hack if present
+    final legacyMatch = RegExp(
+      r'<!--template_metadata:(.*?)-->',
+      dotAll: true,
+    ).firstMatch(contentStr);
+    if (legacyMatch != null) {
+      if (meta == null) {
+        try {
+          final jsonStr = legacyMatch.group(1);
+          if (jsonStr != null && jsonStr.trim().isNotEmpty) {
+            meta = jsonDecode(jsonStr) as Map<String, dynamic>;
+          }
+        } catch (_) {}
+      }
+      contentStr = contentStr
+          .replaceAll(
+            RegExp(r'\n*<!--template_metadata:[\s\S]*?-->', dotAll: true),
+            '',
+          )
+          .trim();
     }
 
     final model = MemoryModel()
@@ -52,6 +98,7 @@ class MemoryModel {
       ..userId = (map['user_id'] ?? '').toString()
       ..title = (map['title'] ?? '').toString()
       ..content = contentStr
+      ..metadata = meta
       ..mediaUrl = map['media_url'] as String?
       ..tags = map['tags'] != null ? List<String>.from(map['tags'] as List) : []
       ..category = (map['category'] ?? 'General').toString()
@@ -94,11 +141,30 @@ class MemoryModel {
 
 extension MemoryModelMapper on MemoryModel {
   MemoryEntity toEntity() {
+    final cleanContent = content
+        .replaceAll(
+          RegExp(r'\n*<!--template_metadata:[\s\S]*?-->', dotAll: true),
+          '',
+        )
+        .trim();
+    var meta = metadata;
+    if (meta == null && content.contains('<!--template_metadata:')) {
+      final match = RegExp(
+        r'<!--template_metadata:(.*?)-->',
+        dotAll: true,
+      ).firstMatch(content);
+      if (match != null) {
+        try {
+          meta = jsonDecode(match.group(1)!) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+    }
+
     return MemoryEntity(
       id: serverId,
       userId: userId,
       title: title,
-      content: content,
+      content: cleanContent,
       mediaUrl: mediaUrl,
       tags: tags,
       category: category,
@@ -109,17 +175,24 @@ extension MemoryModelMapper on MemoryModel {
       clientUpdatedAt: clientUpdatedAt,
       serverUpdatedAt: serverUpdatedAt,
       isSynced: isSynced,
+      metadata: meta,
     );
   }
 }
 
 extension MemoryEntityMapper on MemoryEntity {
   MemoryModel toModel({bool? isSynced}) {
-    return MemoryModel()
+    final cleanContent = content
+        .replaceAll(
+          RegExp(r'\n*<!--template_metadata:[\s\S]*?-->', dotAll: true),
+          '',
+        )
+        .trim();
+    final model = MemoryModel()
       ..serverId = id
       ..userId = userId
       ..title = title
-      ..content = content
+      ..content = cleanContent
       ..mediaUrl = mediaUrl
       ..tags = tags
       ..category = category
@@ -130,5 +203,7 @@ extension MemoryEntityMapper on MemoryEntity {
       ..clientUpdatedAt = clientUpdatedAt
       ..serverUpdatedAt = serverUpdatedAt
       ..isSynced = isSynced ?? this.isSynced;
+    model.metadata = metadata;
+    return model;
   }
 }

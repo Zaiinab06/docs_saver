@@ -34,6 +34,7 @@ class FakeDocumentAiRepository implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     return AiIngestionResult(
       title: title,
@@ -272,8 +273,8 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap "Scan Document"
-        expect(find.text('Scan Document'), findsOneWidget);
-        await tester.tap(find.text('Scan Document'));
+        expect(find.byKey(const Key('capture_option_Scan Document')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('capture_option_Scan Document')));
         await tester.pumpAndSettle();
 
         // Verified: Returns safely to Home without errors or crash
@@ -325,7 +326,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap "Scan Document"
-        await tester.tap(find.text('Scan Document'));
+        await tester.tap(find.byKey(const Key('capture_option_Scan Document')));
         await tester.pumpAndSettle();
 
         // Verified: User-friendly error message is displayed

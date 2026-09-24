@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:second_brain/features/capture/domain/entities/memory_entity.dart';
 import 'package:second_brain/features/capture/presentation/screens/memory_detail_screen.dart';
 import 'package:second_brain/features/capture/presentation/widgets/full_screen_image_viewer.dart';
+import 'package:second_brain/features/capture/presentation/widgets/video_player_preview_card.dart';
 
 void main() {
   group('MemoryDetailScreen Widget Tests', () {
@@ -712,5 +713,96 @@ F = ma''';
       // Graceful fallback icon
       expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
     });
+
+    testWidgets(
+      'video memory renders VideoPlayerPreviewCard and does not render Image widget',
+      (tester) async {
+        final tempDir = Directory.systemTemp.createTempSync('vid_test_');
+        final videoFile = File('${tempDir.path}/sample_demo.mp4')
+          ..writeAsBytesSync([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]);
+        addTearDown(() {
+          try {
+            tempDir.deleteSync(recursive: true);
+          } catch (_) {}
+        });
+
+        final memory = MemoryEntity(
+          id: 'video-memory-1',
+          userId: 'user-1',
+          title: 'Product Walkthrough Video',
+          content: 'Recorded demonstration of the new feature set.',
+          category: 'Work',
+          tags: const ['video', 'walkthrough'],
+          mediaUrl: videoFile.path,
+          aiStatus: 'processed',
+          clientCreatedAt: DateTime.now(),
+          clientUpdatedAt: DateTime.now(),
+          serverUpdatedAt: DateTime.now(),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MemoryDetailScreen(
+              memoryId: memory.id,
+              initialMemory: memory,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Verify VideoPlayerPreviewCard is rendered
+        expect(find.byType(VideoPlayerPreviewCard), findsOneWidget);
+
+        // 2. Verify standard Image widget is NEVER called for video files
+        expect(find.byType(Image), findsNothing);
+
+        // 3. Verify video title & badge
+        expect(find.text('Product Walkthrough Video'), findsAtLeastNWidgets(1));
+        expect(find.text('VIDEO'), findsOneWidget);
+
+        // 4. Verify Extracted Content displays video-specific title & icon
+        expect(find.text('Video Analysis & Key Events'), findsOneWidget);
+        expect(
+          find.text('Scene description & speech extracted from video'),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.videocam_rounded), findsAtLeastNWidgets(1));
+      },
+    );
+
+    testWidgets(
+      'remote video URL (.mov) renders VideoPlayerPreviewCard without calling Image preview',
+      (tester) async {
+        final memory = MemoryEntity(
+          id: 'remote-video-memory-2',
+          userId: 'user-1',
+          title: 'Design Critique Clip',
+          content: 'Critique of the mobile navigation patterns.',
+          category: 'Work',
+          tags: const ['critique'],
+          mediaUrl: 'https://example.supabase.co/storage/v1/object/public/memories/critique.mov',
+          aiStatus: 'processed',
+          clientCreatedAt: DateTime.now(),
+          clientUpdatedAt: DateTime.now(),
+          serverUpdatedAt: DateTime.now(),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MemoryDetailScreen(
+              memoryId: memory.id,
+              initialMemory: memory,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Verify VideoPlayerPreviewCard is rendered
+        expect(find.byType(VideoPlayerPreviewCard), findsOneWidget);
+
+        // 2. Verify Image widget is not used for .mov video files
+        expect(find.byType(Image), findsNothing);
+      },
+    );
   });
 }

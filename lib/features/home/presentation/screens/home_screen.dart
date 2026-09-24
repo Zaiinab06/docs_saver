@@ -51,6 +51,7 @@ class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     return {};
   }
@@ -569,25 +570,25 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       (
-        'Add Note',
-        Icons.note_alt_outlined,
+        'Take Photo',
+        Icons.camera_alt_outlined,
         const Color(0xFF6D35E8),
         const Color(0xFFEDE7FF),
-        _handleAddNote,
+        _handleTakePhoto,
       ),
       (
-        'Scan Doc',
+        'Scan Document',
         Icons.document_scanner_outlined,
         const Color(0xFFF0445D),
         const Color(0xFFFFE5EA),
         _handleScanDocument,
       ),
       (
-        'Import File',
-        Icons.image_outlined,
+        'Add Note',
+        Icons.edit_note_rounded,
         const Color(0xFF1677D2),
         const Color(0xFFE5F1FF),
-        _handleChooseFile,
+        _handleAddNote,
       ),
       (
         'Voice Note',
@@ -597,32 +598,32 @@ class HomeScreenState extends State<HomeScreen> {
         _handleRecordVoice,
       ),
       (
-        'Save Link',
+        'Choose File',
+        Icons.attach_file_rounded,
+        const Color(0xFF8E44AD),
+        const Color(0xFFF4ECF7),
+        _handleChooseFile,
+      ),
+      (
+        'Add Link',
         Icons.link_rounded,
         const Color(0xFFE58B00),
         const Color(0xFFFFF0D3),
         _handleAddLink,
       ),
       (
-        'AI Summary',
-        Icons.auto_awesome_rounded,
-        const Color(0xFF7625F5),
-        const Color(0xFFF0E6FF),
-        () => _showUnavailableFeature('AI Summary'),
+        'Google Drive',
+        Icons.cloud_download_outlined,
+        const Color(0xFF0288D1),
+        const Color(0xFFE1F5FE),
+        _openGooglePicker,
       ),
       (
-        'Collection',
-        Icons.create_new_folder_outlined,
-        const Color(0xFFE58B00),
-        const Color(0xFFFFF0D3),
-        () => _showUnavailableFeature('Collections'),
-      ),
-      (
-        'More',
-        Icons.grid_view_rounded,
-        const Color(0xFF6E7190),
-        const Color(0xFFEEF0F7),
-        openCaptureBottomSheet,
+        'Add Video',
+        Icons.videocam_outlined,
+        const Color(0xFFE91E63),
+        const Color(0xFFFCE4EC),
+        _handleAddVideo,
       ),
     ];
 
@@ -801,42 +802,64 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.camera_alt_outlined,
                         title: 'Take Photo',
                         isTakePhoto: true,
+                        iconColor: const Color(0xFF6D35E8),
+                        iconBackground: const Color(0xFFEDE7FF),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.document_scanner_outlined,
                         title: 'Scan Document',
                         isTakePhoto: false,
-                      ),
-                      _buildCaptureOption(
-                        context: sheetContext,
-                        icon: Icons.link_rounded,
-                        title: 'Add Link',
-                        isTakePhoto: false,
+                        iconColor: const Color(0xFFF0445D),
+                        iconBackground: const Color(0xFFFFE5EA),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.edit_note_rounded,
                         title: 'Add Note',
                         isTakePhoto: false,
+                        iconColor: const Color(0xFF1677D2),
+                        iconBackground: const Color(0xFFE5F1FF),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.mic_none_rounded,
                         title: 'Record Voice',
                         isTakePhoto: false,
+                        iconColor: const Color(0xFF0AAB68),
+                        iconBackground: const Color(0xFFE1F8EC),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.attach_file_rounded,
                         title: 'Choose File',
                         isTakePhoto: false,
+                        iconColor: const Color(0xFF8E44AD),
+                        iconBackground: const Color(0xFFF4ECF7),
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.link_rounded,
+                        title: 'Add Link',
+                        isTakePhoto: false,
+                        iconColor: const Color(0xFFE58B00),
+                        iconBackground: const Color(0xFFFFF0D3),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.cloud_download_outlined,
                         title: 'Google Drive',
                         isTakePhoto: false,
+                        iconColor: const Color(0xFF0288D1),
+                        iconBackground: const Color(0xFFE1F5FE),
+                      ),
+                      _buildCaptureOption(
+                        context: sheetContext,
+                        icon: Icons.videocam_outlined,
+                        title: 'Add Video',
+                        isTakePhoto: false,
+                        iconColor: const Color(0xFFE91E63),
+                        iconBackground: const Color(0xFFFCE4EC),
                       ),
                     ],
                   ),
@@ -877,6 +900,143 @@ class HomeScreenState extends State<HomeScreen> {
             errorMsg.contains('permission') || errorMsg.contains('denied')
             ? 'Camera permission denied. Please enable camera access in Settings.'
             : 'Unable to open camera: ${e.toString()}';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleAddVideo() async {
+    try {
+      final picker = ImagePicker();
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        backgroundColor: AppColors.cardBackgroundOf(context),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetCtx) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderOf(sheetCtx),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Capture Video',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimaryOf(sheetCtx),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFCE4EC),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.videocam_outlined,
+                      color: Color(0xFFE91E63),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    'Record Video',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimaryOf(sheetCtx),
+                    ),
+                  ),
+                  subtitle: const Text('Use camera to record a video'),
+                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
+                ),
+                ListTile(
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE7FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.video_library_outlined,
+                      color: Color(0xFF6D35E8),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    'Choose from Gallery',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimaryOf(sheetCtx),
+                    ),
+                  ),
+                  subtitle: const Text('Pick an existing video from your device'),
+                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (source == null) return;
+      if (!mounted) return;
+
+      final video = await picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(seconds: 45),
+      );
+
+      if (video == null) return;
+      if (!mounted) return;
+
+      final videoFile = File(video.path);
+      if (!videoFile.existsSync()) return;
+
+      final videoName = video.name.isNotEmpty ? video.name : 'Video Note';
+      if (mounted) {
+        context.read<CaptureBloc>().add(
+          AddMemoryEvent(
+            title: 'Video Note (${DateFormat('MMM d').format(DateTime.now())})',
+            content: '', // Truthful: empty until Gemini video analysis finishes
+            category: 'General',
+            tags: const ['video'],
+            mediaUrl: videoFile.path,
+            aiStatus: 'pending',
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Video saved: $videoName (AI analyzing...)'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().toLowerCase();
+        final message =
+            errorMsg.contains('permission') || errorMsg.contains('denied')
+            ? 'Camera / Gallery permission denied. Please enable access in Settings.'
+            : 'Unable to capture video: ${e.toString()}';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
         );
@@ -1741,13 +1901,16 @@ class HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required bool isTakePhoto,
+    Color? iconColor,
+    Color? iconBackground,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: Key('capture_option_$title'),
         onTap: () async {
           Navigator.of(context).pop();
-          if (isTakePhoto) {
+          if (isTakePhoto || title == 'Take Photo') {
             await _handleTakePhoto();
           } else if (title == 'Scan Document') {
             await _handleScanDocument();
@@ -1755,12 +1918,14 @@ class HomeScreenState extends State<HomeScreen> {
             await _handleAddLink();
           } else if (title == 'Add Note') {
             await _handleAddNote();
-          } else if (title == 'Record Voice') {
+          } else if (title == 'Record Voice' || title == 'Voice Note') {
             await _handleRecordVoice();
           } else if (title == 'Choose File') {
             await _handleChooseFile();
           } else if (title == 'Google Drive') {
             await _openGooglePicker();
+          } else if (title == 'Add Video') {
+            await _handleAddVideo();
           } else {
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(
@@ -1782,13 +1947,17 @@ class HomeScreenState extends State<HomeScreen> {
           child: Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceTintOf(context),
-                  shape: BoxShape.circle,
+                  color: iconBackground ?? AppColors.surfaceTintOf(context),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.primary, size: 18),
+                child: Icon(
+                  icon,
+                  color: iconColor ?? AppColors.primary,
+                  size: 19,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(

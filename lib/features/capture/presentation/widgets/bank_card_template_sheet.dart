@@ -163,7 +163,8 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
     );
 
     final title = '$bankName $_selectedCardType (•••• ${template.last4})';
-    final content = template.toSerializedContent();
+    final content = template.toMarkdownBody();
+    final metadata = template.toJson();
     final tags = [
       '#card',
       '#finance',
@@ -181,6 +182,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
           tags: tags,
           mediaUrl: null,
           aiStatus: 'processed',
+          metadata: metadata,
         ),
       );
 

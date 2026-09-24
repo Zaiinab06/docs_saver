@@ -8,6 +8,7 @@ abstract class AiRemoteDataSource {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   });
 }
 
@@ -24,6 +25,7 @@ class AiRemoteDataSourceImpl implements AiRemoteDataSource {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     final currentUserId = supabase.auth.currentUser?.id ?? 'anonymous_client';
     final tempId = const Uuid().v4();
@@ -40,6 +42,9 @@ class AiRemoteDataSourceImpl implements AiRemoteDataSource {
     }
     if (documentBase64 != null && documentBase64.isNotEmpty) {
       recordPayload['document_base64'] = documentBase64;
+    }
+    if (videoBase64 != null && videoBase64.isNotEmpty) {
+      recordPayload['video_base64'] = videoBase64;
     }
     if (mimeType != null && mimeType.isNotEmpty) {
       recordPayload['mime_type'] = mimeType;

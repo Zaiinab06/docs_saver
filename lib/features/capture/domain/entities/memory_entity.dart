@@ -43,6 +43,54 @@ class MemoryEntity extends Equatable {
       ) ||
       category.toLowerCase() == 'pinned';
 
+  /// Resolves the file type of the memory (e.g. 'video', 'audio', 'document', 'image')
+  String? get fileType {
+    if (metadata != null && metadata!['file_type'] != null) {
+      return metadata!['file_type'].toString().toLowerCase();
+    }
+    if (tags.any((t) => t.toLowerCase() == 'video')) return 'video';
+    if (tags.any((t) => t.toLowerCase() == 'voice' || t.toLowerCase() == 'audio')) return 'audio';
+    if (tags.any((t) => t.toLowerCase() == 'document' || t.toLowerCase() == 'pdf')) return 'document';
+    if (mediaUrl != null && mediaUrl!.trim().isNotEmpty) {
+      final cleanUrl = mediaUrl!.trim().split('?').first.toLowerCase();
+      if (cleanUrl.endsWith('.mp4') ||
+          cleanUrl.endsWith('.mov') ||
+          cleanUrl.endsWith('.avi') ||
+          cleanUrl.endsWith('.mkv') ||
+          cleanUrl.endsWith('.webm') ||
+          cleanUrl.endsWith('.3gp') ||
+          cleanUrl.endsWith('.m4v')) {
+        return 'video';
+      }
+      if (cleanUrl.endsWith('.m4a') ||
+          cleanUrl.endsWith('.aac') ||
+          cleanUrl.endsWith('.mp3') ||
+          cleanUrl.endsWith('.wav') ||
+          cleanUrl.endsWith('.ogg')) {
+        return 'audio';
+      }
+      if (cleanUrl.endsWith('.pdf') ||
+          cleanUrl.endsWith('.txt') ||
+          cleanUrl.endsWith('.md') ||
+          cleanUrl.endsWith('.csv') ||
+          cleanUrl.endsWith('.json')) {
+        return 'document';
+      }
+      if (cleanUrl.endsWith('.jpg') ||
+          cleanUrl.endsWith('.jpeg') ||
+          cleanUrl.endsWith('.png') ||
+          cleanUrl.endsWith('.webp') ||
+          cleanUrl.endsWith('.gif') ||
+          cleanUrl.endsWith('.bmp')) {
+        return 'image';
+      }
+    }
+    return null;
+  }
+
+  /// Whether this memory has an attached video
+  bool get isVideo => fileType == 'video';
+
   /// Returns parsed structured template data from metadata map or content comment envelope
   Map<String, dynamic>? get templateData {
     if (metadata != null && metadata!.isNotEmpty) {
@@ -101,6 +149,42 @@ class MemoryEntity extends Equatable {
     final dateComp = b.clientCreatedAt.compareTo(a.clientCreatedAt);
     if (dateComp != 0) return dateComp;
     return b.id.compareTo(a.id);
+  }
+
+  MemoryEntity copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    String? content,
+    String? mediaUrl,
+    List<String>? tags,
+    String? category,
+    List<double>? embedding,
+    String? aiStatus,
+    bool? isConflictCopy,
+    DateTime? clientCreatedAt,
+    DateTime? clientUpdatedAt,
+    DateTime? serverUpdatedAt,
+    bool? isSynced,
+    Map<String, dynamic>? metadata,
+  }) {
+    return MemoryEntity(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      tags: tags ?? this.tags,
+      category: category ?? this.category,
+      embedding: embedding ?? this.embedding,
+      aiStatus: aiStatus ?? this.aiStatus,
+      isConflictCopy: isConflictCopy ?? this.isConflictCopy,
+      clientCreatedAt: clientCreatedAt ?? this.clientCreatedAt,
+      clientUpdatedAt: clientUpdatedAt ?? this.clientUpdatedAt,
+      serverUpdatedAt: serverUpdatedAt ?? this.serverUpdatedAt,
+      isSynced: isSynced ?? this.isSynced,
+      metadata: metadata ?? this.metadata,
+    );
   }
 
   @override

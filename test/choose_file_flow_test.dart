@@ -46,6 +46,7 @@ class FakeChooseFileAiRepository implements AiRepository {
     String? imageBase64,
     String? mimeType,
     String? documentBase64,
+    String? videoBase64,
   }) async {
     if (shouldFail) {
       throw Exception('Remote AI service unavailable');
@@ -207,8 +208,11 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap Choose File
-        expect(find.text('Choose File'), findsOneWidget);
-        await tester.tap(find.text('Choose File'));
+        expect(
+          find.byKey(const Key('capture_option_Choose File')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const Key('capture_option_Choose File')));
         await tester.pumpAndSettle();
 
         expect(fakePicker.wasCalled, isTrue);
@@ -241,7 +245,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Choose File
-      final chooseFileOption = find.text('Choose File');
+      final chooseFileOption = find.byKey(
+        const Key('capture_option_Choose File'),
+      );
       expect(chooseFileOption, findsOneWidget);
       await tester.tap(chooseFileOption);
       await tester.pumpAndSettle();
@@ -274,7 +280,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Choose File
-      await tester.tap(find.text('Choose File'));
+      await tester.tap(find.byKey(const Key('capture_option_Choose File')));
       await tester.pumpAndSettle();
 
       // Expect unsupported format snackbar
@@ -306,7 +312,7 @@ void main() {
             .openCaptureBottomSheet();
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Choose File'));
+        await tester.tap(find.byKey(const Key('capture_option_Choose File')));
         await tester.pumpAndSettle();
 
         // Should navigate to MemoryReviewScreen
@@ -608,7 +614,7 @@ void main() {
             .openCaptureBottomSheet();
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Choose File'));
+        await tester.tap(find.byKey(const Key('capture_option_Choose File')));
         await tester.pumpAndSettle();
 
         // Should route directly to PhotoReviewScreen (existing OCR pipeline)
@@ -663,7 +669,7 @@ void main() {
             .openCaptureBottomSheet();
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Choose File'));
+        await tester.tap(find.byKey(const Key('capture_option_Choose File')));
         await tester.pumpAndSettle();
 
         // Should be on MemoryReviewScreen
@@ -743,7 +749,7 @@ void main() {
             .openCaptureBottomSheet();
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Choose File'));
+        await tester.tap(find.byKey(const Key('capture_option_Choose File')));
         await tester.pumpAndSettle();
 
         // Should be on MemoryReviewScreen

@@ -18,6 +18,7 @@ import '../bloc/capture_state.dart';
 import '../widgets/bank_card_display_card.dart';
 import '../widgets/bill_display_card.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/video_player_preview_card.dart';
 import '../widgets/voice_audio_player_card.dart';
 
 class _CategoryTheme {
@@ -58,6 +59,19 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   bool _isExtractedContentExpanded = false;
   String? _summary;
   StreamSubscription? _blocSubscription;
+
+  String? get effectiveSummary {
+    if (_summary != null && _summary!.trim().isNotEmpty) {
+      return _summary!.trim();
+    }
+    final meta = _memory?.templateData ?? _memory?.metadata;
+    if (meta != null &&
+        meta['summary'] != null &&
+        meta['summary'].toString().trim().isNotEmpty) {
+      return meta['summary'].toString().trim();
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -439,7 +453,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   Future<void> _toggleBillPaid(bool newPaid) async {
     if (_memory == null || _memory!.billTemplate == null) return;
     final updatedTemplate = _memory!.billTemplate!.copyWith(isPaid: newPaid);
-    final updatedContent = updatedTemplate.toSerializedContent();
+    final updatedContent = updatedTemplate.toMarkdownBody();
+    final updatedMetadata = updatedTemplate.toJson();
     final updatedTags = List<String>.from(_memory!.tags)
       ..remove('#paid')
       ..remove('#unpaid')
@@ -453,6 +468,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       mediaUrl: _memory!.mediaUrl,
       tags: updatedTags,
       category: _memory!.category,
+      metadata: updatedMetadata,
       embedding: _memory!.embedding,
       aiStatus: _memory!.aiStatus,
       isConflictCopy: _memory!.isConflictCopy,
@@ -476,6 +492,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           .findFirst();
       if (model != null) {
         model.content = updatedContent;
+        model.metadata = updatedMetadata;
         model.tags = updatedTags;
         model.isSynced = false;
         model.clientUpdatedAt = DateTime.now();
@@ -488,6 +505,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               .from('memories')
               .update({
                 'content': updatedContent,
+                'metadata': updatedMetadata,
                 'tags': updatedTags,
                 'client_updated_at': DateTime.now().toIso8601String(),
               })
@@ -703,6 +721,21 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     return imageExtensions.any((ext) => cleanUrl.endsWith(ext));
   }
 
+  static bool isVideoMedia(String? mediaUrl) {
+    if (mediaUrl == null || mediaUrl.trim().isEmpty) return false;
+    final cleanUrl = mediaUrl.trim().split('?').first.toLowerCase();
+    const videoExtensions = [
+      '.mp4',
+      '.mov',
+      '.avi',
+      '.mkv',
+      '.webm',
+      '.3gp',
+      '.m4v',
+    ];
+    return videoExtensions.any((ext) => cleanUrl.endsWith(ext));
+  }
+
   void _openImageViewer(String mediaUrl, String? title) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -712,6 +745,13 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   }
 
   Widget _buildMediaPreview(String mediaUrl) {
+    if (isVideoMedia(mediaUrl)) {
+      return VideoPlayerPreviewCard(
+        videoSource: mediaUrl,
+        title: _memory?.title,
+      );
+    }
+
     Widget imageWidget;
     if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
       imageWidget = Image.network(
@@ -962,6 +1002,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     if (isImageMedia(mediaUrl)) {
       return _buildImageFileCard(mediaUrl);
     }
+    if (isVideoMedia(mediaUrl)) {
+      return VideoPlayerPreviewCard(
+        videoSource: mediaUrl,
+        title: _memory?.title,
+      );
+    }
 
     final fileName = mediaUrl.split('/').last.split('\\').last.split('?').first;
     final ext = fileName.contains('.')
@@ -1159,6 +1205,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 memory.mediaUrl!.toLowerCase().endsWith('.csv') ||
                 memory.mediaUrl!.toLowerCase().endsWith('.json')));
 
+    final isVideo =
+        memory.isVideo ||
+        memory.fileType == 'video' ||
+        memory.tags.any((t) => t.toLowerCase() == 'video') ||
+        isVideoMedia(memory.mediaUrl);
+
     final isVoiceWithoutTranscript = isVoice && memory.content.trim().isEmpty;
     final isDocumentWithoutText = isDocument && memory.content.trim().isEmpty;
 
@@ -1185,9 +1237,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       icon = Icons.error_outline_rounded;
       label = isVoice
           ? 'Transcription failed — audio preserved'
-          : (isDocument
-                ? 'Extraction failed — file preserved'
-                : 'AI Analysis Failed');
+          : (isVideo
+                ? 'Video analysis failed — video preserved'
+                : (isDocument
+                      ? 'Extraction failed — file preserved'
+                      : 'AI Analysis Failed'));
     } else if (memory.aiStatus == 'saved') {
       bg = AppColors.lightCyanTint;
       fg = AppColors.primary;
@@ -1253,7 +1307,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       'MMM d, yyyy • h:mm a',
     ).format(memory.clientCreatedAt);
     final hasMedia = memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty;
-    final trimmedContent = memory.content.trim();
+    final trimmedContent = memory.cleanContent;
     final isLink =
         trimmedContent.startsWith('http://') ||
         trimmedContent.startsWith('https://') ||
@@ -1298,20 +1352,32 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 memory.mediaUrl!.toLowerCase().endsWith('.md') ||
                 memory.mediaUrl!.toLowerCase().endsWith('.csv') ||
                 memory.mediaUrl!.toLowerCase().endsWith('.json')));
+    final isVideoMemory =
+        memory.isVideo ||
+        memory.fileType == 'video' ||
+        memory.tags.any((t) => t.toLowerCase() == 'video') ||
+        (memory.metadata != null && memory.metadata!['file_type'] == 'video') ||
+        isVideoMedia(memory.mediaUrl);
 
-    // Voice Transcript or Document text only appears when real content exists and is not an AI summary
+    // Voice Transcript, Video Analysis, or Document text only appears when real content exists and is not an AI summary
     final hasExtractedContent =
         extractedBody.isNotEmpty &&
         extractedBody != '(No additional text content recorded)' &&
         !isPureUrl &&
         (!isVoiceMemory ||
             (extractedBody.trim().isNotEmpty &&
-                (_summary == null ||
-                    extractedBody.trim() != _summary!.trim()))) &&
+                (effectiveSummary == null ||
+                    extractedBody.trim() != effectiveSummary!.trim()))) &&
+        (!isVideoMemory ||
+            (extractedBody.trim().isNotEmpty &&
+                !extractedBody.trim().startsWith('Video recording saved:') &&
+                !extractedBody.trim().toLowerCase().startsWith('saved video recording') &&
+                (effectiveSummary == null ||
+                    extractedBody.trim() != effectiveSummary!.trim()))) &&
         (!isDocumentMemory ||
             (extractedBody.trim().isNotEmpty &&
-                (_summary == null ||
-                    extractedBody.trim() != _summary!.trim())));
+                (effectiveSummary == null ||
+                    extractedBody.trim() != effectiveSummary!.trim())));
 
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
@@ -1370,10 +1436,15 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Attached Media (Audio Player for voice, Document Card for documents, Image Preview for photos)
+              // 1. Attached Media (Audio Player for voice, Video Player for video, Document Card for documents, Image Preview for photos)
               if (hasMedia) ...[
                 if (isVoiceMemory)
                   VoiceAudioPlayerCard(audioSource: memory.mediaUrl!)
+                else if (isVideoMemory)
+                  VideoPlayerPreviewCard(
+                    videoSource: memory.mediaUrl!,
+                    title: memory.title,
+                  )
                 else if (isDocumentMemory)
                   _buildDocumentDetailCard(memory.mediaUrl!)
                 else
@@ -1550,8 +1621,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               ],
 
               // AI Summary Card (when available and meaningful)
-              if (_summary != null &&
-                  _summary!.isNotEmpty &&
+              if (effectiveSummary != null &&
+                  effectiveSummary!.isNotEmpty &&
                   (!isVoiceMemory || trimmedContent.isNotEmpty)) ...[
                 Container(
                   width: double.infinity,
@@ -1587,7 +1658,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _summary!,
+                        effectiveSummary!,
                         style: const TextStyle(
                           fontSize: 13.5,
                           height: 1.45,
@@ -1601,11 +1672,14 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // Status banner for voice notes or documents when content is empty
-              if ((isVoiceMemory || isDocumentMemory) &&
-                  trimmedContent.isEmpty) ...[
+              // Status banner for voice notes, documents, or video when content is empty or pending
+              if ((isVoiceMemory || isDocumentMemory || isVideoMemory) &&
+                  (trimmedContent.isEmpty ||
+                      trimmedContent.startsWith('Video recording saved:') ||
+                      trimmedContent.toLowerCase().startsWith('saved video recording'))) ...[
                 if (memory.aiStatus == 'failed' ||
-                    memory.aiStatus == 'processed') ...[
+                    (memory.aiStatus == 'processed' &&
+                        trimmedContent.isEmpty)) ...[
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 20),
@@ -1630,7 +1704,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                           child: Text(
                             isVoiceMemory
                                 ? 'Transcription failed — audio preserved'
-                                : 'Extraction failed — file preserved',
+                                : (isVideoMemory
+                                      ? 'Video analysis failed — video preserved'
+                                      : 'Extraction failed — file preserved'),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1641,7 +1717,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                       ],
                     ),
                   ),
-                ] else ...[
+                ] else if (memory.aiStatus == 'pending') ...[
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 20),
@@ -1672,10 +1748,14 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                             memory.isSynced
                                 ? (isVoiceMemory
                                       ? 'Transcribing and organizing audio...'
-                                      : 'Extracting and organizing document...')
+                                      : (isVideoMemory
+                                            ? 'Analyzing and organizing video...'
+                                            : 'Extracting and organizing document...'))
                                 : (isVoiceMemory
                                       ? 'Audio saved offline. Transcription will begin when online.'
-                                      : 'Document saved offline. Text extraction will begin when online.'),
+                                      : (isVideoMemory
+                                            ? 'Video saved offline. Analysis will begin when online.'
+                                            : 'Document saved offline. Text extraction will begin when online.')),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1763,11 +1843,13 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                             isVoiceMemory
                                                 ? Icons
                                                       .record_voice_over_rounded
-                                                : (isDocumentMemory
-                                                      ? Icons
-                                                            .description_outlined
-                                                      : Icons
-                                                            .document_scanner_rounded),
+                                                : (isVideoMemory
+                                                      ? Icons.videocam_rounded
+                                                      : (isDocumentMemory
+                                                            ? Icons
+                                                                  .description_outlined
+                                                            : Icons
+                                                                  .document_scanner_rounded)),
                                             color: AppColors.primary,
                                             size: 18,
                                           ),
@@ -1781,9 +1863,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                               Text(
                                                 isVoiceMemory
                                                     ? 'Voice Transcript'
-                                                    : (isDocumentMemory
-                                                          ? 'Document Content'
-                                                          : 'Extracted Content'),
+                                                    : (isVideoMemory
+                                                          ? 'Video Analysis & Key Events'
+                                                          : (isDocumentMemory
+                                                                ? 'Document Content'
+                                                                : 'Extracted Content')),
                                                 style: const TextStyle(
                                                   fontSize: 14.5,
                                                   fontWeight: FontWeight.w700,
@@ -1795,9 +1879,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                               Text(
                                                 isVoiceMemory
                                                     ? 'Spoken words transcribed from audio'
-                                                    : (isDocumentMemory
-                                                          ? 'Text extracted from document'
-                                                          : 'See what was extracted from your memory'),
+                                                    : (isVideoMemory
+                                                          ? 'Scene description & speech extracted from video'
+                                                          : (isDocumentMemory
+                                                                ? 'Text extracted from document'
+                                                                : 'See what was extracted from your memory')),
                                                 style: const TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w400,
@@ -1886,10 +1972,13 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                       child: Icon(
                                         isVoiceMemory
                                             ? Icons.record_voice_over_rounded
-                                            : (isDocumentMemory
-                                                  ? Icons.description_outlined
-                                                  : Icons
-                                                        .document_scanner_rounded),
+                                            : (isVideoMemory
+                                                  ? Icons.videocam_rounded
+                                                  : (isDocumentMemory
+                                                        ? Icons
+                                                              .description_outlined
+                                                        : Icons
+                                                              .document_scanner_rounded)),
                                         color: AppColors.primary,
                                         size: 18,
                                       ),
@@ -1903,9 +1992,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                           Text(
                                             isVoiceMemory
                                                 ? 'Voice Transcript'
-                                                : (isDocumentMemory
-                                                      ? 'Document Content'
-                                                      : 'Extracted Content'),
+                                                : (isVideoMemory
+                                                      ? 'Video Analysis & Key Events'
+                                                      : (isDocumentMemory
+                                                            ? 'Document Content'
+                                                            : 'Extracted Content')),
                                             style: const TextStyle(
                                               fontSize: 14.5,
                                               fontWeight: FontWeight.w700,
@@ -1917,9 +2008,11 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                                           Text(
                                             isVoiceMemory
                                                 ? 'Spoken words transcribed from audio'
-                                                : (isDocumentMemory
-                                                      ? 'Text extracted from document'
-                                                      : 'See what was extracted from your memory'),
+                                                : (isVideoMemory
+                                                      ? 'Scene description & speech extracted from video'
+                                                      : (isDocumentMemory
+                                                            ? 'Text extracted from document'
+                                                            : 'See what was extracted from your memory')),
                                             style: const TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w400,

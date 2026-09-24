@@ -128,7 +128,8 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
     );
 
     final title = '$_selectedBillType Bill ($consumerNumber)';
-    final content = template.toSerializedContent();
+    final content = template.toMarkdownBody();
+    final metadata = template.toJson();
     final tags = [
       '#bill',
       '#utility',
@@ -145,6 +146,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
           tags: tags,
           mediaUrl: null,
           aiStatus: 'processed',
+          metadata: metadata,
         ),
       );
 

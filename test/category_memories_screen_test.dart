@@ -208,6 +208,7 @@ void main() {
         expect(find.text('Record Voice'), findsOneWidget);
         expect(find.text('Choose File'), findsOneWidget);
         expect(find.text('Google Drive'), findsOneWidget);
+        expect(find.text('Add Video'), findsOneWidget);
       },
     );
 
