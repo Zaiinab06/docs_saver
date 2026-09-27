@@ -76,6 +76,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               key: _homeKey,
               userName: widget.userName,
               onSearchTap: () => setState(() => _currentIndex = 1),
+              onSavedTap: () => setState(() => _currentIndex = 3),
             ),
             SearchScreen(
               isActive: _currentIndex == 1,

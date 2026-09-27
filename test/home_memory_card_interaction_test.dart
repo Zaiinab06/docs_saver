@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:second_brain/core/constants/app_strings.dart';
 import 'package:second_brain/features/capture/domain/entities/memory_entity.dart';
 import 'package:second_brain/features/capture/domain/repositories/capture_repository.dart';
 import 'package:second_brain/features/capture/domain/usecases/get_memories_usecase.dart';
@@ -49,6 +48,11 @@ void main() {
     late MemoryEntity pinnedMemory;
 
     setUp(() {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize =
+          const Size(800, 1600);
+      binding.platformDispatcher.views.first.devicePixelRatio = 1.0;
+
       pinnedMemory = MemoryEntity(
         id: 'memory-uuid-999',
         userId: 'user-1',
@@ -67,6 +71,12 @@ void main() {
       getUseCase = GetMemoriesUseCase(repository);
     });
 
+    tearDown(() {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.resetPhysicalSize();
+      binding.platformDispatcher.views.first.resetDevicePixelRatio();
+    });
+
     Widget createHomeScreenApp(CaptureBloc bloc) {
       return MultiBlocProvider(
         providers: [BlocProvider<CaptureBloc>.value(value: bloc)],
@@ -82,7 +92,7 @@ void main() {
     }
 
     testWidgets(
-      'HomeScreen does not display memory cards since Recent Memories was removed from Home UI',
+      'HomeScreen displays Recent Memories and Category Section cards',
       (tester) async {
         final bloc = CaptureBloc(
           saveMemoryUseCase: saveUseCase,
@@ -93,14 +103,14 @@ void main() {
         await tester.pumpWidget(createHomeScreenApp(bloc));
         await tester.pumpAndSettle();
 
-        // Recent Memories header and memory card title must NOT appear on Home Screen
-        expect(find.text('Deep Learning Notes'), findsNothing);
-        expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
+        // Recent Memories header and memory card title appear on Home Screen
+        expect(find.text('Recent memories'), findsOneWidget);
+        expect(find.text('Deep Learning Notes'), findsOneWidget);
 
-        // Premium Category Section cards are displayed instead
-        expect(find.text('Documents & Records'), findsOneWidget);
-        expect(find.text('Work & Learning'), findsOneWidget);
-        expect(find.text('Home & Utilities'), findsOneWidget);
+        // Category Section cards are displayed
+        expect(find.text('Docs & Records'), findsWidgets);
+        expect(find.text('Work & Learning'), findsWidgets);
+        expect(find.text('Home & Utilities'), findsWidgets);
       },
     );
 

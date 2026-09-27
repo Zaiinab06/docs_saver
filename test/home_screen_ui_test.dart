@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:second_brain/core/constants/app_strings.dart';
 import 'package:second_brain/features/capture/domain/entities/memory_entity.dart';
 import 'package:second_brain/features/capture/domain/repositories/capture_repository.dart';
 import 'package:second_brain/features/capture/domain/usecases/get_memories_usecase.dart';
@@ -11,6 +10,7 @@ import 'package:second_brain/features/capture/presentation/screens/memory_detail
 import 'package:second_brain/features/home/presentation/screens/category_detail_screen.dart';
 import 'package:second_brain/features/home/presentation/screens/category_memories_screen.dart';
 import 'package:second_brain/features/navigation/presentation/screens/main_navigation_shell.dart';
+import 'package:second_brain/features/saved/presentation/screens/saved_screen.dart';
 import 'package:second_brain/features/search/presentation/screens/search_screen.dart';
 
 class FakeCaptureRepository implements CaptureRepository {
@@ -96,6 +96,16 @@ void main() {
         clientUpdatedAt: DateTime(2026, 9, 13, 8, 0),
         serverUpdatedAt: DateTime(2026, 9, 13, 8, 0),
       );
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize =
+          const Size(800, 1400);
+      binding.platformDispatcher.views.first.devicePixelRatio = 1.0;
+    });
+
+    tearDown(() {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.resetPhysicalSize();
+      binding.platformDispatcher.views.first.resetDevicePixelRatio();
     });
 
     Widget createTestApp(
@@ -118,54 +128,42 @@ void main() {
     }
 
     testWidgets(
-      'State A: No memories -> 4 category sections visible -> empty-state section completely removed -> Recent Memories hidden',
+      'State A: No memories -> Top Header, Categories, Pro Banner, Quick Actions, and Empty Recent Memories',
       (tester) async {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        // Header is visible with dynamic fallback greeting, waving hand emoji, and ready subtitle
-        expect(find.text('Hello there'), findsOneWidget);
+        // Header is visible with dynamic fallback greeting, waving hand emoji, and subtitle
+        expect(find.text('Hey there'), findsOneWidget);
         expect(find.text('👋'), findsOneWidget);
-        expect(find.text('Your knowledge, organized.'), findsOneWidget);
+        expect(find.text("Let's capture more ideas today"), findsOneWidget);
 
-        // Search bar hint is visible
-        expect(find.text(AppStrings.homeSearchHint), findsOneWidget);
-
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
-        // Categories header is visible
-        expect(find.text(AppStrings.homeCategoriesHeader), findsOneWidget);
+        // Header action buttons are visible
+        expect(find.byKey(const Key('home_search_btn')), findsOneWidget);
+        expect(find.byKey(const Key('home_bell_btn')), findsOneWidget);
 
         // Category section cards visible
-        expect(find.text('Documents & Records'), findsOneWidget);
-        expect(find.text('Work & Learning'), findsOneWidget);
-        expect(find.text('Home & Utilities'), findsOneWidget);
+        expect(find.text('Docs & Records'), findsOneWidget);
+        expect(find.text('Work & Learning'), findsWidgets);
+        expect(find.text('Home & Utilities'), findsWidgets);
+        expect(find.text('Personal'), findsWidgets);
 
-        // Scroll down to see Personal Life
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
-        await tester.pumpAndSettle();
+        // Upgrade banner is visible
+        expect(find.textContaining('Upgrade to DocsSaver'), findsOneWidget);
+        expect(find.text('Go Pro →'), findsOneWidget);
 
-        expect(find.text('Personal Life'), findsOneWidget);
+        // Quick Actions are visible
+        expect(find.text('Take Photo'), findsWidgets);
+        expect(find.text('Scan Document'), findsWidgets);
 
-        // Entire empty state section is completely removed
-        expect(find.text("Your brain is empty — let's fill it."), findsNothing);
-        expect(
-          find.text(
-            'Save your first thought, link, image, or note using the + button.',
-          ),
-          findsNothing,
-        );
-        expect(find.byType(Image), findsNothing);
-
-        // "Recent Memories" and "See all >" must NOT be in the Home UI
-        expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
-        expect(find.text(AppStrings.homeSeeAll), findsNothing);
+        // Recent Memories section is visible with empty fallback card
+        expect(find.text('Recent memories'), findsOneWidget);
+        expect(find.text('No recent memories yet'), findsOneWidget);
       },
     );
 
     testWidgets(
-      'State B: Memories exist -> 4 category section cards visible -> Recent Memories removed from Home UI -> empty state hidden',
+      'State B: Memories exist -> 4 category section cards visible -> Recent Memories list displayed',
       (tester) async {
         await tester.pumpWidget(
           createTestApp([
@@ -177,21 +175,20 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
         // Four category section cards are visible
-        expect(find.text('Documents & Records'), findsOneWidget);
-        expect(find.text('Work & Learning'), findsOneWidget);
-        expect(find.text('Home & Utilities'), findsOneWidget);
-        expect(find.text('Personal Life'), findsOneWidget);
+        expect(find.text('Docs & Records'), findsOneWidget);
+        expect(find.text('Work & Learning'), findsWidgets);
+        expect(find.text('Home & Utilities'), findsWidgets);
+        expect(find.text('Personal'), findsWidgets);
 
-        // Recent Memories header is removed from Home Screen UI
-        expect(find.text(AppStrings.homeRecentMemoriesHeader), findsNothing);
-        expect(find.text(AppStrings.homeSeeAll), findsNothing);
+        // Recent Memories header is visible without total count badge
+        expect(find.text('Recent memories'), findsOneWidget);
+        expect(find.text('4 total'), findsNothing);
+        expect(find.text('See all'), findsOneWidget);
 
-        // Empty state is NOT visible when memories exist
-        expect(find.text("Your brain is empty — let's fill it."), findsNothing);
+        // Recent memories are displayed
+        expect(find.text('Project Roadmap Q4'), findsOneWidget);
+        expect(find.text('Quantum Physics Notes'), findsOneWidget);
       },
     );
 
@@ -201,11 +198,8 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
-        // Tap "Documents & Records" section card
-        await tester.tap(find.text('Documents & Records'));
+        // Tap "Docs & Records" section card
+        await tester.tap(find.text('Docs & Records'));
         await tester.pumpAndSettle();
 
         // CategoryDetailScreen is displayed with section title and badge
@@ -224,7 +218,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(CategoryDetailScreen), findsNothing);
-        expect(find.text('Documents & Records'), findsOneWidget);
+        expect(find.text('Docs & Records'), findsOneWidget);
       },
     );
 
@@ -234,11 +228,8 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
         // Tap "Work & Learning" section card
-        await tester.tap(find.text('Work & Learning'));
+        await tester.tap(find.text('Work & Learning').first);
         await tester.pumpAndSettle();
 
         // CategoryDetailScreen is displayed
@@ -254,6 +245,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
         expect(find.byType(CategoryDetailScreen), findsNothing);
+        expect(find.text('Work & Learning'), findsWidgets);
       },
     );
 
@@ -263,10 +255,7 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Home & Utilities'));
+        await tester.tap(find.text('Home & Utilities').first);
         await tester.pumpAndSettle();
 
         // CategoryDetailScreen is displayed
@@ -284,6 +273,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
         expect(find.byType(CategoryDetailScreen), findsNothing);
+        expect(find.text('Home & Utilities'), findsWidgets);
       },
     );
 
@@ -293,12 +283,8 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        // Scroll down to make "Personal Life" visible and hit-testable
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
-        // Tap "Personal Life"
-        await tester.tap(find.text('Personal Life'));
+        // Tap "Personal"
+        await tester.tap(find.text('Personal').first);
         await tester.pumpAndSettle();
 
         // CategoryDetailScreen is displayed
@@ -307,7 +293,7 @@ void main() {
         expect(find.text('7 Categories'), findsOneWidget);
 
         // Subcategories
-        expect(find.text('Personal'), findsOneWidget);
+        expect(find.text('Personal'), findsWidgets);
         expect(find.text('Medical & Health'), findsOneWidget);
         expect(find.text('Finance & Banking'), findsOneWidget);
         expect(find.text('Travel & Tickets'), findsOneWidget);
@@ -328,15 +314,12 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
         // Tap "Work & Learning" parent section
-        await tester.tap(find.text('Work & Learning'));
+        await tester.tap(find.text('Work & Learning').first);
         await tester.pumpAndSettle();
 
         // Tap "Work" child category card
-        await tester.tap(find.text('Work'));
+        await tester.tap(find.text('Work').first);
         await tester.pumpAndSettle();
 
         // CategoryMemoriesScreen is pushed
@@ -357,7 +340,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
         expect(find.byType(CategoryDetailScreen), findsNothing);
-        expect(find.text('Work & Learning'), findsOneWidget);
+        expect(find.text('Work & Learning'), findsWidgets);
       },
     );
 
@@ -369,15 +352,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
         // Tap "Work & Learning" parent section
-        await tester.tap(find.text('Work & Learning'));
+        await tester.tap(find.text('Work & Learning').first);
         await tester.pumpAndSettle();
 
         // Tap "Work" child category card
-        await tester.tap(find.text('Work'));
+        await tester.tap(find.text('Work').first);
         await tester.pumpAndSettle();
 
         // CategoryMemoriesScreen is displayed
@@ -412,35 +392,32 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
-        await tester.pumpAndSettle();
-
         // Navigate: Home -> Work & Learning -> Work
-        await tester.tap(find.text('Work & Learning'));
+        await tester.tap(find.text('Work & Learning').first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Work'));
+        await tester.tap(find.text('Work').first);
         await tester.pumpAndSettle();
 
         // Tap + button in empty state (or AppBar action)
         await tester.tap(find.byKey(const Key('empty_state_add_btn')));
         await tester.pumpAndSettle();
 
-        // Verify the existing capture bottom sheet appears with all 6 options
-        expect(find.text('Take Photo'), findsOneWidget);
-        expect(find.text('Scan Document'), findsOneWidget);
-        expect(find.text('Add Link'), findsOneWidget);
-        expect(find.text('Add Note'), findsOneWidget);
-        expect(find.text('Record Voice'), findsOneWidget);
-        expect(find.text('Choose File'), findsOneWidget);
+        // Verify the capture bottom sheet appears with options
+        expect(find.text('Take Photo'), findsWidgets);
+        expect(find.text('Scan Document'), findsWidgets);
+        expect(find.text('Add Link'), findsWidgets);
+        expect(find.text('Add Note'), findsWidgets);
+        expect(find.text('Voice Note'), findsWidgets);
+        expect(find.text('Choose File'), findsWidgets);
       },
     );
 
-    testWidgets('State G: Search bar opens SearchScreen', (tester) async {
+    testWidgets('State G: Search button opens SearchScreen', (tester) async {
       await tester.pumpWidget(createTestApp([workMemory]));
       await tester.pumpAndSettle();
 
-      // Tap the search bar
-      await tester.tap(find.text(AppStrings.homeSearchHint));
+      // Tap the search button in header
+      await tester.tap(find.byKey(const Key('home_search_btn')));
       await tester.pumpAndSettle();
 
       // SearchScreen should be pushed
@@ -473,13 +450,13 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('Dynamic User Name: Noor displays Hello Noor and initial N', (
+    testWidgets('Dynamic User Name: Noor displays Hey Noor and initial N', (
       tester,
     ) async {
       await tester.pumpWidget(createTestApp([], userName: 'Noor'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Hello Noor'), findsOneWidget);
+      expect(find.text('Hey Noor'), findsOneWidget);
       expect(find.text('N'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('home_profile_avatar_btn')));
@@ -489,12 +466,12 @@ void main() {
     });
 
     testWidgets(
-      'Dynamic User Name: Zainab displays Hello Zainab and initial Z',
+      'Dynamic User Name: Zainab displays Hey Zainab and initial Z',
       (tester) async {
         await tester.pumpWidget(createTestApp([], userName: 'Zainab'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Hello Zainab'), findsOneWidget);
+        expect(find.text('Hey Zainab'), findsOneWidget);
         expect(find.text('Z'), findsOneWidget);
 
         await tester.tap(find.byKey(const Key('home_profile_avatar_btn')));
@@ -518,6 +495,43 @@ void main() {
         expect(find.text('What do you want to save?'), findsOneWidget);
         expect(find.text('Take Photo'), findsNWidgets(2));
         expect(find.text('Scan Document'), findsNWidgets(2));
+      },
+    );
+
+    testWidgets(
+      'Recent memories See all navigates to SavedScreen tab',
+      (tester) async {
+        await tester.pumpWidget(createTestApp([workMemory]));
+        await tester.pumpAndSettle();
+
+        // Tap See all beside Recent memories
+        await tester.tap(find.byKey(const Key('home_recent_memories_see_all_btn')));
+        await tester.pumpAndSettle();
+
+        // SavedScreen is now displayed
+        expect(find.byType(SavedScreen), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Pro Upgrade Banner: Tap close button dismisses the banner cleanly',
+      (tester) async {
+        await tester.pumpWidget(createTestApp([]));
+        await tester.pumpAndSettle();
+
+        // Initially visible
+        expect(find.textContaining('Upgrade to DocsSaver'), findsOneWidget);
+        expect(find.text('Unlock smart reminders and other features'), findsOneWidget);
+        expect(find.byKey(const Key('pro_banner_close_btn')), findsOneWidget);
+
+        // Tap close (X) button
+        await tester.tap(find.byKey(const Key('pro_banner_close_btn')));
+        await tester.pumpAndSettle();
+
+        // Banner is now dismissed
+        expect(find.textContaining('Upgrade to DocsSaver'), findsNothing);
+        expect(find.byKey(const Key('pro_banner_close_btn')), findsNothing);
+        expect(find.text('Categories'), findsOneWidget);
       },
     );
   });

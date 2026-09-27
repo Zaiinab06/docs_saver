@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:second_brain/features/capture/presentation/screens/memory_detail_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -24,6 +25,7 @@ import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
 import '../../../brain_ai/domain/usecases/ingest_memory_usecase.dart';
+import '../../../saved/presentation/screens/saved_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
@@ -64,6 +66,7 @@ class HomeScreen extends StatefulWidget {
   final FilePickerService? filePickerService;
   final GoogleAuthRepository? googleAuthRepository;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onSavedTap;
 
   const HomeScreen({
     super.key,
@@ -73,6 +76,7 @@ class HomeScreen extends StatefulWidget {
     this.filePickerService,
     this.googleAuthRepository,
     this.onSearchTap,
+    this.onSavedTap,
   });
 
   @override
@@ -111,6 +115,7 @@ class HomeScreenState extends State<HomeScreen> {
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<Uri>? _deepLinkSubscription;
   AppLinks? _appLinks;
+  bool _isProBannerVisible = true;
 
   @override
   void initState() {
@@ -290,36 +295,6 @@ class HomeScreenState extends State<HomeScreen> {
     return const [];
   }
 
-  int _documentCount(List<MemoryEntity> memories) {
-    return memories.where((memory) {
-      final media = memory.mediaUrl?.toLowerCase() ?? '';
-      return memory.tags.any((tag) {
-            final normalized = tag.toLowerCase();
-            return normalized == 'document' || normalized == 'pdf';
-          }) ||
-          media.endsWith('.pdf') ||
-          media.endsWith('.txt') ||
-          media.endsWith('.md') ||
-          media.endsWith('.csv') ||
-          media.endsWith('.json');
-    }).length;
-  }
-
-  int _categoryCount(List<MemoryEntity> memories, CategorySectionItem section) {
-    final categories = section.categories
-        .map((category) => category.name.trim().toLowerCase())
-        .toSet();
-    return memories.where((memory) {
-      final category = memory.category.trim().toLowerCase();
-      return categories.contains(category) ||
-          (section.id == 'work_learning' &&
-              (category == 'work' || category == 'study')) ||
-          (section.id == 'personal_life' &&
-              (category == 'personal' || category == 'travel')) ||
-          (section.id == 'documents_records' &&
-              (category == 'documents' || category == 'general'));
-    }).length;
-  }
 
   void _showUnavailableFeature(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -332,34 +307,47 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildDashboard(BuildContext context, List<MemoryEntity> memories) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: _buildStatsRow(
-            context,
-            memories.length,
-            _documentCount(memories),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: _buildUpgradeBanner(context),
-        ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-          child: _buildSectionTitle(context, 'Quick Actions'),
-        ),
+        const SizedBox(height: 14),
+        // 2. Quick Actions Card Container
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: _buildQuickActions(context),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
+
+        // 3. Pro Upgrade Banner
+        if (_isProBannerVisible) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildUpgradeBanner(context),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // 4. Categories Section (Compact Row)
+        _buildCategoriesSection(context, memories),
+        const SizedBox(height: 12),
+
+        // 5. Recent Memories Section
+        _buildRecentMemoriesSection(context, memories),
+      ],
+    );
+  }
+
+  Widget _buildCategoriesSection(
+    BuildContext context,
+    List<MemoryEntity> memories,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-          child: _buildCategoriesHeader(context),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: _buildSectionTitle(context, 'Categories'),
         ),
+        const SizedBox(height: 8),
         _buildCategorySectionsList(context, memories),
       ],
     );
@@ -371,198 +359,140 @@ class HomeScreenState extends State<HomeScreen> {
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 17,
+          fontSize: 16.5,
           fontWeight: FontWeight.w800,
           color: AppColors.textPrimaryOf(context),
+          letterSpacing: -0.3,
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatsRow(BuildContext context, int memories, int documents) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            context,
-            title: 'Total Memories',
-            value: memories.toString(),
-            icon: Icons.description_outlined,
-            iconColor: const Color(0xFF6D35E8),
-            iconBackground: const Color(0xFFEDE7FF),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildStatCard(
-            context,
-            title: 'Documents',
-            value: documents.toString(),
-            icon: Icons.folder_outlined,
-            iconColor: const Color(0xFF0AAB68),
-            iconBackground: const Color(0xFFE1F8EC),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-    BuildContext context, {
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBackground,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4B16C9).withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: iconBackground,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, color: iconColor, size: 19),
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondaryOf(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: AppColors.textPrimaryOf(context),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildUpgradeBanner(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
         gradient: const LinearGradient(
-          colors: [Color(0xFF26105F), Color(0xFF4B16C9), Color(0xFF7625F5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
         ),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4B16C9).withValues(alpha: 0.22),
+            color: const Color(0xFF2C1E52).withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-                width: 1.0,
-              ),
-            ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Color(0xFFFFD166),
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 20, 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text.rich(
-                  TextSpan(
-                    text: 'Upgrade to DocsSaver ',
+                _buildGoldenCrownIcon(size: 38),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextSpan(
-                        text: 'Pro',
-                        style: TextStyle(color: Color(0xFFFFD166)),
+                      const Text(
+                        'Upgrade to DocsSaver Pro',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Unlock smart reminders and other features',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.70),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w400,
+                          height: 1.25,
+                        ),
                       ),
                     ],
                   ),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Unlock AI features & smart reminders',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w400,
+                const SizedBox(width: 10),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showUnavailableFeature('DocsSaver Pro'),
+                    borderRadius: BorderRadius.circular(24),
+                    child: Ink(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [Color(0xFF9065FD), Color(0xFF6B42D1)],
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6B42D1).withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        'Go Pro →',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: () => _showUnavailableFeature('DocsSaver Pro'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFFFD166),
-              foregroundColor: const Color(0xFF26105F),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              elevation: 0,
-            ),
-            child: const Text(
-              'Go Pro →',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: const Key('pro_banner_close_btn'),
+                onTap: () => setState(() => _isProBannerVisible = false),
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 17,
+                    color: Colors.white.withValues(alpha: 0.70),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGoldenCrownIcon({double size = 38}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _GoldenCrownPainter(),
       ),
     );
   }
@@ -571,72 +501,73 @@ class HomeScreenState extends State<HomeScreen> {
     final actions = [
       (
         'Take Photo',
-        Icons.camera_alt_outlined,
-        const Color(0xFF6D35E8),
-        const Color(0xFFEDE7FF),
+        Icons.camera_alt_rounded,
+        const Color(0xFFE11D48), // Solid Rose/Crimson
+        const Color(0xFFFFF1F2),
         _handleTakePhoto,
       ),
       (
         'Scan Document',
-        Icons.document_scanner_outlined,
-        const Color(0xFFF0445D),
-        const Color(0xFFFFE5EA),
+        Icons.document_scanner_rounded,
+        const Color(0xFF8B5CF6), // Soft Purple
+        const Color(0xFFF5F3FF),
         _handleScanDocument,
       ),
       (
         'Add Note',
         Icons.edit_note_rounded,
-        const Color(0xFF1677D2),
-        const Color(0xFFE5F1FF),
+        const Color(0xFFD97706), // Soft Amber / Yellow
+        const Color(0xFFFFFBEB),
         _handleAddNote,
       ),
       (
         'Voice Note',
-        Icons.mic_none_rounded,
-        const Color(0xFF0AAB68),
-        const Color(0xFFE1F8EC),
+        Icons.mic_rounded,
+        const Color(0xFF059669), // Soft Mint Green
+        const Color(0xFFECFDF5),
         _handleRecordVoice,
       ),
       (
         'Choose File',
-        Icons.attach_file_rounded,
-        const Color(0xFF8E44AD),
-        const Color(0xFFF4ECF7),
+        Icons.description_rounded,
+        const Color(0xFF0284C7), // Soft Sky Blue
+        const Color(0xFFF0F9FF),
         _handleChooseFile,
       ),
       (
         'Add Link',
         Icons.link_rounded,
-        const Color(0xFFE58B00),
-        const Color(0xFFFFF0D3),
+        const Color(0xFF6366F1), // Soft Violet
+        const Color(0xFFEEF2FF),
         _handleAddLink,
       ),
       (
         'Google Drive',
-        Icons.cloud_download_outlined,
-        const Color(0xFF0288D1),
-        const Color(0xFFE1F5FE),
+        Icons.add_to_drive_rounded,
+        const Color(0xFFCA8A04), // Branded Gold
+        const Color(0xFFFEFCE8),
         _openGooglePicker,
       ),
       (
         'Add Video',
-        Icons.videocam_outlined,
-        const Color(0xFFE91E63),
-        const Color(0xFFFCE4EC),
+        Icons.videocam_rounded,
+        const Color(0xFFDC2626), // Vibrant Red
+        const Color(0xFFFEF2F2),
         _handleAddVideo,
       ),
     ];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.cardBackgroundOf(context),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderOf(context), width: 1.0),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4B16C9).withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -647,39 +578,42 @@ class HomeScreenState extends State<HomeScreen> {
         itemCount: actions.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          mainAxisExtent: 78,
+          mainAxisExtent: 74,
           mainAxisSpacing: 10,
-          crossAxisSpacing: 6,
+          crossAxisSpacing: 8,
         ),
         itemBuilder: (context, index) {
           final action = actions[index];
+          final label = action.$1;
           return InkWell(
-            key: Key('home_quick_action_${action.$1}'),
+            key: Key('home_quick_action_$label'),
             onTap: action.$5,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: action.$4,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(action.$2, color: action.$3, size: 20),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 Text(
-                  action.$1,
+                  label,
                   textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
                   style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textPrimaryOf(context),
                     fontWeight: FontWeight.w600,
+                    height: 1.15,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -689,6 +623,368 @@ class HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  Widget _buildRecentMemoriesSection(
+    BuildContext context,
+    List<MemoryEntity> memories,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildSectionTitle(context, 'Recent memories'),
+              InkWell(
+                key: const Key('home_recent_memories_see_all_btn'),
+                onTap: () {
+                  if (widget.onSavedTap != null) {
+                    widget.onSavedTap!();
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SavedScreen()),
+                    );
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'See all',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 15,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (memories.isEmpty)
+            _buildEmptyRecentMemoriesCard(context)
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: memories.take(6).length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final memory = memories[index];
+                return _buildRecentMemoryCard(context, memory);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyRecentMemoriesCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackgroundOf(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderOf(context), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceTintOf(context),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.auto_stories_outlined,
+              color: AppColors.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No recent memories yet',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap any quick action above to start capturing your ideas and files.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: AppColors.textSecondaryOf(context),
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentMemoryCard(BuildContext context, MemoryEntity memory) {
+    final cleanSnippet = memory.content
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
+        .trim();
+
+    final timeAgo = _formatDate(memory.clientCreatedAt);
+    final categoryText = memory.category.isNotEmpty
+        ? memory.category
+        : 'General';
+    final (icon, iconBg, iconColor) = _memoryIconAndColor(memory);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MemoryDetailScreen(memoryId: memory.id),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackgroundOf(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderOf(context), width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 19),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      memory.title.isNotEmpty
+                          ? memory.title
+                          : 'Untitled Memory',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimaryOf(context),
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          categoryText,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          ' • $timeAgo',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondaryOf(context),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                        ),
+                      ],
+                    ),
+                    if (cleanSnippet.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        cleanSnippet,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondaryOf(context),
+                          height: 1.25,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: AppColors.textSecondaryOf(context),
+                  size: 20,
+                ),
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (value) {
+                  if (value == 'open') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MemoryDetailScreen(memoryId: memory.id),
+                      ),
+                    );
+                  } else if (value == 'delete') {
+                    context.read<CaptureBloc>().add(
+                      DeleteMemoryEvent(memory.id),
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Memory deleted'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'open',
+                    child: Row(
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Text('Open'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: 8),
+                        Text('Delete', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  (IconData, Color, Color) _memoryIconAndColor(MemoryEntity memory) {
+    final cat = memory.category.toLowerCase();
+    final media = memory.mediaUrl?.toLowerCase() ?? '';
+
+    if (media.endsWith('.mp4') || media.endsWith('.mov') || cat == 'video') {
+      return (
+        Icons.videocam_rounded,
+        const Color(0xFFFEE2E2),
+        const Color(0xFFDC2626),
+      );
+    }
+    if (media.endsWith('.jpg') ||
+        media.endsWith('.jpeg') ||
+        media.endsWith('.png') ||
+        cat == 'photo') {
+      return (
+        Icons.image_rounded,
+        const Color(0xFFEEF2FF),
+        const Color(0xFF4F46E5),
+      );
+    }
+    if (cat == 'audio' || cat == 'voice') {
+      return (
+        Icons.mic_rounded,
+        const Color(0xFFECFDF5),
+        const Color(0xFF059669),
+      );
+    }
+    if (cat == 'link') {
+      return (
+        Icons.link_rounded,
+        const Color(0xFFFFFBEB),
+        const Color(0xFFD97706),
+      );
+    }
+    if (cat == 'work' || cat == 'study') {
+      return (
+        Icons.folder_open_rounded,
+        const Color(0xFFF5F3FF),
+        const Color(0xFF7C3AED),
+      );
+    }
+    return (
+      Icons.description_outlined,
+      const Color(0xFFF1F5F9),
+      const Color(0xFF475569),
+    );
+  }
+
+  String _formatDate(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inDays == 0) {
+      if (diff.inHours == 0) {
+        if (diff.inMinutes == 0) return 'Just now';
+        return '${diff.inMinutes}m ago';
+      }
+      return '${diff.inHours}h ago';
+    }
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
   @override
@@ -723,11 +1019,7 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
                   slivers: [
                     SliverToBoxAdapter(
-                      child: _buildHeaderWithSearch(
-                        context,
-                        userName,
-                        userInitial,
-                      ),
+                      child: _buildHeader(context, userName, userInitial),
                     ),
                     SliverToBoxAdapter(
                       child: _buildDashboard(
@@ -799,67 +1091,70 @@ class HomeScreenState extends State<HomeScreen> {
                     children: [
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.camera_alt_outlined,
+                        icon: Icons.camera_alt_rounded,
                         title: 'Take Photo',
                         isTakePhoto: true,
-                        iconColor: const Color(0xFF6D35E8),
-                        iconBackground: const Color(0xFFEDE7FF),
+                        iconColor: const Color(0xFFE11D48),
+                        iconBackground: const Color(0xFFFFF1F2),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.document_scanner_outlined,
+                        icon: Icons.document_scanner_rounded,
                         title: 'Scan Document',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFF0445D),
-                        iconBackground: const Color(0xFFFFE5EA),
+                        iconColor: const Color(0xFF8B5CF6),
+                        iconBackground: const Color(0xFFF5F3FF),
+                        aliasKey: 'capture_option_Scan Document',
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.edit_note_rounded,
                         title: 'Add Note',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF1677D2),
-                        iconBackground: const Color(0xFFE5F1FF),
+                        iconColor: const Color(0xFFD97706),
+                        iconBackground: const Color(0xFFFFFBEB),
+                        aliasKey: 'capture_option_Add Note',
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.mic_none_rounded,
-                        title: 'Record Voice',
+                        icon: Icons.mic_rounded,
+                        title: 'Voice Note',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF0AAB68),
-                        iconBackground: const Color(0xFFE1F8EC),
+                        iconColor: const Color(0xFF059669),
+                        iconBackground: const Color(0xFFECFDF5),
+                        aliasKey: 'capture_option_Record Voice',
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.attach_file_rounded,
+                        icon: Icons.description_rounded,
                         title: 'Choose File',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF8E44AD),
-                        iconBackground: const Color(0xFFF4ECF7),
+                        iconColor: const Color(0xFF0284C7),
+                        iconBackground: const Color(0xFFF0F9FF),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.link_rounded,
                         title: 'Add Link',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFE58B00),
-                        iconBackground: const Color(0xFFFFF0D3),
+                        iconColor: const Color(0xFF6366F1),
+                        iconBackground: const Color(0xFFEEF2FF),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.cloud_download_outlined,
+                        icon: Icons.add_to_drive_rounded,
                         title: 'Google Drive',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF0288D1),
-                        iconBackground: const Color(0xFFE1F5FE),
+                        iconColor: const Color(0xFFCA8A04),
+                        iconBackground: const Color(0xFFFEFCE8),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
-                        icon: Icons.videocam_outlined,
+                        icon: Icons.videocam_rounded,
                         title: 'Add Video',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFE91E63),
-                        iconBackground: const Color(0xFFFCE4EC),
+                        iconColor: const Color(0xFFDC2626),
+                        iconBackground: const Color(0xFFFEF2F2),
                       ),
                     ],
                   ),
@@ -988,7 +1283,9 @@ class HomeScreenState extends State<HomeScreen> {
                       color: AppColors.textPrimaryOf(sheetCtx),
                     ),
                   ),
-                  subtitle: const Text('Pick an existing video from your device'),
+                  subtitle: const Text(
+                    'Pick an existing video from your device',
+                  ),
                   onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
                 ),
               ],
@@ -1903,83 +2200,90 @@ class HomeScreenState extends State<HomeScreen> {
     required bool isTakePhoto,
     Color? iconColor,
     Color? iconBackground,
+    String? aliasKey,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        key: Key('capture_option_$title'),
-        onTap: () async {
-          Navigator.of(context).pop();
-          if (isTakePhoto || title == 'Take Photo') {
-            await _handleTakePhoto();
-          } else if (title == 'Scan Document') {
-            await _handleScanDocument();
-          } else if (title == 'Add Link') {
-            await _handleAddLink();
-          } else if (title == 'Add Note') {
-            await _handleAddNote();
-          } else if (title == 'Record Voice' || title == 'Voice Note') {
-            await _handleRecordVoice();
-          } else if (title == 'Choose File') {
-            await _handleChooseFile();
-          } else if (title == 'Google Drive') {
-            await _openGooglePicker();
-          } else if (title == 'Add Video') {
-            await _handleAddVideo();
-          } else {
-            ScaffoldMessenger.of(this.context).showSnackBar(
-              SnackBar(
-                content: Text('$title capture flow will be available soon.'),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
+    final inkWell = InkWell(
+      key: Key('capture_option_$title'),
+      onTap: () async {
+        Navigator.of(context).pop();
+        if (isTakePhoto || title == 'Take Photo') {
+          await _handleTakePhoto();
+        } else if (title == 'Scan Document' || title == 'Scan Doc') {
+          await _handleScanDocument();
+        } else if (title == 'Add Link' || title == 'Save Link') {
+          await _handleAddLink();
+        } else if (title == 'Add Note') {
+          await _handleAddNote();
+        } else if (title == 'Record Voice' || title == 'Voice Note') {
+          await _handleRecordVoice();
+        } else if (title == 'Choose File' || title == 'Import File') {
+          await _handleChooseFile();
+        } else if (title == 'Google Drive') {
+          await _openGooglePicker();
+        } else if (title == 'Add Video') {
+          await _handleAddVideo();
+        } else {
+          ScaffoldMessenger.of(this.context).showSnackBar(
+            SnackBar(
+              content: Text('$title capture flow will be available soon.'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackgroundOf(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderOf(context), width: 1.0),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconBackground ?? AppColors.surfaceTintOf(context),
+                borderRadius: BorderRadius.circular(10),
               ),
-            );
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackgroundOf(context),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderOf(context), width: 1.0),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: iconBackground ?? AppColors.surfaceTintOf(context),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor ?? AppColors.primary,
-                  size: 19,
-                ),
+              child: Icon(
+                icon,
+                color: iconColor ?? AppColors.primary,
+                size: 19,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimaryOf(context),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
+
+    if (aliasKey != null && aliasKey != 'capture_option_$title') {
+      return Material(
+        color: Colors.transparent,
+        child: KeyedSubtree(key: Key(aliasKey), child: inkWell),
+      );
+    }
+
+    return Material(color: Colors.transparent, child: inkWell);
   }
 
-  Widget _buildHeaderWithSearch(
+  Widget _buildHeader(
     BuildContext context,
     String userName,
     String userInitial,
@@ -1988,303 +2292,247 @@ class HomeScreenState extends State<HomeScreen> {
 
     return Container(
       width: double.infinity,
+      padding: EdgeInsets.fromLTRB(20, topPadding + 12, 20, 24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF26105F), Color(0xFF4B16C9), Color(0xFF7625F5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
         ),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.22),
-            blurRadius: 16,
+            color: const Color(0xFF2C1E52).withValues(alpha: 0.28),
+            blurRadius: 18,
             offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(painter: _NetworkPatternPainter()),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, topPadding + 10, 20, 20),
-              child: Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top row: "Hey {User Name} 👋" with subtitle on left, Bell & Avatar on right
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Hey $userName',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text('👋', style: TextStyle(fontSize: 20)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Let's capture more ideas today",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFFECE8F6),
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      'Hello $userName',
-                                      style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textWhite,
-                                        letterSpacing: -0.3,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  const Text(
-                                    '👋',
-                                    style: TextStyle(fontSize: 20),
-                                  ),
-                                ],
-                              ),
+                  // Bell Icon Button (notifications / reminders)
+                  _buildHeaderIconButton(
+                    key: const Key('home_bell_btn'),
+                    icon: Icons.notifications_none_rounded,
+                    hasBadge: true,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No new notifications'),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  // User Profile Avatar Button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const Key('home_profile_avatar_btn'),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        final isFallback = userName.toLowerCase() == 'there';
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isFallback
+                                  ? 'Your Second Brain'
+                                  : "$userName's Second Brain",
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              AppStrings.homeReadySubtitle,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w400,
-                                color: AppColors.textWhite.withValues(
-                                  alpha: 0.88,
-                                ),
-                                letterSpacing: -0.1,
-                                height: 1.25,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                            duration: const Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            userInitial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              key: const Key('home_bell_btn'),
-                              onTap: () {
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('No new notifications'),
-                                    duration: Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(100),
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.35,
-                                        ),
-                                        width: 1.0,
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.notifications_none_rounded,
-                                      color: AppColors.textWhite,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 2,
-                                    right: 2,
-                                    child: Container(
-                                      width: 9,
-                                      height: 9,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.notificationBadge,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppColors.primary,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              key: const Key('home_profile_avatar_btn'),
-                              onTap: () {
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                final isFallback =
-                                    userName.toLowerCase() == 'there';
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      isFallback
-                                          ? 'Your Second Brain'
-                                          : '$userName\'s Second Brain',
-                                    ),
-                                    duration: const Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(100),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.textWhite,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.08,
-                                      ),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    userInitial,
-                                    style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 18),
-                  _buildSearchBar(context),
                 ],
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // Below header: Dedicated pill-shaped Search Bar with crisp white surface
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('home_search_btn'),
+              onTap: () {
+                if (widget.onSearchTap != null) {
+                  widget.onSearchTap!();
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchScreen()),
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(100),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF6B7280),
+                      size: 20,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Search your memories',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSearchBar(BuildContext context) {
+  Widget _buildHeaderIconButton({
+    required Key key,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool hasBadge = false,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          if (widget.onSearchTap != null) {
-            widget.onSearchTap!();
-          } else {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
-          }
-        },
+        key: key,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(100),
         child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            color: AppColors.cardBackgroundOf(context),
-            borderRadius: BorderRadius.circular(100),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            color: Colors.white.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 1.0,
+            ),
           ),
-          child: Row(
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
             children: [
-              Icon(
-                Icons.search_rounded,
-                color: AppColors.textSecondaryOf(context),
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  AppStrings.homeSearchHint,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondaryOf(
-                      context,
-                    ).withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w400,
+              Icon(icon, color: Colors.white, size: 20),
+              if (hasBadge)
+                Positioned(
+                  top: 9,
+                  right: 9,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF59E0B),
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceTintOf(context),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  color: AppColors.primary,
-                  size: 16,
-                ),
-              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoriesHeader(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        AppStrings.homeCategoriesHeader,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textPrimaryOf(context),
-          letterSpacing: -0.3,
         ),
       ),
     );
@@ -2295,22 +2543,21 @@ class HomeScreenState extends State<HomeScreen> {
     List<MemoryEntity> memories,
   ) {
     return SizedBox(
-      height: 122,
+      height: 104,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(left: 20, right: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: CategorySectionsData.sections.length,
         itemBuilder: (context, index) {
           final section = CategorySectionsData.sections[index];
           final isLast = index == CategorySectionsData.sections.length - 1;
           return Padding(
-            padding: EdgeInsets.only(right: isLast ? 0 : 12),
+            padding: EdgeInsets.only(right: isLast ? 0 : 10),
             child: SizedBox(
-              width: 158,
+              width: 106,
               child: _buildCategorySectionCard(
                 context,
                 section,
-                _categoryCount(memories, section),
               ),
             ),
           );
@@ -2319,43 +2566,38 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  ({Color icon, Color cardBgStart, Color cardBgEnd, Color border, Color shadow})
-  _categoryAccent(String sectionId) {
+  ({IconData icon, Color iconColor, Color circleBg, Color border})
+  _categoryStyle(String sectionId) {
     return switch (sectionId) {
       'documents_records' => (
-        icon: const Color(0xFF2563EB),
-        cardBgStart: const Color(0xFFEFF6FF),
-        cardBgEnd: const Color(0xFFF8FAFC),
-        border: const Color(0xFFBFDBFE),
-        shadow: const Color(0xFF3B82F6),
+        icon: Icons.folder_rounded,
+        iconColor: const Color(0xFF4E3985), // Deep Royal Violet
+        circleBg: const Color(0xFFECE8F6), // Soft tinted badge surface
+        border: const Color(0xFFDDD6ED),
       ),
       'work_learning' => (
-        icon: const Color(0xFF7C3AED),
-        cardBgStart: const Color(0xFFF5F3FF),
-        cardBgEnd: const Color(0xFFFAF5FF),
-        border: const Color(0xFFDDD6FE),
-        shadow: const Color(0xFF8B5CF6),
+        icon: Icons.school_rounded,
+        iconColor: const Color(0xFF059669), // Green
+        circleBg: const Color(0xFFECFDF5), // Pastel green tone
+        border: const Color(0xFFA7F3D0),
       ),
       'home_utilities' => (
-        icon: const Color(0xFF059669),
-        cardBgStart: const Color(0xFFECFDF5),
-        cardBgEnd: const Color(0xFFF0FDF4),
-        border: const Color(0xFFA7F3D0),
-        shadow: const Color(0xFF10B981),
+        icon: Icons.home_rounded,
+        iconColor: const Color(0xFFD97706), // Orange / Amber
+        circleBg: const Color(0xFFFFFBEB), // Pastel amber tone
+        border: const Color(0xFFFDE68A),
       ),
       'personal_life' => (
-        icon: const Color(0xFFE11D48),
-        cardBgStart: const Color(0xFFFFF1F2),
-        cardBgEnd: const Color(0xFFFFF7ED),
+        icon: Icons.person_rounded,
+        iconColor: const Color(0xFFE11D48), // Pink / Rose
+        circleBg: const Color(0xFFFFF1F2), // Pastel rose tone
         border: const Color(0xFFFECDD3),
-        shadow: const Color(0xFFF43F5E),
       ),
       _ => (
-        icon: const Color(0xFF4F46E5),
-        cardBgStart: const Color(0xFFF8FAFC),
-        cardBgEnd: const Color(0xFFFFFFFF),
-        border: const Color(0xFFE2E8F0),
-        shadow: const Color(0xFF64748B),
+        icon: Icons.folder_rounded,
+        iconColor: const Color(0xFF4E3985),
+        circleBg: const Color(0xFFECE8F6),
+        border: const Color(0xFFDDD6ED),
       ),
     };
   }
@@ -2363,9 +2605,16 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildCategorySectionCard(
     BuildContext context,
     CategorySectionItem section,
-    int count,
   ) {
-    final accent = _categoryAccent(section.id);
+    final style = _categoryStyle(section.id);
+    final displayTitle = switch (section.id) {
+      'documents_records' => 'Docs & Records',
+      'work_learning' => 'Work & Learning',
+      'home_utilities' => 'Home & Utilities',
+      'personal_life' => 'Personal',
+      _ => section.title,
+    };
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2380,96 +2629,61 @@ class HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [accent.cardBgStart, accent.cardBgEnd],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.cardBackgroundOf(context),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: accent.border.withValues(alpha: 0.75),
-              width: 1.2,
+              color: AppColors.borderOf(context),
+              width: 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: accent.shadow.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(11),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.shadow.withValues(alpha: 0.12),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(section.icon, color: accent.icon, size: 19),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: style.circleBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: style.iconColor.withValues(alpha: 0.18),
+                    width: 1.0,
                   ),
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.shadow.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: accent.icon,
-                      size: 10,
-                    ),
+                ),
+                child: Center(
+                  child: Icon(
+                    style.icon,
+                    color: style.iconColor,
+                    size: 22,
                   ),
-                ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(height: 7),
               Text(
-                section.title,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
+                displayTitle,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimaryOf(context),
                   letterSpacing: -0.2,
-                  height: 1.15,
+                  height: 1.2,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -2479,51 +2693,59 @@ class HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _NetworkPatternPainter extends CustomPainter {
+class _GoldenCrownPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
+    final w = size.width;
+    final h = size.height;
+    final rect = Offset.zero & size;
 
+    final gradient = const LinearGradient(
+      colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ).createShader(rect);
+
+    final paint = Paint()
+      ..shader = gradient
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    // Crown body
+    final path = Path()
+      ..moveTo(w * 0.10, h * 0.76)
+      ..lineTo(w * 0.08, h * 0.36)
+      ..lineTo(w * 0.32, h * 0.54)
+      ..lineTo(w * 0.50, h * 0.20)
+      ..lineTo(w * 0.68, h * 0.54)
+      ..lineTo(w * 0.92, h * 0.36)
+      ..lineTo(w * 0.90, h * 0.76)
+      ..close();
+
+    canvas.drawPath(path, paint);
+
+    // Peak jewels
+    canvas.drawCircle(Offset(w * 0.08, h * 0.32), w * 0.065, paint);
+    canvas.drawCircle(Offset(w * 0.50, h * 0.16), w * 0.075, paint);
+    canvas.drawCircle(Offset(w * 0.92, h * 0.32), w * 0.065, paint);
+
+    // Base decorative band
+    final bandPaint = Paint()
+      ..color = const Color(0xFFFDE68A)
+      ..style = PaintingStyle.fill;
+    final bandRRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.08, h * 0.76, w * 0.84, h * 0.10),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(bandRRect, bandPaint);
+
+    // Base band jewel dots
     final dotPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.22)
+      ..color = const Color(0xFFB45309)
       ..style = PaintingStyle.fill;
-
-    final glowPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.06)
-      ..style = PaintingStyle.fill;
-
-    final nodes = [
-      Offset(size.width * 0.10, size.height * 0.28),
-      Offset(size.width * 0.26, size.height * 0.65),
-      Offset(size.width * 0.45, size.height * 0.22),
-      Offset(size.width * 0.62, size.height * 0.58),
-      Offset(size.width * 0.80, size.height * 0.26),
-      Offset(size.width * 0.94, size.height * 0.60),
-      Offset(size.width * 0.74, size.height * 0.82),
-    ];
-
-    final edges = [
-      [0, 1],
-      [1, 2],
-      [0, 2],
-      [2, 3],
-      [3, 4],
-      [3, 6],
-      [4, 5],
-      [6, 5],
-    ];
-
-    for (final edge in edges) {
-      canvas.drawLine(nodes[edge[0]], nodes[edge[1]], linePaint);
-    }
-
-    for (final node in nodes) {
-      canvas.drawCircle(node, 6, glowPaint);
-      canvas.drawCircle(node, 2.5, dotPaint);
-    }
+    canvas.drawCircle(Offset(w * 0.28, h * 0.81), 1.5, dotPaint);
+    canvas.drawCircle(Offset(w * 0.50, h * 0.81), 2.0, dotPaint);
+    canvas.drawCircle(Offset(w * 0.72, h * 0.81), 1.5, dotPaint);
   }
 
   @override

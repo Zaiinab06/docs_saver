@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:second_brain/core/constants/app_strings.dart';
 import 'package:second_brain/core/theme/app_colors.dart';
 import 'package:second_brain/features/auth/domain/entities/user_entity.dart';
 import 'package:second_brain/features/auth/domain/repositories/auth_repository.dart';
@@ -232,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.text('Hello Alex Mercer'), findsOneWidget);
+      expect(find.text('Hey Alex Mercer'), findsOneWidget);
     });
 
     testWidgets('tapping Search tab switches to existing SearchScreen', (
@@ -393,8 +392,8 @@ void main() {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
 
-        // Tap search bar in home header
-        await tester.tap(find.text(AppStrings.homeSearchHint));
+        // Tap search button in home header
+        await tester.tap(find.byKey(const Key('home_search_btn')));
         await tester.pumpAndSettle();
 
         expect(find.byType(SearchScreen), findsOneWidget);
