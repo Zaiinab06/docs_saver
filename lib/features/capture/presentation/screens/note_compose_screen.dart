@@ -6,8 +6,6 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
-import '../widgets/bank_card_template_sheet.dart';
-import '../widgets/bill_template_sheet.dart';
 
 class _CategoryChoice {
   final String name;
@@ -378,96 +376,6 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
     );
   }
 
-  Widget _buildQuickTemplatesRow() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderOf(context), width: 1.0),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.style_outlined, size: 16, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Text(
-            'Templates:',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildTemplateChip(
-                    icon: Icons.credit_card_rounded,
-                    label: 'Bank Card',
-                    onTap: () async {
-                      final saved = await BankCardTemplateSheet.show(context);
-                      if (saved == true && mounted) {
-                        Navigator.of(context).pop(true);
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _buildTemplateChip(
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Bill / Utility',
-                    onTap: () async {
-                      final saved = await BillTemplateSheet.show(context);
-                      if (saved == true && mounted) {
-                        Navigator.of(context).pop(true);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTemplateChip({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(100),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: AppColors.primary),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -507,9 +415,6 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Quick Templates Banner
-              _buildQuickTemplatesRow(),
-
               // 1. Title Input (Optional)
               Text(
                 'Title (optional)',
