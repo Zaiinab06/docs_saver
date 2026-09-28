@@ -58,3 +58,7 @@ android/build/
 
 # Supabase temporary audit metadata
 .supabase-remote-audit/
+
+# Local environment secrets
+.env
+.env.*

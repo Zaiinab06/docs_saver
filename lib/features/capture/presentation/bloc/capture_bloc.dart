@@ -203,12 +203,31 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                   newMemory.mediaUrl!.toLowerCase().endsWith('.webm') ||
                   newMemory.mediaUrl!.toLowerCase().endsWith('.3gp') ||
                   newMemory.mediaUrl!.toLowerCase().endsWith('.m4v')));
+      final isImage =
+          !isVideo &&
+          !isVoice &&
+          !isPdf &&
+          ((newMemory.mediaUrl != null &&
+                  (newMemory.mediaUrl!.toLowerCase().endsWith('.jpg') ||
+                      newMemory.mediaUrl!.toLowerCase().endsWith('.jpeg') ||
+                      newMemory.mediaUrl!.toLowerCase().endsWith('.png') ||
+                      newMemory.mediaUrl!.toLowerCase().endsWith('.webp') ||
+                      newMemory.mediaUrl!.toLowerCase().endsWith('.heic'))) ||
+              newMemory.tags.any(
+                (t) =>
+                    t.toLowerCase() == 'photo' ||
+                    t.toLowerCase() == 'image' ||
+                    t.toLowerCase() == 'document',
+              ) ||
+              newMemory.fileType == 'image' ||
+              newMemory.fileType == 'photo');
       final hasMeaningfulContent =
           newMemory.content.trim().isNotEmpty ||
           newMemory.title.trim().isNotEmpty ||
           isVoice ||
           isPdf ||
-          isVideo;
+          isVideo ||
+          isImage;
 
       if ((newMemory.aiStatus == 'pending' || needsEmbedding) &&
           hasMeaningfulContent &&
@@ -217,7 +236,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             (newMemory.mediaUrl == null || newMemory.mediaUrl!.isEmpty) &&
             !isVoice &&
             !isPdf &&
-            !isVideo;
+            !isVideo &&
+            !isImage;
         unawaited(
           _triggerBackgroundIngestion(
             newMemory,
@@ -225,6 +245,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             isVoice: isVoice,
             isPdf: isPdf,
             isVideo: isVideo,
+            isImage: isImage,
             isEmbeddingOnly: newMemory.aiStatus == 'processed',
           ),
         );
@@ -288,17 +309,37 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                         mem.mediaUrl!.toLowerCase().endsWith('.avi') ||
                         mem.mediaUrl!.toLowerCase().endsWith('.mkv') ||
                         mem.mediaUrl!.toLowerCase().endsWith('.webm')));
+            final isImage =
+                !isVideo &&
+                !isVoice &&
+                !isPdf &&
+                ((mem.mediaUrl != null &&
+                        (mem.mediaUrl!.toLowerCase().endsWith('.jpg') ||
+                            mem.mediaUrl!.toLowerCase().endsWith('.jpeg') ||
+                            mem.mediaUrl!.toLowerCase().endsWith('.png') ||
+                            mem.mediaUrl!.toLowerCase().endsWith('.webp') ||
+                            mem.mediaUrl!.toLowerCase().endsWith('.heic'))) ||
+                    mem.tags.any(
+                      (t) =>
+                          t.toLowerCase() == 'photo' ||
+                          t.toLowerCase() == 'image' ||
+                          t.toLowerCase() == 'document',
+                    ) ||
+                    mem.fileType == 'image' ||
+                    mem.fileType == 'photo');
             final hasMeaningfulContent =
                 mem.content.trim().isNotEmpty ||
                 mem.title.trim().isNotEmpty ||
                 isVoice ||
                 isPdf ||
-                isVideo;
+                isVideo ||
+                isImage;
             final isNote =
                 (mem.mediaUrl == null || mem.mediaUrl!.isEmpty) &&
                 !isVoice &&
                 !isPdf &&
-                !isVideo;
+                !isVideo &&
+                !isImage;
             if ((mem.aiStatus == 'pending' || needsEmbedding) &&
                 hasMeaningfulContent) {
               unawaited(
@@ -308,6 +349,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                   isVoice: isVoice,
                   isPdf: isPdf,
                   isVideo: isVideo,
+                  isImage: isImage,
                   isEmbeddingOnly: mem.aiStatus == 'processed',
                 ),
               );
@@ -360,6 +402,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     bool isVoice = false,
     bool isPdf = false,
     bool isVideo = false,
+    bool isImage = false,
     required bool isEmbeddingOnly,
   }) async {
     try {
@@ -543,6 +586,96 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             '[VideoAI Warning] Frame extraction returned null. Proceeding to fallback.',
           );
         }
+      } else if (isImage &&
+          memory.mediaUrl != null &&
+          memory.mediaUrl!.isNotEmpty) {
+        debugPrint(
+          '[PhotoAI] Processing photo memory with Gemini Vision: id=${memory.id}, mediaUrl=${memory.mediaUrl}',
+        );
+
+        // 1. Storage Upload for cloud backup (if authenticated)
+        String? storagePublicUrl;
+        String? currentUserId;
+        try {
+          currentUserId = Supabase.instance.client.auth.currentUser?.id;
+        } catch (_) {}
+        final file = File(memory.mediaUrl!);
+        if (currentUserId != null && currentUserId != 'local_user' && file.existsSync()) {
+          try {
+            final isPng = memory.mediaUrl!.toLowerCase().endsWith('.png');
+            final ext = isPng ? 'png' : 'jpg';
+            final mime = isPng ? 'image/png' : 'image/jpeg';
+            final fileName =
+                'photo_${DateTime.now().millisecondsSinceEpoch}.$ext';
+            final storageKey = '$currentUserId/$fileName';
+            debugPrint('[PhotoAI] Uploading photo binary to storage: $storageKey');
+            final bytes = await file.readAsBytes();
+            await Supabase.instance.client.storage
+                .from('memories')
+                .uploadBinary(
+                  storageKey,
+                  bytes,
+                  fileOptions: FileOptions(contentType: mime),
+                );
+            storagePublicUrl = Supabase.instance.client.storage
+                .from('memories')
+                .getPublicUrl(storageKey);
+            debugPrint('[PhotoAI] Photo storage upload success: $storagePublicUrl');
+          } catch (e) {
+            debugPrint('[PhotoAI Warning] Photo storage upload failed: $e');
+          }
+        }
+
+        // 2. Read local image bytes and encode to base64
+        if (file.existsSync()) {
+          try {
+            final fileSize = await file.length();
+            if (fileSize < 12 * 1024 * 1024) {
+              final bytes = await file.readAsBytes();
+              final imageBase64 = base64Encode(bytes);
+              final isPng = memory.mediaUrl!.toLowerCase().endsWith('.png');
+              final mime = isPng ? 'image/png' : 'image/jpeg';
+
+              final effectiveAiRepo = aiRepository ??
+                  AiRepositoryImpl(
+                    remoteDataSource: AiRemoteDataSourceImpl(),
+                  );
+
+              final promptText = memory.content.isNotEmpty &&
+                      memory.content != 'Captured Visual Memory'
+                  ? memory.content
+                  : 'Analyze this photo/document. Extract all visible text accurately, provide a concise descriptive title, detailed summary, suitable category, and 4-6 specific tags.';
+
+              debugPrint(
+                '[PhotoAI] Invoking Gemini Vision pipeline (${bytes.lengthInBytes} bytes)...',
+              );
+              final aiResult = await effectiveAiRepo.processPhotoIngestion(
+                ocrText: promptText,
+                imageBase64: imageBase64,
+                mimeType: mime,
+              );
+              debugPrint(
+                '[PhotoAI] Gemini Vision response: title="${aiResult.title}", category="${aiResult.category}", tags=${aiResult.tags}, summary="${aiResult.summary}"',
+              );
+
+              if (aiResult.title.isNotEmpty ||
+                  aiResult.summary.isNotEmpty ||
+                  aiResult.aiStatus == 'processed') {
+                await _updateMemoryWithPhotoAiResult(
+                  memoryId: memory.id,
+                  aiResult: aiResult,
+                  originalMemory: memory,
+                  mediaUrl: storagePublicUrl,
+                );
+                return;
+              }
+            } else {
+              debugPrint('[PhotoAI Warning] Photo file exceeds 12MB limit.');
+            }
+          } catch (e, stack) {
+            debugPrint('[PhotoAI Error] Photo AI ingestion failed: $e\n$stack');
+          }
+        }
       }
 
       final payload = {
@@ -555,14 +688,24 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       };
 
       debugPrint(
-        '[VideoAI] Invoking process-ingestion for ${memory.id}, keys=${payload.keys.toList()}',
+        '[AI Ingestion] Invoking process-ingestion for ${memory.id}, keys=${payload.keys.toList()}',
       );
-      final response = await Supabase.instance.client.functions.invoke(
+      SupabaseClient? client;
+      try {
+        client = Supabase.instance.client;
+      } catch (_) {}
+
+      if (client == null) {
+        debugPrint('[AI Ingestion] Supabase not initialized. Skipping cloud ingestion.');
+        return;
+      }
+
+      final response = await client.functions.invoke(
         'process-ingestion',
         body: payload,
       );
       debugPrint(
-        '[VideoAI] Ingestion response received: status=${response.status}, data=${response.data}',
+        '[AI Ingestion] Ingestion response received: status=${response.status}, data=${response.data}',
       );
 
       await _handleIngestionComplete(
@@ -672,6 +815,120 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     } catch (e, stack) {
       debugPrint(
         '[VideoAI Error] _updateMemoryWithVideoAiResult error: $e\n$stack',
+      );
+    }
+  }
+
+  Future<void> _updateMemoryWithPhotoAiResult({
+    required String memoryId,
+    required AiIngestionResult aiResult,
+    required MemoryEntity originalMemory,
+    String? mediaUrl,
+  }) async {
+    try {
+      final isar = IsarService.instance;
+      final existing = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(memoryId)
+          .findFirst();
+
+      final effectiveTitle = aiResult.title.isNotEmpty
+          ? aiResult.title
+          : originalMemory.title;
+      final effectiveCategory = aiResult.category.isNotEmpty
+          ? aiResult.category
+          : (originalMemory.category.isNotEmpty &&
+                  originalMemory.category != 'General'
+              ? originalMemory.category
+              : 'General');
+      final effectiveContent = aiResult.summary.isNotEmpty
+          ? aiResult.summary
+          : (aiResult.documentText != null && aiResult.documentText!.isNotEmpty
+              ? aiResult.documentText!
+              : (originalMemory.content.isNotEmpty &&
+                      originalMemory.content != 'Captured Visual Memory'
+                  ? originalMemory.content
+                  : (aiResult.title.isNotEmpty
+                      ? aiResult.title
+                      : 'Captured Visual Memory')));
+
+      final mergedTagsSet = <String>{};
+      if (existing != null) {
+        mergedTagsSet.addAll(existing.tags);
+      } else {
+        mergedTagsSet.addAll(originalMemory.tags);
+      }
+      mergedTagsSet.addAll(aiResult.tags);
+      if (!mergedTagsSet.contains('photo') && !mergedTagsSet.contains('document')) {
+        mergedTagsSet.add('photo');
+      }
+      final effectiveTags = mergedTagsSet.toList();
+
+      final meta = Map<String, dynamic>.from(
+        originalMemory.metadata ?? {},
+      );
+      if (aiResult.summary.isNotEmpty) {
+        meta['summary'] = aiResult.summary;
+      }
+      if (aiResult.documentText != null && aiResult.documentText!.isNotEmpty) {
+        meta['document_text'] = aiResult.documentText!;
+      }
+      meta['file_type'] = 'image';
+
+      // 1. Update Isar cache
+      if (existing != null) {
+        existing.title = effectiveTitle;
+        existing.category = effectiveCategory;
+        existing.tags = effectiveTags;
+        existing.content = effectiveContent;
+        existing.metadata = meta;
+        existing.aiStatus = 'processed';
+        if (mediaUrl != null && mediaUrl.isNotEmpty) {
+          existing.mediaUrl = mediaUrl;
+        }
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(existing);
+        });
+        debugPrint('[PhotoAI] Isar MemoryModel updated for $memoryId');
+      }
+
+      // 2. Update Supabase DB if user is logged in
+      String? currentUserId;
+      try {
+        currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      } catch (_) {}
+      if (currentUserId != null && currentUserId != 'local_user') {
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'title': effectiveTitle,
+            'category': effectiveCategory,
+            'tags': effectiveTags,
+            'content': effectiveContent,
+            'ai_status': 'processed',
+            'metadata': meta,
+            if (mediaUrl != null && mediaUrl.isNotEmpty) 'media_url': mediaUrl,
+          }).eq('id', memoryId);
+          debugPrint('[PhotoAI] Supabase DB updated for $memoryId');
+        } catch (e) {
+          debugPrint('[PhotoAI Warning] Supabase DB update error: $e');
+        }
+      }
+
+      // 3. Emit updated state to all listeners
+      final updatedEntity = (existing?.toEntity() ?? originalMemory).copyWith(
+        title: effectiveTitle,
+        category: effectiveCategory,
+        tags: effectiveTags,
+        content: effectiveContent,
+        aiStatus: 'processed',
+        metadata: meta,
+        mediaUrl: mediaUrl ?? (existing?.mediaUrl ?? originalMemory.mediaUrl),
+      );
+      add(MemoryUpdatedEvent(updatedEntity));
+      add(LoadMemoriesEvent());
+    } catch (e, stack) {
+      debugPrint(
+        '[PhotoAI Error] _updateMemoryWithPhotoAiResult error: $e\n$stack',
       );
     }
   }

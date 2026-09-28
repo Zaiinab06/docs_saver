@@ -30,6 +30,7 @@ import '../../../search/presentation/screens/search_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
+import '../../../../core/utils/image_utils.dart';
 // ignore: depend_on_referenced_packages
 import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1182,20 +1183,222 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleTakePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Add Photo',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose an option to capture or upload',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const Key('photo_option_camera'),
+                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F7FC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF4E3985).withValues(alpha: 0.12),
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4E3985).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Color(0xFF4E3985),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Take Picture',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Open camera to snap a new photo',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFF94A3B8),
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const Key('photo_option_gallery'),
+                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F7FC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF4E3985).withValues(alpha: 0.12),
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4E3985).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.photo_library_rounded,
+                            color: Color(0xFF4E3985),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Choose from Gallery',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Select an existing photo from device',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFF94A3B8),
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+    if (!mounted) return;
+
     try {
       final picker = ImagePicker();
       final photo = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 88,
-        maxWidth: 1800,
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1280,
+        maxHeight: 1280,
       );
 
       if (photo == null) return;
       if (!mounted) return;
 
+      // Handle Scoped Storage & Image Bytes for Gallery/Camera:
+      // Ensure the picked XFile is properly read as bytes: await photo.readAsBytes()
+      // and compress / resize images (target max 1024-1280px / quality 80)
+      final localImageFile = await ImageUtils.processAndPersistImageXFile(
+        photo,
+        maxDimension: 1280,
+        quality: 80,
+      );
+
+      if (!mounted) return;
+
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PhotoReviewScreen(imageFile: File(photo.path)),
+          builder: (_) => PhotoReviewScreen(
+            imageFile: localImageFile,
+            ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+          ),
         ),
       );
 
@@ -1207,8 +1410,10 @@ class HomeScreenState extends State<HomeScreen> {
         final errorMsg = e.toString().toLowerCase();
         final message =
             errorMsg.contains('permission') || errorMsg.contains('denied')
-            ? 'Camera permission denied. Please enable camera access in Settings.'
-            : 'Unable to open camera: ${e.toString()}';
+            ? (source == ImageSource.camera
+                ? 'Camera permission denied. Please enable camera access in Settings.'
+                : 'Gallery access denied. Please enable photos permission in Settings.')
+            : 'Unable to open image picker: ${e.toString()}';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
         );
@@ -1374,8 +1579,11 @@ class HomeScreenState extends State<HomeScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) =>
-              PhotoReviewScreen(imageFile: scannedFile, isDocumentScan: true),
+          builder: (_) => PhotoReviewScreen(
+            imageFile: scannedFile,
+            isDocumentScan: true,
+            ingestMemoryUseCase: _effectiveIngestMemoryUseCase,
+          ),
         ),
       );
 

@@ -6,9 +6,9 @@
  * Fallback Embedding Model: "gemini-embedding-001" (on 429/5xx errors)
  */
 
-export const INGESTION_MODEL = "gemini-2.0-flash";
-export const SYNTHESIS_MODEL = "gemini-2.0-flash";
-export const SYNTHESIS_FALLBACK_MODEL = "gemini-1.5-flash";
+export const INGESTION_MODEL = "gemini-3.6-flash";
+export const SYNTHESIS_MODEL = "gemini-3.6-flash";
+export const SYNTHESIS_FALLBACK_MODEL = "gemini-3.8-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
@@ -66,13 +66,19 @@ export interface EmbeddingResult {
  * Retrieves the Gemini API key from environment variables.
  * Throws a descriptive error if not found.
  */
-export function getGeminiApiKey(): string {
+export function getGeminiApiKey(customApiKey?: string | null): string {
+  if (customApiKey && customApiKey.trim().length > 0) {
+    console.info(`[Gemini] Using custom API key passed in header/payload (len=${customApiKey.trim().length})`);
+    return customApiKey.trim();
+  }
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey || apiKey.trim().length === 0) {
+    console.error("❌ [Gemini Error] GEMINI_API_KEY environment variable is NOT set in Deno.env!");
     throw new Error(
       "Missing GEMINI_API_KEY environment variable. Please configure it in your Supabase secrets."
     );
   }
+  console.info(`[Gemini] GEMINI_API_KEY retrieved from Deno.env (len=${apiKey.trim().length})`);
   return apiKey.trim();
 }
 
@@ -84,6 +90,7 @@ export interface AnalyzeMemoryInput {
   documentBase64?: string | null;
   videoBase64?: string | null;
   mimeType?: string | null;
+  apiKey?: string | null;
 }
 
 /**
@@ -132,7 +139,7 @@ export async function analyzeMemoryContent(
   input: AnalyzeMemoryInput,
   signal?: AbortSignal
 ): Promise<IngestionAnalysis> {
-  const apiKey = getGeminiApiKey();
+  const apiKey = getGeminiApiKey(input.apiKey);
   const trimmedContent = (input.content || "").trim();
   const existingTitle = (input.title || "").trim();
   const isAudio = Boolean(input.audioBase64 && input.audioBase64.trim().length > 0);
@@ -145,145 +152,138 @@ export async function analyzeMemoryContent(
     (input.mimeType && (input.mimeType.startsWith("video/") || input.mimeType === "video/mp4" || input.mimeType === "video/quicktime"))
   );
 
+  const isImage = Boolean(input.imageBase64 && input.imageBase64.trim().length > 0);
+
   const systemInstruction = isAudio
     ? `You are an expert speech recognition and audio transcription engine for a personal "Second Brain".
-You will receive an audio recording.
 Listen carefully to the audio and output clean structured JSON:
-- "transcript": The accurate, complete verbatim transcription of all spoken words in the audio. Transcribe the exact words spoken by the user. If the recording contains no speech, silence, background noise only, or is unintelligible, set "transcript" to "". Do NOT fabricate, invent, hallucinate, or guess words that were not spoken.
-- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject based on what was spoken. If the user provided an explicit non-empty title (not starting with "Voice Note (" or "Quick Note"), keep that title unchanged.
-- "category": Select the single best matching category from the 8 official app categories:
-  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
-- "tags": 2 to 6 lowercase keyword tags without # describing what was spoken. MUST include "voice".
-- "summary": Write ONE concise, natural, human-readable sentence summarizing the useful meaning, topic, or context of what was spoken. Focus on the actual information discussed. Do not invent the user's intent or reason for saving it, and only state facts supported by the audio. Keep it concise enough for a memory card preview.
-- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
+- "transcript": Verbatim transcription of all spoken words in the audio. If no speech, set to "".
+- "title": Concise, descriptive title (3-8 words). If user provided title, keep it unchanged.
+- "category": Select one: ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2-6 lowercase keyword tags without #. Include "voice".
+- "summary": ONE concise sentence summarizing the useful meaning.
+- "entities": Key entities extracted [{"name": string, "type": string, "attributes": string}].`
     : (isPdf
-        ? `You are an expert document reading, transcription, and categorization engine for a personal "Second Brain".
-You will receive a PDF document.
-Read and extract the document content carefully and output clean structured JSON:
-- "document_text": The complete, accurate verbatim extracted text from the PDF document. Preserve paragraphs, tables, and section headings. If the PDF contains no extractable text, scanned pages without text, or is blank, set "document_text" to "". Do NOT fabricate, invent, or guess contents not in the document.
-- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the document subject or filename. If the user provided an explicit non-empty title, keep that title unchanged.
-- "category": Select the single best matching category from the 8 official app categories:
-  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
-- "tags": 2 to 6 lowercase keyword tags without # describing the document. MUST include "document".
-- "summary": Write ONE concise, natural, human-readable sentence summarizing the useful meaning, subject, or core information of the document. Focus on the actual content and key facts rather than merely describing document layout. Do not invent the user's intent or reason for saving it, and only state facts supported by the document. Keep it concise enough for a memory card preview.
-- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
+        ? `You are an expert document reader and categorizer for a personal "Second Brain".
+Read the PDF document and output clean structured JSON:
+- "document_text": Accurate verbatim extracted text from the document.
+- "title": Concise, descriptive title (3-8 words). If user provided title, keep it unchanged.
+- "category": Select one: ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2-6 lowercase keyword tags without #. Include "document".
+- "summary": ONE concise sentence summarizing the useful meaning.
+- "entities": Key entities extracted [{"name": string, "type": string, "attributes": string}].`
         : (isVideo
-            ? `You are an expert video analysis, scene understanding, and multimodal transcription engine for a personal "Second Brain".
-You will receive a video recording (with visual frames and/or audio track).
-Inspect the video sequence and listen to any spoken audio carefully, then output clean structured JSON:
-- "transcript": The verbatim transcription of any spoken words or dialogue in the video. If the video has no spoken words, provide a concise, factual description of the key visual events and actions shown in the video.
-- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing what happens in the video. If the user provided an explicit non-empty title (not starting with "Video Note (" or "Quick Note"), keep that title unchanged.
-- "category": Select the single best matching category from the 8 official app categories:
-  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
-- "tags": 2 to 6 lowercase keyword tags without # describing the video content, actions, or subject matter. MUST include "video".
-- "summary": Write ONE concise, natural, human-readable sentence summarizing the key action, event, demonstration, or spoken information in the video. Focus on facts from the video rather than generic captions. Keep it concise enough for a memory card preview.
-- "entities": Key entities extracted for Living Memory (topics, people, organizations, locations, events, tools).`
-            : `You are an expert multimodal visual intelligence and categorization engine for a personal "Second Brain".
-You will receive an image and any supporting OCR extracted text.
-Visually inspect the image carefully, read any visible text, and output clean structured JSON:
-- "title": A concise, descriptive, human-readable title (3 to 8 words) summarizing the core subject.
-  * If the user provided an explicit non-empty title, keep that title unchanged.
-  * If no title is provided, generate a specific, factual title based on the visual subject matter. Never use "Untitled" or "Captured Memory" or "Photo".
-- "category": Select the single best matching category from the 8 official app categories:
-  ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
-  * Decision criteria:
-    - "Food": Dishes, pizza, sushi, meals, cooking ingredients, groceries, coffee, restaurants, drinks, snacks.
-    - "Work": Code/programming screenshots, IDEs, software architecture, technical documentation, office tasks, company projects, spreadsheets, professional emails.
-    - "Study": Handwritten/printed lecture notes, academic textbooks, science/math formulas, whiteboards, flashcards, certificates, research papers.
-    - "Fashion": Outfits, clothing, shoes, sneakers, bags, jewelry, accessories, cosmetics, skincare.
-    - "Finance": Receipts, invoices, bills, credit cards, bank statements, cryptocurrency charts, stock market graphs, expenses.
-    - "Travel": Scenery, landmarks, monuments, hotels, flights, boarding passes, maps, nature/hiking, travel itineraries.
-    - "Health & Fitness": Gym equipment, workouts, athletic training, vitamins, medicine/prescriptions, medical reports, healthy habits.
-    - "Personal": Personal everyday items, human body/hand, selfies, pets, home moments, hobbies, casual snapshots.
-  * Do NOT default to "Personal" unless it is genuinely personal/everyday life.
-- "tags": An array of 2 to 6 specific, relevant, lowercase keyword tags describing what is actually visible or discussed (e.g. ["pizza", "mozzarella", "lunch"] or ["flutter", "bloc", "dart"]).
-  * ABSOLUTELY FORBIDDEN TAGS: "photo", "image", "empty", "untitled", "general", "memory", "note".
-  * If you cannot determine specific meaningful tags, return [].
-- "summary": Write ONE concise, natural, human-readable summary sentence of the information contained in this memory.
-  * Focus on its useful meaning, subject, or context rather than literally describing what is visually visible or listing UI elements.
-  * Avoid image-caption language such as "Image showing...", "Photo of...", "Screenshot displaying...", or "Visual Studio Code IDE displaying...".
-  * For images, summarize the meaningful subject, concept, or context that can actually be established from the image and text.
-  * For notes, links, and documents, summarize the actual provided content naturally.
-  * Do NOT simply repeat OCR text or vision observations verbatim. Completely IGNORE and EXCLUDE irrelevant OCR clutter such as status bar text, battery/signal/time indicators, weather text, browser chrome, URLs, buttons ("Back", "Next", "Done", "Cancel", "Search"), navigation labels, timestamps, ads, and UI noise.
-  * Preserve important factual information from the source, but do NOT add facts that are not supported by the source.
-  * Do NOT invent or assume the user's personal intention, feelings, or reason for saving the memory.
-  * Keep the summary concise enough for a memory card preview.
-- "entities": Extract 0 to 5 key entities, concepts, or topics identified in the image:
-  * "name": Entity name (e.g. "Pizza Margherita", "Flutter Bloc", "Newton's Laws", "Nike Air")
-  * "type": One of "Object", "Topic", "Person", "Place", "Organization", "Project"
-  * "attributes": Concise contextual detail`));
+            ? `You are an expert video analyzer for a personal "Second Brain".
+Inspect the video sequence and output clean structured JSON:
+- "transcript": Verbatim transcription of spoken dialogue or description of visual actions.
+- "title": Concise, descriptive title (3-8 words). If user provided title, keep it unchanged.
+- "category": Select one: ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2-6 lowercase keyword tags without #. Include "video".
+- "summary": ONE concise sentence summarizing key actions or spoken information.
+- "entities": Key entities extracted [{"name": string, "type": string, "attributes": string}].`
+            : (isImage
+                ? `You are an expert visual memory analyzer for a personal "Second Brain".
+Analyze the attached image and any supporting OCR text. Output clean structured JSON:
+- "title": Concise, descriptive title (3-8 words) based on visual subject matter. If user provided title, keep it unchanged. Never use "Untitled" or "Photo".
+- "category": Select one: ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2-6 specific, relevant lowercase keyword tags without #.
+- "summary": ONE concise sentence summarizing the useful meaning (no image captioning like "photo of", no UI chrome clutter).
+- "entities": 0-5 key entities [{"name": string, "type": string, "attributes": string}].`
+                : `You are an expert note categorizer and summarizer for a personal "Second Brain".
+Analyze the provided text note. Output clean structured JSON:
+- "title": Concise, descriptive title (3-8 words) summarizing core subject. If user provided title, keep it unchanged.
+- "category": Select one: ["Work", "Personal", "Study", "Travel", "Fashion", "Food", "Finance", "Health & Fitness"].
+- "tags": 2-6 lowercase keyword tags without #.
+- "summary": ONE concise sentence summarizing the useful meaning.
+- "entities": 0-5 key entities [{"name": string, "type": string, "attributes": string}].`)));
 
   const userPrompt = isAudio
     ? `[INPUT]
-User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
-CRITICAL REQUIREMENT: Listen carefully to the attached audio and transcribe all spoken words verbatim into "transcript". If there is no speech, silence, or non-speech sounds, leave "transcript" as empty string "". Output clean structured JSON matching the schema.`
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None)"}
+Transcribe all spoken words and extract structured JSON metadata.`
     : (isPdf
         ? `[INPUT]
-User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
-CRITICAL REQUIREMENT: Read the attached PDF document and extract all document text verbatim into "document_text". Output clean structured JSON matching the schema.`
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None)"}
+Extract document text and structured JSON metadata.`
         : (isVideo
             ? `[INPUT]
-User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
-CRITICAL REQUIREMENT: Analyze the attached video frames and any audio track. Transcribe spoken words or describe key visual actions into "transcript". Generate a descriptive title, category, relevant tags (including "video"), and a 1-sentence summary. Output clean structured JSON matching the schema.`
-            : `[INPUT]
-User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None - please generate title)"}
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None)"}
+Analyze video sequence and extract structured JSON metadata.`
+            : (isImage
+                ? (trimmedContent.length > 0
+                    ? `[INPUT]
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None)"}
 OCR Extracted Text:
 """
-${trimmedContent || "(No text detected by OCR. Rely entirely on visual image analysis.)"}
+${trimmedContent}
 """
-Please visually analyze the attached image and OCR text, and return the structured JSON.`));
+Analyze the image and OCR text, and return clean structured JSON with title, category, tags, summary, and entities.`
+                    : `Identify the main subjects/objects in this image. Generate a concise Title, Category (e.g., Food, Personal, Work, Study), a 2-sentence summary, and 3-5 tags in JSON format.${existingTitle ? `\nUser-Provided Title: "${existingTitle}"` : ""}`)
+                : `[INPUT]
+User-Provided Title: ${existingTitle ? `"${existingTitle}"` : "(None)"}
+Note Content:
+"""
+${trimmedContent}
+"""
+Analyze the note content and return clean structured JSON with title, category, tags, summary, and entities.`)));
+
+  let imageBase64Clean = "";
+  if (isImage && input.imageBase64) {
+    imageBase64Clean = input.imageBase64.trim();
+    if (imageBase64Clean.includes(";base64,")) {
+      imageBase64Clean = imageBase64Clean.split(";base64,").pop() || imageBase64Clean;
+    }
+    imageBase64Clean = imageBase64Clean.replace(/\s+/g, "");
+  }
+
+  const imageVisionPrompt = `Analyze this image and describe exactly what is in it. Return a valid JSON object with: {"title": "Short Title (3-5 words)", "category": "Work|Personal|Study|Home", "summary": "2-sentence factual summary of what is seen", "tags": ["tag1", "tag2", "tag3"]}. Output ONLY raw JSON, no markdown formatting.${existingTitle ? `\nUser-provided title: "${existingTitle}"` : ""}${trimmedContent ? `\nOCR detected text: "${trimmedContent}"` : ""}`;
 
   const parts: any[] = [];
-  if (isPdf) {
-    const pdfData = (input.documentBase64 || input.imageBase64)?.trim() || "";
-    if (pdfData.length > 0) {
+  if (isImage) {
+    parts.push({ text: imageVisionPrompt });
+    parts.push({
+      inline_data: {
+        mime_type: input.mimeType || "image/jpeg",
+        data: imageBase64Clean,
+      },
+    });
+  } else {
+    parts.push({ text: `${systemInstruction}\n\n${userPrompt}` });
+    if (isPdf) {
+      const pdfData = (input.documentBase64 || input.imageBase64)?.trim() || "";
+      if (pdfData.length > 0) {
+        parts.push({
+          inline_data: {
+            mime_type: "application/pdf",
+            data: pdfData,
+          },
+        });
+      }
+    } else if (isVideo) {
+      const videoData = (input.videoBase64 || input.imageBase64)?.trim() || "";
+      if (videoData.length > 0) {
+        let vidMime = input.mimeType || "video/mp4";
+        if (vidMime === "video/mov") vidMime = "video/quicktime";
+        parts.push({
+          inline_data: {
+            mime_type: vidMime,
+            data: videoData,
+          },
+        });
+      }
+    } else if (input.audioBase64 && input.audioBase64.trim().length > 0) {
+      let audioMime = input.mimeType || "audio/mp4";
+      if (audioMime === "audio/m4a" || audioMime === "audio/x-m4a") {
+        audioMime = "audio/mp4";
+      }
       parts.push({
-        inlineData: {
-          mimeType: "application/pdf",
-          data: pdfData,
+        inline_data: {
+          mime_type: audioMime,
+          data: input.audioBase64.trim(),
         },
       });
     }
-  } else if (isVideo) {
-    const videoData = (input.videoBase64 || input.imageBase64)?.trim() || "";
-    if (videoData.length > 0) {
-      let vidMime = input.mimeType || "video/mp4";
-      if (vidMime === "video/mov") vidMime = "video/quicktime";
-      parts.push({
-        inlineData: {
-          mimeType: vidMime,
-          data: videoData,
-        },
-      });
-    }
-  } else if (input.imageBase64 && input.imageBase64.trim().length > 0) {
-    parts.push({
-      inlineData: {
-        mimeType: input.mimeType || "image/jpeg",
-        data: input.imageBase64.trim(),
-      },
-    });
-  } else if (input.audioBase64 && input.audioBase64.trim().length > 0) {
-    let audioMime = input.mimeType || "audio/mp4";
-    if (audioMime === "audio/m4a" || audioMime === "audio/x-m4a") {
-      audioMime = "audio/mp4";
-    }
-    parts.push({
-      inlineData: {
-        mimeType: audioMime,
-        data: input.audioBase64.trim(),
-      },
-    });
   }
-  parts.push({
-    text: `${systemInstruction}\n\n${userPrompt}`,
-  });
-
-  const requiredFields = (isAudio || isVideo)
-    ? ["title", "category", "tags", "summary", "transcript"]
-    : (isPdf
-        ? ["title", "category", "tags", "summary", "document_text"]
-        : ["title", "category", "tags", "summary"]);
 
   const payload = {
     contents: [
@@ -295,115 +295,118 @@ Please visually analyze the attached image and OCR text, and return the structur
     generationConfig: {
       temperature: 0.2,
       responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          title: {
-            type: "STRING",
-            description: "Concise, descriptive title (3-8 words)",
-          },
-          category: {
-            type: "STRING",
-            description:
-              "Must be one of: Work, Personal, Study, Travel, Fashion, Food, Finance, Health & Fitness",
-          },
-          tags: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            description: "2-6 lowercase keyword tags without #",
-          },
-          summary: {
-            type: "STRING",
-            description:
-              "ONE concise, natural, human-readable sentence summarizing the useful meaning, subject, or context. No image captions, UI element descriptions, raw OCR dumps, URLs, or invented user intent.",
-          },
-          transcript: {
-            type: "STRING",
-            description: "Verbatim transcript of the spoken audio",
-          },
-          document_text: {
-            type: "STRING",
-            description: "Verbatim extracted text of the document",
-          },
-          entities: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                name: { type: "STRING" },
-                type: { type: "STRING" },
-                attributes: { type: "STRING" },
-              },
-              required: ["name", "type"],
-            },
-            description: "Key entities extracted for Living Memory",
-          },
-        },
-        required: requiredFields,
-      },
     },
   };
 
   const candidateModels = [
-    INGESTION_MODEL,
-    "gemini-1.5-flash",
-    "gemini-2.0-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-3-flash-preview",
   ];
 
   let lastError: Error | null = null;
   let data: any = null;
-  let modelUsed = INGESTION_MODEL;
+  let modelUsed = candidateModels[0];
+  const attemptErrors: string[] = [];
 
   for (const model of candidateModels) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify(payload),
-        signal,
-      });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        let response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+          signal,
+        });
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Model ${model} failed HTTP ${response.status}: ${errorBody}`);
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error("Gemini Vision API Raw Error:", errorBody);
+
+          // If Google REST API rejected snake_case inline_data casing, retry with camelCase inlineData
+          if (errorBody.includes("inline_data") || errorBody.includes("mime_type") || errorBody.includes("Cannot find field")) {
+            console.warn(`[Ingestion Vision] Google API rejected inline_data casing. Retrying with camelCase inlineData...`);
+            const camelParts = parts.map((p) => {
+              if (p.inline_data) {
+                return {
+                  inlineData: {
+                    mimeType: p.inline_data.mime_type,
+                    data: p.inline_data.data,
+                  },
+                };
+              }
+              return p;
+            });
+            const camelPayload = { ...payload, contents: [{ role: "user", parts: camelParts }] };
+            const retryRes = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(camelPayload),
+              signal,
+            });
+            if (retryRes.ok) {
+              data = await retryRes.json();
+              modelUsed = model;
+              break;
+            } else {
+              const retryErr = await retryRes.text();
+              console.error("Gemini Vision API Raw Error (camelCase):", retryErr);
+            }
+          }
+
+          const msg = `API v1beta/${model} HTTP ${response.status}: ${errorBody}`;
+          if ((response.status === 503 || response.status === 429) && attempt === 0) {
+            console.warn(`[Ingestion Vision Warning] ${model} hit ${response.status}. Retrying in 1.5s...`);
+            continue;
+          }
+          attemptErrors.push(msg);
+          throw new Error(msg);
+        }
+
+        data = await response.json();
+        modelUsed = model;
+        break;
+      } catch (err: any) {
+        if (attempt === 1 || !(err.message?.includes("503") || err.message?.includes("429"))) {
+          console.warn(`[Ingestion Vision Warning] ${model} failed: ${err.message}. Trying next...`);
+          lastError = err;
+          break;
+        }
       }
-
-      data = await response.json();
-      modelUsed = model;
-      break;
-    } catch (err: any) {
-      console.warn(`[Ingestion Vision Warning] Model ${model} failed: ${err.message}. Trying next model...`);
-      lastError = err;
     }
+    if (data) break;
   }
 
-  if (!data) {
-    throw lastError || new Error("All Gemini ingestion models failed.");
+  if (!data || !data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    const errorDetails = attemptErrors.length > 0 ? attemptErrors.join("; ") : "No response from Gemini API";
+    console.error("❌ Gemini Vision Ingestion Failed completely:", errorDetails);
+    throw new Error(`Gemini Vision API failed: ${errorDetails}`);
   }
 
-  const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidateText = data.candidates[0].content.parts[0].text;
+  console.info(`[Gemini Vision Dynamic Response Raw] for model ${modelUsed}:`, candidateText);
 
-  if (!candidateText) {
-    throw new Error(`Gemini ingestion LLM (${modelUsed}) returned empty text candidate.`);
+  let cleanJson = candidateText.trim();
+  if (cleanJson.startsWith("```json")) {
+    cleanJson = cleanJson.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+  } else if (cleanJson.startsWith("```")) {
+    cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
   }
 
   let parsed: any;
   try {
-    let cleanJson = candidateText.trim();
-    if (cleanJson.startsWith("```json")) {
-      cleanJson = cleanJson.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-    } else if (cleanJson.startsWith("```")) {
-      cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
-    }
     parsed = JSON.parse(cleanJson);
   } catch (parseErr) {
-    throw new Error(
-      `Failed to parse JSON from Gemini ingestion response: ${candidateText}. Error: ${parseErr}`
-    );
+    console.error("❌ Failed to parse JSON from Gemini vision response:", candidateText);
+    throw new Error(`Failed to parse JSON from Gemini vision response: ${candidateText}`);
   }
 
   // Validate and sanitize extracted fields

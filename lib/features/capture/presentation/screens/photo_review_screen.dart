@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -9,6 +8,7 @@ import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/services/ocr_text_normalizer.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/image_utils.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
@@ -84,13 +84,19 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
     try {
       final newPhoto = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 88,
-        maxWidth: 1800,
+        imageQuality: 80,
+        maxWidth: 1280,
+        maxHeight: 1280,
       );
 
       if (newPhoto != null) {
+        final localFile = await ImageUtils.processAndPersistImageXFile(
+          newPhoto,
+          maxDimension: 1280,
+          quality: 80,
+        );
         setState(() {
-          _currentImage = File(newPhoto.path);
+          _currentImage = localFile;
         });
       }
     } catch (e) {
@@ -166,18 +172,33 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
     AiIngestionResult aiResult = AiIngestionResult.empty(aiStatus: 'pending');
 
     try {
-      // 1. OCR Extraction using Google ML Kit
-      final inputImage = InputImage.fromFile(_currentImage);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final recognizedText = await textRecognizer.processImage(inputImage);
-      await textRecognizer.close();
+      // 1. OCR Extraction using Google ML Kit (isolated so platform errors do not block Gemini Vision)
+      debugPrint('[PhotoReview OCR] Starting text extraction on ${_currentImage.path}...');
+      try {
+        final inputImage = InputImage.fromFile(_currentImage);
+        final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        final recognizedText = await textRecognizer.processImage(inputImage);
+        await textRecognizer.close();
 
-      extractedOcrText = OcrTextNormalizer.normalizeRecognizedText(recognizedText);
+        extractedOcrText = OcrTextNormalizer.normalizeRecognizedText(recognizedText);
+        debugPrint('[PhotoReview OCR] ML Kit extraction successful. Length: ${extractedOcrText.length}');
+        if (extractedOcrText.isNotEmpty) {
+          final sample = extractedOcrText.length > 80
+              ? '${extractedOcrText.substring(0, 80).replaceAll('\n', ' ')}...'
+              : extractedOcrText.replaceAll('\n', ' ');
+          debugPrint('[PhotoReview OCR] Sample text: "$sample"');
+        }
+      } catch (ocrErr, ocrStack) {
+        debugPrint(
+          '[PhotoReview OCR Warning] ML Kit recognition failed or unsupported on this platform: $ocrErr\n$ocrStack. Proceeding to Gemini Vision...',
+        );
+      }
 
       // Check network connectivity before attempting remote Gemini AI call
       final isOnline = widget.isOffline != null
           ? !widget.isOffline!
           : await NetworkChecker.isConnected();
+      debugPrint('[PhotoReview AI] Network check: isOnline=$isOnline');
 
       if (isOnline) {
         if (mounted) {
@@ -186,20 +207,24 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           });
         }
 
-        // 2. Prepare multimodal image representation if size is within reasonable bounds
+        // 2. Prepare multimodal image representation with optimized compression
         String? imageBase64;
         String? mimeType;
         try {
-          final fileSize = await _currentImage.length();
-          // Send base64 if image is under 8MB
-          if (fileSize < 8 * 1024 * 1024) {
-            final imageBytes = await _currentImage.readAsBytes();
-            imageBase64 = base64Encode(imageBytes);
-            final extension = _currentImage.path.split('.').last.toLowerCase();
-            mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+          final prep = await ImageUtils.prepareImageForAi(
+            _currentImage,
+            maxDimension: 1280,
+            quality: 80,
+          );
+          if (prep != null) {
+            imageBase64 = prep.base64;
+            mimeType = prep.mimeType;
+            debugPrint(
+              '[PhotoReview AI] Prepared optimized image payload: ${prep.byteLength} bytes, mime: $mimeType',
+            );
           }
-        } catch (_) {
-          // Fallback to text-only if image reading fails
+        } catch (readErr) {
+          debugPrint('[PhotoReview AI Warning] Could not prepare image file: $readErr');
         }
 
         if (mounted) {
@@ -208,15 +233,32 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           });
         }
 
-        // 3. Process with IngestMemoryUseCase (Supabase Edge Function + Gemini)
+        // 3. Process with IngestMemoryUseCase (Supabase Edge Function + Gemini Vision)
         // Only call AI if we have OCR text or valid image representation
         if (extractedOcrText.isNotEmpty || (imageBase64 != null && imageBase64.isNotEmpty)) {
-          aiResult = await _ingestMemoryUseCase(
-            ocrText: extractedOcrText,
-            imageBase64: imageBase64,
-            mimeType: mimeType,
+          debugPrint(
+            '[PhotoReview AI] Invoking IngestMemoryUseCase (ocrLen=${extractedOcrText.length}, hasImageBase64=${imageBase64 != null})...',
           );
+          try {
+            aiResult = await _ingestMemoryUseCase(
+              ocrText: extractedOcrText,
+              imageBase64: imageBase64,
+              mimeType: mimeType,
+            );
+            debugPrint(
+              '[PhotoReview AI] AI processing succeeded: title="${aiResult.title}", category="${aiResult.category}", tags=${aiResult.tags}, status="${aiResult.aiStatus}", docTextLen=${aiResult.documentText?.length ?? 0}',
+            );
+          } catch (aiErr, aiStack) {
+            debugPrint('❌ AI ANALYSIS ERROR: $aiErr');
+            debugPrint('❌ STACK TRACE: $aiStack');
+            debugPrint('[PhotoReview AI Error] IngestMemoryUseCase invocation failed: $aiErr\n$aiStack');
+            aiResult = AiIngestionResult.empty(
+              rawOcrText: extractedOcrText,
+              aiStatus: 'failed',
+            );
+          }
         } else {
+          debugPrint('[PhotoReview AI Warning] Neither OCR text nor image base64 available for AI processing.');
           aiResult = AiIngestionResult.empty(
             rawOcrText: extractedOcrText,
             aiStatus: 'pending',
@@ -224,16 +266,20 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
         }
       } else {
         // Device is offline: do NOT attempt Gemini / Edge Function call
+        debugPrint('[PhotoReview AI] Device offline. Skipping Gemini Vision call.');
         aiResult = AiIngestionResult.empty(
           rawOcrText: extractedOcrText,
           aiStatus: 'pending',
         );
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ AI ANALYSIS ERROR: $e');
+      debugPrint('❌ STACK TRACE: $stackTrace');
+      debugPrint('[PhotoReview Error] Unexpected error in _usePhoto: $e\n$stackTrace');
       // Zero fake data on error: preserve real image and OCR text
       aiResult = AiIngestionResult.empty(
         rawOcrText: extractedOcrText,
-        aiStatus: 'pending',
+        aiStatus: 'failed',
       );
     } finally {
       final isOffline = widget.isOffline ?? !(await NetworkChecker.isConnected());
@@ -247,11 +293,21 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
           initialTags.add('document');
         }
 
+        final initialContent = aiResult.summary.isNotEmpty
+            ? aiResult.summary
+            : (aiResult.documentText != null && aiResult.documentText!.isNotEmpty
+                ? aiResult.documentText!
+                : extractedOcrText);
+
         final initialTitle = aiResult.title.isNotEmpty
             ? aiResult.title
             : (widget.isDocumentScan
                 ? 'Scanned Document (${DateFormat('MMM d').format(DateTime.now())})'
                 : 'Captured Memory (${DateFormat('MMM d').format(DateTime.now())})');
+
+        debugPrint(
+          '[PhotoReview] Navigating to MemoryReviewScreen: title="$initialTitle", category="${aiResult.category}", tags=$initialTags, contentLen=${initialContent.length}, ocrLen=${extractedOcrText.length}, status="${aiResult.aiStatus}"',
+        );
 
         // Navigate to Memory Review / Edit Screen
         Navigator.of(context).push(
@@ -259,10 +315,10 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
             builder: (_) => MemoryReviewScreen(
               imageFile: _currentImage,
               initialTitle: initialTitle,
-              initialContent: aiResult.summary.isNotEmpty
-                  ? aiResult.summary
-                  : '',
-              rawOcrText: extractedOcrText,
+              initialContent: initialContent,
+              rawOcrText: extractedOcrText.isNotEmpty
+                  ? extractedOcrText
+                  : (aiResult.documentText ?? ''),
               initialCategory: aiResult.category,
               initialTags: initialTags,
               initialSummary: aiResult.summary,
@@ -270,7 +326,7 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
               aiStatus: aiResult.aiStatus,
               createdAt: DateTime.now(),
               isOffline: isOffline,
-              ingestMemoryUseCase: widget.ingestMemoryUseCase,
+              ingestMemoryUseCase: widget.ingestMemoryUseCase ?? _ingestMemoryUseCase,
             ),
           ),
         );

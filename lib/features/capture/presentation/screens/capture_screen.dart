@@ -7,11 +7,11 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/ocr_text_normalizer.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/image_utils.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 
@@ -146,18 +146,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        imageQuality: 85,
-        maxWidth: 1600,
+        imageQuality: 80,
+        maxWidth: 1280,
+        maxHeight: 1280,
       );
 
       if (picked == null) return;
 
-      final appDir = await getApplicationDocumentsDirectory();
-      final fileName =
-          'memory_${DateTime.now().millisecondsSinceEpoch}_${picked.name}';
-      final savedFile = await File(
-        picked.path,
-      ).copy('${appDir.path}/$fileName');
+      final savedFile = await ImageUtils.processAndPersistImageXFile(
+        picked,
+        maxDimension: 1280,
+        quality: 80,
+      );
 
       setState(() {
         _capturedImage = savedFile;
@@ -271,7 +271,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
               : 'Captured Photo (${DateFormat('MMM d').format(DateTime.now())})';
         }
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('[CaptureScreen OCR Error] $e\n$stack');
       // Fallback if MLKit text recognition is unavailable on device
       if (_titleController.text.trim().isEmpty) {
         _titleController.text = isDocumentScan

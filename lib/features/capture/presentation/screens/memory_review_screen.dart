@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/image_utils.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
@@ -271,21 +272,24 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                 .last
                 .toLowerCase();
             mimeType = CaptureRepositoryImpl.resolveMimeType(extension);
+            debugPrint('[MemoryReview AI] Document read: size=$fileSize bytes, mime=$mimeType');
           }
-        } else if (widget.imageFile != null && widget.imageFile!.existsSync()) {
-          final fileSize = widget.imageFile!.lengthSync();
-          if (fileSize < 8 * 1024 * 1024) {
-            final imageBytes = widget.imageFile!.readAsBytesSync();
-            imageBase64 = base64Encode(imageBytes);
-            final extension = widget.imageFile!.path
-                .split('.')
-                .last
-                .toLowerCase();
-            mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+        } else if (widget.imageFile != null) {
+          final prep = await ImageUtils.prepareImageForAi(
+            widget.imageFile!,
+            maxDimension: 1280,
+            quality: 80,
+          );
+          if (prep != null) {
+            imageBase64 = prep.base64;
+            mimeType = prep.mimeType;
+            debugPrint(
+              '[MemoryReview AI] Image prepared for retry: size=${prep.byteLength} bytes, mime=$mimeType',
+            );
           }
         }
-      } catch (_) {
-        // Fallback to text-only if reading file fails
+      } catch (readErr) {
+        debugPrint('[MemoryReview AI Warning] Failed to read media file for retry: $readErr');
       }
 
       final useCase =
@@ -294,11 +298,19 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
             AiRepositoryImpl(remoteDataSource: AiRemoteDataSourceImpl()),
           );
 
+      debugPrint(
+        '[MemoryReview AI] Invoking ingestMemoryUseCase retry: ocrLen=${_rawOcrText.trim().length}, hasImage=${imageBase64 != null}, hasDoc=${documentBase64 != null}',
+      );
+
       final result = await useCase(
         ocrText: _rawOcrText.trim(),
         imageBase64: imageBase64,
         documentBase64: documentBase64,
-        mimeType: mimeType,
+        mimeType: mimeType ?? 'image/jpeg',
+      );
+
+      debugPrint(
+        '[MemoryReview AI] Retry result: status="${result.aiStatus}", title="${result.title}", category="${result.category}", tags=${result.tags}, summaryLen=${result.summary.length}',
       );
 
       final bool isDoc = widget.documentFile != null;
@@ -306,18 +318,31 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           ? (result.aiStatus == 'processed' &&
                 result.documentText != null &&
                 result.documentText!.trim().isNotEmpty)
-          : (result.aiStatus == 'processed');
+          : (result.aiStatus == 'processed' ||
+             result.title.isNotEmpty ||
+             result.summary.isNotEmpty ||
+             result.tags.isNotEmpty);
 
       if (isSuccess && mounted) {
         setState(() {
           _currentAiStatus = 'processed';
-          _selectedCategory = result.category;
-          _currentSummary = result.summary;
-          _currentEntities = result.entities;
+          if (result.category.isNotEmpty) {
+            _selectedCategory = result.category;
+          }
+          if (result.summary.isNotEmpty) {
+            _currentSummary = result.summary;
+          }
+          if (result.entities.isNotEmpty) {
+            _currentEntities = result.entities;
+          }
 
           // Only set title if user has not manually edited it
-          if (!_userEditedTitle && result.title.isNotEmpty) {
-            _titleController.text = result.title;
+          if (!_userEditedTitle) {
+            if (result.title.isNotEmpty) {
+              _titleController.text = result.title;
+            } else if (_titleController.text.trim().isEmpty) {
+              _titleController.text = 'Captured Memory';
+            }
           }
 
           // For documents, if documentText is extracted and content was empty, set it
@@ -328,18 +353,23 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
               _contentController.text = result.documentText!;
             }
           } else {
-            // If content is empty or unedited raw OCR, prefill content with summary
+            // If content is empty or unedited raw OCR, prefill content with summary or documentText
             if ((_contentController.text.trim().isEmpty ||
                     _contentController.text.trim() == _rawOcrText.trim()) &&
-                result.summary.isNotEmpty) {
-              _contentController.text = result.summary;
+                _currentSummary.isNotEmpty) {
+              _contentController.text = _currentSummary;
+            } else if (_contentController.text.trim().isEmpty &&
+                result.documentText != null &&
+                result.documentText!.isNotEmpty) {
+              _contentController.text = result.documentText!;
             }
           }
 
-          // Add meaningful tags
+          // Add meaningful tags with safety check
           for (final tag in result.tags) {
-            if (!_tags.contains(tag)) {
-              _tags.add(tag);
+            final cleanTag = tag.trim();
+            if (!_tags.contains(cleanTag) && cleanTag.isNotEmpty) {
+              _tags.add(cleanTag);
             }
           }
         });
@@ -352,6 +382,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           ),
         );
       } else {
+        debugPrint(
+          '❌ AI ANALYSIS ERROR: AI ingestion returned status "${result.aiStatus}" with title="${result.title}", summary="${result.summary}"',
+        );
         if (mounted) {
           setState(() => _currentAiStatus = 'failed');
           ScaffoldMessenger.of(context).showSnackBar(
@@ -363,7 +396,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           );
         }
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ AI ANALYSIS ERROR: $e');
+      debugPrint('❌ STACK TRACE: $stackTrace');
       if (mounted) {
         setState(() => _currentAiStatus = 'failed');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -489,7 +524,7 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
 
       // For links, preserve the raw URL on line 1, followed by readable content if available.
       // For documents, preserve the exact document text (never overwrite with summary).
-      // For visual memories, preserve user-edited content or AI summary.
+      // For visual memories, preserve user-edited content, OCR text, or AI summary.
       final content = widget.linkUrl != null && widget.linkUrl!.isNotEmpty
           ? ((widget.readableContent != null &&
                     widget.readableContent!.trim().isNotEmpty)
@@ -497,13 +532,17 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                 : widget.linkUrl!)
           : (widget.documentFile != null
                 ? _contentController.text.trim()
-                : (_currentSummary.trim().isNotEmpty
-                      ? _currentSummary.trim()
-                      : (_contentController.text.trim().isNotEmpty &&
-                                _contentController.text.trim() !=
-                                    _rawOcrText.trim()
-                            ? _contentController.text.trim()
-                            : 'Captured Visual Memory')));
+                : (_contentController.text.trim().isNotEmpty
+                      ? _contentController.text.trim()
+                      : (_currentSummary.trim().isNotEmpty
+                            ? _currentSummary.trim()
+                            : (_rawOcrText.trim().isNotEmpty
+                                  ? _rawOcrText.trim()
+                                  : 'Captured Visual Memory'))));
+
+      debugPrint(
+        '[MemoryReview Save] Saving memory: title="$title", category="$_selectedCategory", tags=$_tags, contentLen=${content.length}, aiStatus="$_currentAiStatus", mediaUrl="$persistentMediaUrl"',
+      );
 
       // 2. Persist metadata through the existing repository and data layer
       context.read<CaptureBloc>().add(

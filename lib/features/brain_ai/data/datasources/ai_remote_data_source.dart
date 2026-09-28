@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/constants/supabase_constants.dart';
 
 abstract class AiRemoteDataSource {
   Future<Map<String, dynamic>> invokeIngestion({
@@ -55,18 +57,48 @@ class AiRemoteDataSourceImpl implements AiRemoteDataSource {
       'save_to_db': false, // Analysis only mode for review screen
     };
 
-    final response = await supabase.functions.invoke(
-      'process-ingestion',
-      body: payload,
+    debugPrint(
+      '[AiRemoteDataSource] Invoking process-ingestion: userId=$currentUserId, keys=${recordPayload.keys.toList()}',
     );
 
+    final Map<String, String> headers = {};
+    if (SupabaseConstants.geminiApiKey.isNotEmpty) {
+      headers['x-goog-api-key'] = SupabaseConstants.geminiApiKey;
+    }
+
+    FunctionResponse response;
+    try {
+      response = await supabase.functions.invoke(
+        'process-ingestion',
+        body: payload,
+        headers: headers.isNotEmpty ? headers : null,
+      );
+    } on FunctionException catch (fe) {
+      debugPrint('❌ SUPABASE EDGE FUNCTION ERROR: ${fe.status} - ${fe.details}');
+      debugPrint('❌ FUNCTION EXCEPTION REASON: ${fe.reasonPhrase}');
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ SUPABASE INVOCATION EXCEPTION: $e');
+      rethrow;
+    }
+
     if (response.status != 200) {
+      debugPrint('❌ SUPABASE EDGE FUNCTION ERROR: ${response.status} - ${response.data}');
       throw Exception(
         'AI ingestion failed with HTTP status ${response.status}: ${response.data}',
       );
     }
 
     final data = response.data;
+    debugPrint(
+      '[AiRemoteDataSource] Ingestion success. Status: ${response.status}',
+    );
+
+    if (data is Map && data['success'] == false && data['error'] != null) {
+      debugPrint('❌ API RESPONSE ERROR BODY: ${data['error']}');
+      throw Exception('AI ingestion error: ${data['error']}');
+    }
+
     if (data is Map<String, dynamic>) {
       return data;
     } else if (data is Map) {

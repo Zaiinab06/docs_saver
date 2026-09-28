@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/services/gemini_direct_service.dart';
 import '../../domain/entities/ai_ingestion_result.dart';
 import '../../domain/repositories/ai_repository.dart';
 import '../datasources/ai_remote_data_source.dart';
@@ -21,29 +23,79 @@ class AiRepositoryImpl implements AiRepository {
         (imageBase64 == null || imageBase64.isEmpty) &&
         (documentBase64 == null || documentBase64.isEmpty) &&
         (videoBase64 == null || videoBase64.isEmpty)) {
+      debugPrint('[AiRepository] Ingestion skipped: No OCR text, image, document, or video provided.');
       return AiIngestionResult.empty(rawOcrText: ocrText, aiStatus: 'pending');
     }
 
+    Map<String, dynamic> data = {};
     try {
-      final data = await remoteDataSource.invokeIngestion(
+      debugPrint(
+        '[AiRepository] Invoking remoteDataSource.invokeIngestion (ocrText len=${ocrText.length}, hasImage=${imageBase64 != null}, hasDoc=${documentBase64 != null}, hasVideo=${videoBase64 != null})...',
+      );
+      data = await remoteDataSource.invokeIngestion(
         content: ocrText,
         imageBase64: imageBase64,
         mimeType: mimeType,
         documentBase64: documentBase64,
         videoBase64: videoBase64,
       );
+      debugPrint('[AiRepository] Remote ingestion succeeded. Keys: ${data.keys.toList()}');
+    } catch (edgeError, edgeStack) {
+      debugPrint('❌ SUPABASE EDGE FUNCTION ERROR: $edgeError');
+      debugPrint('❌ EDGE STACK TRACE: $edgeStack');
 
-      final rawTitle = (data['title'] ?? '').toString().trim();
-      final rawCategory = (data['category'] ?? '').toString().trim();
-      final rawSummary = (data['summary'] ?? '').toString().trim();
-      final sanitizedSummary = _sanitizeSemanticSummary(rawSummary);
-      final rawDocumentText = (data['document_text'] ?? '').toString().trim();
+      // Requirement 2: Fallback to Direct Gemini SDK / Service when Edge Function Fails
+      debugPrint('🔄 Attempting Client-Side Gemini Fallback (gemini-1.5-flash)...');
+      try {
+        data = await GeminiDirectService.analyzeDirect(
+          ocrText: ocrText,
+          imageBase64: imageBase64,
+          mimeType: mimeType,
+        );
+        debugPrint('[AiRepository] Client-side Gemini fallback succeeded! Keys: ${data.keys.toList()}');
+      } catch (geminiError, geminiStack) {
+        debugPrint('❌ CLIENT-SIDE GEMINI ERROR: $geminiError');
+        debugPrint('❌ GEMINI STACK TRACE: $geminiStack');
+      }
+    }
+
+    if (data.isEmpty) {
+      debugPrint('❌ [AiRepository] Remote Edge and local Gemini both failed. Returning honest failure.');
+      return AiIngestionResult.empty(rawOcrText: ocrText, aiStatus: 'failed');
+    }
+
+    try {
+
+      // Wrap field parsing in safe fallbacks so missing/empty fields don't mark analysis as failed
+      String rawTitle = '';
+      String rawCategory = '';
+      String rawSummary = '';
+      String sanitizedSummary = '';
+      String rawDocumentText = '';
+      List<String> tags = [];
+      List<LivingEntityItem> entities = [];
+
+      try {
+        rawTitle = (data['title'] ?? '').toString().trim();
+      } catch (_) {}
+
+      try {
+        rawCategory = (data['category'] ?? '').toString().trim();
+      } catch (_) {}
+
+      try {
+        rawSummary = (data['summary'] ?? '').toString().trim();
+        sanitizedSummary = _sanitizeSemanticSummary(rawSummary);
+      } catch (_) {}
+
+      try {
+        rawDocumentText = (data['document_text'] ?? '').toString().trim();
+      } catch (_) {}
 
       // Normalize Category to the 8 official AppStrings categories
       final normalizedCategory = _normalizeCategory(rawCategory);
 
       // Extract and sanitize tags
-      List<String> tags = [];
       const bannedTags = {
         'photo',
         'image',
@@ -54,17 +106,20 @@ class AiRepositoryImpl implements AiRepository {
         'note',
         'picture',
       };
-      if (data['tags'] is List) {
-        final extractedTags = (data['tags'] as List)
-            .map((t) => t.toString().trim().toLowerCase().replaceAll('#', ''))
-            .where((t) => t.length > 1 && !bannedTags.contains(t))
-            .toList();
-        for (final tag in extractedTags) {
-          if (!tags.contains(tag)) {
-            tags.add(tag);
+      try {
+        if (data['tags'] is List) {
+          final extractedTags = (data['tags'] as List)
+              .map((t) => t.toString().trim().toLowerCase().replaceAll('#', ''))
+              .where((t) => t.length > 1 && !bannedTags.contains(t))
+              .toList();
+          for (final tag in extractedTags) {
+            if (!tags.contains(tag)) {
+              tags.add(tag);
+            }
           }
         }
-      }
+      } catch (_) {}
+
       if (((videoBase64 != null && videoBase64.isNotEmpty) ||
               ocrText.toLowerCase().contains('video')) &&
           !tags.contains('video')) {
@@ -72,32 +127,61 @@ class AiRepositoryImpl implements AiRepository {
       }
 
       // Extract Living Memory entities
-      List<LivingEntityItem> entities = [];
-      if (data['entities'] is List) {
-        for (final item in data['entities'] as List) {
-          if (item is Map) {
-            entities.add(
-              LivingEntityItem.fromMap(Map<String, dynamic>.from(item)),
-            );
+      try {
+        if (data['entities'] is List) {
+          for (final item in data['entities'] as List) {
+            if (item is Map) {
+              entities.add(
+                LivingEntityItem.fromMap(Map<String, dynamic>.from(item)),
+              );
+            }
           }
+        }
+      } catch (_) {}
+
+      // Fallback title if AI returned an empty string
+      String resolvedTitle = rawTitle;
+      if (resolvedTitle.isEmpty) {
+        if (rawDocumentText.isNotEmpty) {
+          resolvedTitle = 'Document Note';
+        } else if (videoBase64 != null && videoBase64.isNotEmpty) {
+          resolvedTitle = 'Video Memory';
+        } else if (imageBase64 != null && imageBase64.isNotEmpty) {
+          resolvedTitle = 'Visual Memory';
+        } else if (ocrText.isNotEmpty) {
+          resolvedTitle = 'Captured Note';
+        } else {
+          resolvedTitle = 'Captured Memory';
         }
       }
 
-      final aiStatus = (data['ai_status'] ?? 'processed').toString();
+      // Fallback summary if AI returned empty string
+      String resolvedSummary = sanitizedSummary;
+      if (resolvedSummary.isEmpty && ocrText.isNotEmpty) {
+        resolvedSummary = ocrText;
+      }
+
+      String aiStatus = (data['ai_status'] ?? 'processed').toString();
+      if (aiStatus.isEmpty || aiStatus == 'pending') {
+        if (resolvedTitle.isNotEmpty || tags.isNotEmpty || resolvedSummary.isNotEmpty) {
+          aiStatus = 'processed';
+        }
+      }
 
       return AiIngestionResult(
-        title: rawTitle,
+        title: resolvedTitle,
         category: normalizedCategory,
         tags: tags,
-        summary: sanitizedSummary,
+        summary: resolvedSummary,
         entities: entities,
         aiStatus: aiStatus.isEmpty ? 'processed' : aiStatus,
         rawOcrText: ocrText,
         documentText: rawDocumentText.isNotEmpty ? rawDocumentText : null,
       );
-    } catch (_) {
-      // ZERO FABRICATED DATA: Return empty/pending if remote AI call fails
-      return AiIngestionResult.empty(rawOcrText: ocrText, aiStatus: 'pending');
+    } catch (e, stackTrace) {
+      debugPrint('❌ AI ANALYSIS ERROR: $e');
+      debugPrint('❌ STACK TRACE: $stackTrace');
+      return AiIngestionResult.empty(rawOcrText: ocrText, aiStatus: 'failed');
     }
   }
 

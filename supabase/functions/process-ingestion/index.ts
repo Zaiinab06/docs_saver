@@ -3,6 +3,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import {
   analyzeMemoryContent,
   generateEmbedding,
+  getGeminiApiKey,
 } from "../_shared/gemini.ts";
 
 /**
@@ -117,6 +118,8 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   },
 });
 
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
 async function authenticateRequest(req: Request): Promise<{
   userId: string;
   authHeader: string;
@@ -129,6 +132,15 @@ async function authenticateRequest(req: Request): Promise<{
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
     return null;
+  }
+
+  // Allow requests signed with anon key, publishable key, or service role key
+  if (
+    (supabaseAnonKey && token === supabaseAnonKey) ||
+    (supabaseServiceRoleKey && token === supabaseServiceRoleKey) ||
+    token.startsWith("sb_publishable_")
+  ) {
+    return { userId: "anonymous_client", authHeader };
   }
 
   const {
@@ -213,6 +225,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const signal = timeoutController.signal;
+    const clientGeminiApiKey = req.headers.get("x-goog-api-key");
 
     // MAINTENANCE ACTION: Safe Server-Side Re-Embedding of Existing Memories
     if (body.action === "reembed_all" || body.reembed_all === true) {
@@ -253,7 +266,14 @@ Deno.serve(async (req: Request) => {
     let existingEmbedding: any = null;
     let existingAiStatus: string | null = null;
 
-    if (requestedUserId && String(requestedUserId) !== authenticatedUserId) {
+    if (
+      saveToDb &&
+      authenticatedUserId !== "anonymous_client" &&
+      requestedUserId &&
+      requestedUserId !== "anonymous_client" &&
+      requestedUserId !== "local_user" &&
+      String(requestedUserId) !== authenticatedUserId
+    ) {
       return new Response(
         JSON.stringify({ error: "Forbidden: user_id does not match the authenticated user." }),
         {
@@ -532,7 +552,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Fast Ingestion LLM (gemini-3.5-flash-lite)
+    // Fast Ingestion LLM (gemini-1.5-flash)
     const analysisResult = await analyzeMemoryContent(
       {
         title: recordToProcess.title,
@@ -542,6 +562,7 @@ Deno.serve(async (req: Request) => {
         documentBase64: recordToProcess.document_base64,
         videoBase64: recordToProcess.video_base64,
         mimeType: recordToProcess.mime_type,
+        apiKey: clientGeminiApiKey,
       },
       signal
     );
