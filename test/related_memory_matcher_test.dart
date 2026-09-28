@@ -8,6 +8,7 @@ MemoryEntity memory({
   required String title,
   required String category,
   List<String> tags = const [],
+  List<double>? embedding,
   required DateTime createdAt,
 }) {
   return MemoryEntity(
@@ -17,6 +18,7 @@ MemoryEntity memory({
     category: category,
     tags: tags,
     content: title,
+    embedding: embedding,
     clientCreatedAt: createdAt,
     clientUpdatedAt: createdAt,
     serverUpdatedAt: createdAt,
@@ -241,4 +243,79 @@ void main() {
       expect(result.map((item) => item.id), ['report-1', 'report-2']);
     },
   );
+
+  test('matches candidates with vector cosine similarity >= 0.65', () {
+    final source = memory(
+      id: 'vec-source',
+      userId: 'user-a',
+      title: 'Machine learning fundamentals',
+      category: 'Study',
+      embedding: const [1.0, 0.0, 0.0],
+      createdAt: baseDate,
+    );
+    final closeCandidate = memory(
+      id: 'vec-match',
+      userId: 'user-a',
+      title: 'Deep learning concepts',
+      category: 'Work',
+      // Cosine similarity with [1, 0, 0] is 0.8 / sqrt(0.8^2 + 0.6^2) = 0.8 / 1.0 = 0.80 (> 0.65)
+      embedding: const [0.8, 0.6, 0.0],
+      createdAt: baseDate.subtract(const Duration(days: 1)),
+    );
+    final distantCandidate = memory(
+      id: 'vec-distant',
+      userId: 'user-a',
+      title: 'Baking sourdough bread',
+      category: 'Food',
+      // Cosine similarity with [1, 0, 0] is 0.1 / sqrt(0.1^2 + 0.99^2) ~= 0.1 (< 0.65)
+      embedding: const [0.1, 0.99, 0.0],
+      createdAt: baseDate.subtract(const Duration(days: 2)),
+    );
+
+    final matches = matcher.matches(
+      memory: source,
+      candidates: [closeCandidate, distantCandidate],
+      userId: 'user-a',
+    );
+
+    expect(matches.map((m) => m.memory.id), ['vec-match']);
+    expect(matches.single.similarity, closeTo(0.80, 0.01));
+  });
+
+  test('returns empty list and avoids arbitrary defaults when no semantic match exists', () {
+    final source = memory(
+      id: 'isolated-memory',
+      userId: 'user-a',
+      title: 'Isolated topic',
+      category: 'General',
+      tags: const [],
+      createdAt: baseDate,
+    );
+    final arbitraryCandidate1 = memory(
+      id: 'arbitrary-1',
+      userId: 'user-a',
+      title: 'Completely different item',
+      category: 'Work',
+      tags: const ['different'],
+      createdAt: baseDate.subtract(const Duration(days: 1)),
+    );
+    final arbitraryCandidate2 = memory(
+      id: 'arbitrary-2',
+      userId: 'user-a',
+      title: 'Another unrelated note',
+      category: 'Personal',
+      tags: const ['random'],
+      createdAt: baseDate.subtract(const Duration(days: 2)),
+    );
+
+    final matches = matcher.matches(
+      memory: source,
+      candidates: [arbitraryCandidate1, arbitraryCandidate2],
+      userId: 'user-a',
+    );
+
+    // Strict relevance: MUST be empty, never picking the first memory arbitrarily
+    expect(matches, isEmpty);
+  });
 }
+

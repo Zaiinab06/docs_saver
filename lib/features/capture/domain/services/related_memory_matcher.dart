@@ -1,7 +1,11 @@
+import 'dart:math' as math;
 import '../entities/memory_entity.dart';
 
 class RelatedMemoryMatcher {
   const RelatedMemoryMatcher();
+
+  /// Minimum cosine similarity threshold for vector-based semantic relevance.
+  static const double minCosineSimilarityThreshold = 0.65;
 
   static const _nonSemanticTags = {
     'audio',
@@ -21,6 +25,24 @@ class RelatedMemoryMatcher {
     'travel',
     'work',
   };
+
+  /// Calculates cosine similarity between two embedding vectors.
+  /// Returns 0.0 if either vector is null, empty, or dimensions do not match.
+  static double cosineSimilarity(List<double>? a, List<double>? b) {
+    if (a == null || b == null || a.isEmpty || b.isEmpty || a.length != b.length) {
+      return 0.0;
+    }
+    double dotProduct = 0.0;
+    double normA = 0.0;
+    double normB = 0.0;
+    for (int i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    if (normA <= 0.0 || normB <= 0.0) return 0.0;
+    return dotProduct / (math.sqrt(normA) * math.sqrt(normB));
+  }
 
   List<MemoryEntity> find({
     required MemoryEntity memory,
@@ -63,16 +85,30 @@ class RelatedMemoryMatcher {
               final sameCategory =
                   memory.category.isNotEmpty &&
                   _normalize(memory.category) == _normalize(candidate.category);
-              final score = (sharedTags.length * 3) + (sameCategory ? 1 : 0);
+              final similarity = cosineSimilarity(
+                memory.embedding,
+                candidate.embedding,
+              );
+
+              final vectorScore =
+                  similarity >= minCosineSimilarityThreshold
+                      ? (similarity * 10).round()
+                      : 0;
+              final tagScore = sharedTags.length * 3;
+              final categoryScore = sameCategory ? 1 : 0;
+              final score = vectorScore + tagScore + categoryScore;
+
               return RelatedMemoryMatch(
                 memory: candidate,
                 sharedTags: sharedTags,
                 sameCategory: sameCategory,
+                similarity: similarity,
                 score: score,
               );
             })
             .where(
               (match) =>
+                  match.similarity >= minCosineSimilarityThreshold ||
                   match.sharedTags.length >= 2 ||
                   (match.sharedTags.isNotEmpty && match.sameCategory),
             )
@@ -100,12 +136,14 @@ class RelatedMemoryMatch {
   final MemoryEntity memory;
   final Set<String> sharedTags;
   final bool sameCategory;
+  final double similarity;
   final int score;
 
   const RelatedMemoryMatch({
     required this.memory,
     required this.sharedTags,
     required this.sameCategory,
+    this.similarity = 0.0,
     required this.score,
   });
 }

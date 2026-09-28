@@ -11,7 +11,6 @@ import '../../../../core/services/isar_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
-import '../../domain/services/related_memory_matcher.dart';
 import '../bloc/capture_bloc.dart';
 import '../bloc/capture_event.dart';
 import '../bloc/capture_state.dart';
@@ -172,113 +171,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     }
   }
 
-  List<RelatedMemoryMatch> _findRelatedMemoryMatches(MemoryEntity memory) {
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null || currentUserId != memory.userId) {
-        return const [];
-      }
 
-      final bloc = context.read<CaptureBloc>();
-      if (bloc.state is! CaptureLoaded) {
-        return const [];
-      }
-
-      return const RelatedMemoryMatcher().matches(
-        memory: memory,
-        candidates: (bloc.state as CaptureLoaded).memories,
-        userId: currentUserId,
-      );
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  Widget _buildRelatedMemoriesSection(List<RelatedMemoryMatch> matches) {
-    if (matches.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.chipInactiveBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                Icon(Icons.link_rounded, color: AppColors.primary, size: 18),
-                SizedBox(width: 8),
-                Text(
-                  'Related memories',
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.chipInactiveBorder),
-          ...matches.map((match) {
-            final relatedMemory = match.memory;
-            // Build a human-readable match reason
-            final String matchReason;
-            if (match.sharedTags.isNotEmpty) {
-              final tagList = match.sharedTags.take(3).join(', ');
-              matchReason = 'Shared: $tagList';
-            } else if (match.sameCategory) {
-              matchReason = 'Same category: ${relatedMemory.category}';
-            } else {
-              matchReason = relatedMemory.category;
-            }
-
-            return ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              title: Text(
-                relatedMemory.title.isEmpty
-                    ? 'Untitled memory'
-                    : relatedMemory.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              subtitle: Text(
-                matchReason,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => MemoryDetailScreen(
-                      memoryId: relatedMemory.id,
-                      initialMemory: relatedMemory,
-                    ),
-                  ),
-                );
-              },
-            );
-          }),
-        ],
-      ),
-    );
-  }
 
   String _formatOcrTextForPresentation(String text) {
     if (text.trim().isEmpty) return '(No additional text content recorded)';
@@ -1301,7 +1194,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     }
 
     final memory = _memory!;
-    final relatedMatches = _findRelatedMemoryMatches(memory);
     final categoryTheme = _getCategoryTheme(memory.category);
     final formattedDate = DateFormat(
       'MMM d, yyyy • h:mm a',
@@ -2051,9 +1943,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 ),
                 const SizedBox(height: 20),
               ],
-
-              _buildRelatedMemoriesSection(relatedMatches),
-              if (relatedMatches.isNotEmpty) const SizedBox(height: 20),
 
               // 7. Tags Card (VERY LAST section, always expanded)
               if (memory.tags.isNotEmpty) ...[
