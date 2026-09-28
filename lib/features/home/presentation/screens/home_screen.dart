@@ -2818,11 +2818,37 @@ class HomeScreenState extends State<HomeScreen> {
         key: Key('home_category_section_${section.id}'),
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CategoryDetailScreen(
+            PageRouteBuilder(
+              transitionDuration: const Duration(milliseconds: 300),
+              reverseTransitionDuration: const Duration(milliseconds: 240),
+              pageBuilder: (_, __, ___) => CategoryDetailScreen(
                 section: section,
                 onCaptureTap: openCaptureBottomSheet,
               ),
+              transitionsBuilder: (_, animation, __, child) {
+                final curvedSlide = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                );
+                final curvedFade = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                  reverseCurve: Curves.easeIn,
+                );
+
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.06, 0.0),
+                    end: Offset.zero,
+                  ).animate(curvedSlide),
+                  child: FadeTransition(
+                    opacity:
+                        Tween<double>(begin: 0.0, end: 1.0).animate(curvedFade),
+                    child: child,
+                  ),
+                );
+              },
             ),
           );
         },

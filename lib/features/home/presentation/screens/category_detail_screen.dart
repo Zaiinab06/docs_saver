@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../capture/presentation/bloc/capture_bloc.dart';
+import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
 import '../../../capture/presentation/widgets/bill_template_sheet.dart';
 import '../../domain/models/category_section.dart';
 import 'category_memories_screen.dart';
 
-class CategoryDetailScreen extends StatelessWidget {
+class CategoryDetailScreen extends StatefulWidget {
   final CategorySectionItem section;
   final void Function(CategoryCardItem category)? onCategoryTap;
   final VoidCallback? onCaptureTap;
@@ -19,17 +22,111 @@ class CategoryDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<CategoryDetailScreen> createState() => _CategoryDetailScreenState();
+}
+
+class _CategoryDetailScreenState extends State<CategoryDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    final itemCount = widget.section.categories.length;
+    // 50ms stagger per item with a baseline duration for smooth fluid entrance
+    final totalDurationMs = 280 + (itemCount * 50);
+    _animController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: totalDurationMs),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesCategory(String memoryCategory, String targetCategoryName) {
+    final mem = memoryCategory.trim().toLowerCase();
+    final target = targetCategoryName.trim().toLowerCase();
+    if (mem == target) return true;
+
+    if (target.contains('&')) {
+      final parts = target
+          .split('&')
+          .map((s) => s.trim().toLowerCase())
+          .where((s) => s.isNotEmpty);
+      for (final part in parts) {
+        if (mem == part || mem.contains(part)) return true;
+      }
+    }
+
+    if (target.contains(mem) || mem.contains(target)) return true;
+
+    return false;
+  }
+
+  void _navigateToCategory(BuildContext context, CategoryCardItem category) {
+    if (widget.onCategoryTap != null) {
+      widget.onCategoryTap!(category);
+    } else {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 240),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              CategoryMemoriesScreen(
+            category: category,
+            onCaptureTap: widget.onCaptureTap,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curvedSlide = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            final curvedFade = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOut,
+              reverseCurve: Curves.easeIn,
+            );
+
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.06, 0.0),
+                end: Offset.zero,
+              ).animate(curvedSlide),
+              child: FadeTransition(
+                opacity:
+                    Tween<double>(begin: 0.0, end: 1.0).animate(curvedFade),
+                child: child,
+              ),
+            );
+          },
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        toolbarHeight: 68,
+        toolbarHeight: 112,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(32),
+            bottomRight: Radius.circular(32),
+          ),
+        ),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
@@ -44,9 +141,9 @@ class CategoryDetailScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          section.title,
+          widget.section.title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
             color: AppColors.textWhite,
             letterSpacing: -0.3,
@@ -54,15 +151,19 @@ class CategoryDetailScreen extends StatelessWidget {
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: AppColors.headerGradient,
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
+            ),
             borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+              bottomLeft: Radius.circular(32),
+              bottomRight: Radius.circular(32),
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.22),
-                blurRadius: 16,
+                color: const Color(0xFF2C1E52).withValues(alpha: 0.28),
+                blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
             ],
@@ -73,61 +174,64 @@ class CategoryDetailScreen extends StatelessWidget {
         top: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          padding: const EdgeInsets.only(top: 20, bottom: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Subtle badge with section icon and category count
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.toggleBackgroundOf(context),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.borderOf(context),
-                    width: 1.0,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.toggleBackgroundOf(context),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.borderOf(context),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.section.icon,
+                        size: 15,
+                        color: AppColors.violetTwilight500,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${widget.section.categories.length} Categories',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryOf(context),
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      section.icon,
-                      size: 15,
-                      color: AppColors.violetTwilight500,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${section.categories.length} Categories',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondaryOf(context),
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // Responsive 2-column grid of premium rounded category cards
-              GridView.builder(
+              // Vertical list of animated full-width modern cards
+              ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: 1.02,
-                ),
-                itemCount: section.categories.length,
+                itemCount: widget.section.categories.length,
+                separatorBuilder: (_, __) => const SizedBox.shrink(),
                 itemBuilder: (context, index) {
-                  final category = section.categories[index];
-                  return _buildCategoryCard(context, category, isDark);
+                  final category = widget.section.categories[index];
+                  return _buildAnimatedCategoryCard(
+                    context,
+                    category,
+                    index,
+                    isDark,
+                  );
                 },
               ),
             ],
@@ -137,170 +241,366 @@ class CategoryDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(
+  Widget _buildAnimatedCategoryCard(
     BuildContext context,
     CategoryCardItem category,
+    int index,
     bool isDark,
   ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          if (onCategoryTap != null) {
-            onCategoryTap!(category);
-          } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CategoryMemoriesScreen(
-                  category: category,
-                  onCaptureTap: onCaptureTap,
-                ),
-              ),
-            );
-          }
-        },
+    final totalItems = widget.section.categories.length;
+    final totalDurationMs = 280 + (totalItems * 50);
+    final startFraction = (index * 50) / totalDurationMs;
+    final endFraction = ((index * 50) + 260) / totalDurationMs;
+
+    final curvedAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Interval(
+        startFraction.clamp(0.0, 1.0),
+        endFraction.clamp(0.0, 1.0),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    return AnimatedBuilder(
+      animation: curvedAnimation,
+      builder: (context, child) {
+        final progress = curvedAnimation.value;
+        return Opacity(
+          opacity: progress,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1.0 - progress)),
+            child: child,
+          ),
+        );
+      },
+      child: _BouncingTapCard(
+        onTap: () => _navigateToCategory(context, category),
         borderRadius: BorderRadius.circular(18),
         child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
             color: isDark
                 ? AppColors.darkCardBackground
-                : category.backgroundColor,
+                : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isDark
-                  ? category.iconColor.withValues(alpha: 0.3)
-                  : category.borderColor,
+                  ? category.iconColor.withValues(alpha: 0.25)
+                  : const Color(0xFFEBE6F5),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.violetTwilight500.withValues(alpha: 0.05),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.22)
+                    : AppColors.violetTwilight500.withValues(alpha: 0.05),
                 blurRadius: 10,
-                offset: const Offset(0, 4),
+                offset: const Offset(0, 3),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkBackground
-                      : category.iconBackgroundColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.violetTwilight500.withValues(
-                        alpha: 0.06,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                // Leading: Category icon inside a neat rounded-rect container
+                Hero(
+                  tag: 'category_icon_${category.name}',
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? category.iconColor.withValues(alpha: 0.16)
+                          : category.iconBackgroundColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark
+                            ? category.iconColor.withValues(alpha: 0.3)
+                            : category.borderColor,
+                        width: 1.0,
                       ),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: Icon(
-                    category.icon,
-                    size: 22,
-                    color: category.iconColor,
+                    child: Center(
+                      child: Icon(
+                        category.icon,
+                        size: 24,
+                        color: category.iconColor,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                category.name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(width: 14),
+
+                // Center: Title + Subtitle / Extra actions
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        category.name,
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.violetTwilight900,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildSubtitle(context, category, isDark),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Trailing: Subtle right arrow
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
                   color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.violetTwilight800,
-                  letterSpacing: -0.2,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (category.isCardTemplate) ...[
-                const SizedBox(height: 6),
-                InkWell(
-                  key: Key('detail_add_card_${category.name}'),
-                  onTap: () => BankCardTemplateSheet.show(context),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_rounded,
-                          size: 12,
-                          color: AppColors.primary,
-                        ),
-                        SizedBox(width: 2),
-                        Text(
-                          'Add Card',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ] else if (category.isBillTemplate) ...[
-                const SizedBox(height: 6),
-                InkWell(
-                  key: Key('detail_add_bill_${category.name}'),
-                  onTap: () => BillTemplateSheet.show(context),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_rounded,
-                          size: 12,
-                          color: AppColors.primary,
-                        ),
-                        SizedBox(width: 2),
-                        Text(
-                          'Add Bill',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ? AppColors.darkTextSecondary.withValues(alpha: 0.5)
+                      : const Color(0xFF9E92B3),
                 ),
               ],
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubtitle(
+    BuildContext context,
+    CategoryCardItem category,
+    bool isDark,
+  ) {
+    if (category.isCardTemplate) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            key: Key('detail_add_card_${category.name}'),
+            onTap: () => BankCardTemplateSheet.show(context),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.add_rounded,
+                    size: 12,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 3),
+                  Text(
+                    'Add Card',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildMemoryCountBadge(context, category, isDark),
+        ],
+      );
+    } else if (category.isBillTemplate) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            key: Key('detail_add_bill_${category.name}'),
+            onTap: () => BillTemplateSheet.show(context),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.add_rounded,
+                    size: 12,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 3),
+                  Text(
+                    'Add Bill',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildMemoryCountBadge(context, category, isDark),
+        ],
+      );
+    }
+
+    return _buildMemoryCountBadge(context, category, isDark);
+  }
+
+  Widget _buildMemoryCountBadge(
+    BuildContext context,
+    CategoryCardItem category,
+    bool isDark,
+  ) {
+    CaptureBloc? bloc;
+    try {
+      bloc = context.read<CaptureBloc>();
+    } catch (_) {
+      bloc = null;
+    }
+
+    if (bloc == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkBackground : const Color(0xFFF1EEF9),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          '0 memories',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : const Color(0xFF6B5E87),
+            letterSpacing: -0.1,
+          ),
+        ),
+      );
+    }
+
+    return BlocBuilder<CaptureBloc, CaptureState>(
+      bloc: bloc,
+      builder: (context, state) {
+        int count = 0;
+        if (state is CaptureLoaded) {
+          count = state.memories
+              .where((m) => _matchesCategory(m.category, category.name))
+              .length;
+        }
+
+        final countText = count > 0
+            ? '$count ${count == 1 ? 'memory' : 'memories'}'
+            : '0 memories';
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkBackground : const Color(0xFFF1EEF9),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            countText,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : const Color(0xFF6B5E87),
+              letterSpacing: -0.1,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Interactive feedback widget providing subtle scale-down on tap with ripple feedback
+class _BouncingTapCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final BorderRadius borderRadius;
+
+  const _BouncingTapCard({
+    required this.child,
+    required this.onTap,
+    required this.borderRadius,
+  });
+
+  @override
+  State<_BouncingTapCard> createState() => _BouncingTapCardState();
+}
+
+class _BouncingTapCardState extends State<_BouncingTapCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 90),
+      reverseDuration: const Duration(milliseconds: 130),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.975).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) => Transform.scale(
+        scale: _scaleAnimation.value,
+        child: child,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHighlightChanged: (isHighlighted) {
+            if (isHighlighted) {
+              _controller.forward();
+            } else {
+              _controller.reverse();
+            }
+          },
+          borderRadius: widget.borderRadius,
+          splashColor: AppColors.primary.withValues(alpha: 0.08),
+          highlightColor: AppColors.primary.withValues(alpha: 0.04),
+          child: widget.child,
         ),
       ),
     );

@@ -608,23 +608,27 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkBackground
-                    : category.iconBackgroundColor,
-                shape: BoxShape.circle,
-                border: Border.all(
+            Hero(
+              tag: 'category_icon_${category.name}',
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
                   color: isDark
-                      ? category.iconColor.withValues(alpha: 0.3)
-                      : category.borderColor,
-                  width: 1,
+                      ? AppColors.darkBackground
+                      : category.iconBackgroundColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark
+                        ? category.iconColor.withValues(alpha: 0.3)
+                        : category.borderColor,
+                    width: 1,
+                  ),
                 ),
-              ),
-              child: Center(
-                child: Icon(category.icon, size: 16, color: category.iconColor),
+                child: Center(
+                  child:
+                      Icon(category.icon, size: 16, color: category.iconColor),
+                ),
               ),
             ),
             const SizedBox(width: 10),
