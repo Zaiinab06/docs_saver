@@ -35,13 +35,13 @@ import '../../../../core/utils/image_utils.dart';
 import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/file_picker_service.dart';
+import '../../../../core/services/google_drive_service.dart';
 import '../../../../core/utils/google_docs_link_extractor.dart';
 import '../../../../core/utils/google_drive_link_extractor.dart';
 import '../../../../core/utils/link_metadata_extractor.dart';
 import '../../../integrations/data/datasources/google_auth_remote_data_source.dart';
 import '../../../integrations/data/repositories/google_auth_repository_impl.dart';
 import '../../../integrations/domain/entities/google_doc_entity.dart';
-import '../../../integrations/domain/entities/google_integration_status.dart';
 import '../../../integrations/domain/repositories/google_auth_repository.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
@@ -175,10 +175,16 @@ class HomeScreenState extends State<HomeScreen> {
             return;
           }
 
+          final accessToken = uri.queryParameters['access_token'];
+          if (accessToken != null && accessToken.isNotEmpty) {
+            GoogleDriveService.cachedAccessToken = accessToken;
+          }
+
           if (pickedFileId != null && pickedFileId.isNotEmpty) {
             _handleGoogleDocsImport(
               pickedFileId,
               GoogleDriveLinkExtractor.toCanonicalUrl(pickedFileId),
+              accessToken: accessToken,
             );
           }
         }
@@ -187,19 +193,8 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openGooglePicker() async {
-    final isOnline = await NetworkChecker.isConnected();
-    if (!isOnline) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Internet connection required for Google Drive.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-
+    // Clear any cached access token to force re-consent for updated Drive scopes
+    GoogleDriveService.clearSession();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -225,7 +220,8 @@ class HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ GOOGLE DRIVE IMPORT ERROR: $e \n$stackTrace');
       if (mounted) {
         final cleanMsg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1823,25 +1819,17 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _handleGoogleDocsImport(String fileId, String rawUrl) async {
-    final isOnline = await NetworkChecker.isConnected();
-    if (!isOnline) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Internet connection required to import Google Docs.',
-            ),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
+  Future<void> _handleGoogleDocsImport(
+    String fileId,
+    String rawUrl, {
+    String? accessToken,
+  }) async {
+    if (!mounted) return;
+    if (accessToken != null && accessToken.isNotEmpty) {
+      GoogleDriveService.cachedAccessToken = accessToken;
     }
 
-    if (!mounted) return;
-    String loadingStatus = 'Connecting to Google Drive...';
+    String loadingStatus = 'Importing Google Doc...';
     StateSetter? dialogSetState;
 
     showDialog(
@@ -1889,37 +1877,11 @@ class HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    try {
-      final status = await _effectiveGoogleAuthRepository.getStatus();
-      if (status.state != GoogleConnectionState.connected) {
-        if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
-          Navigator.of(context, rootNavigator: true).pop();
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Google Drive is not connected. Please connect your Google account in Settings.',
-              ),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-        return;
-      }
-    } catch (_) {}
-
-    if (dialogSetState != null && mounted) {
-      dialogSetState!(() {
-        loadingStatus = 'Importing Google Drive file...';
-      });
-    }
-
     GoogleDocEntity doc;
     try {
       doc = await _effectiveGoogleAuthRepository.importDoc(fileId);
-    } on GoogleDocsImportException catch (e) {
+    } on GoogleDocsImportException catch (e, stackTrace) {
+      debugPrint('❌ GOOGLE DRIVE IMPORT ERROR: $e \n$stackTrace');
       if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
       }
@@ -1931,14 +1893,17 @@ class HomeScreenState extends State<HomeScreen> {
                 'File not found or not accessible under current Google Drive permissions. Please use "Choose from Google Drive" to select and authorize the file.';
             break;
           case 'PERMISSION_DENIED':
+            GoogleDriveService.clearSession();
             userMessage =
                 'Permission denied. Your Google account does not have access to this document.';
             break;
           case 'TOKEN_REVOKED':
+            GoogleDriveService.clearSession();
             userMessage =
                 'Google authorization expired or was revoked. Please reconnect in Settings.';
             break;
           case 'GOOGLE_NOT_CONNECTED':
+          case 'NOT_CONNECTED':
             userMessage =
                 'Google Drive is not connected. Please connect your Google account in Settings.';
             break;
@@ -1984,7 +1949,8 @@ class HomeScreenState extends State<HomeScreen> {
         );
       }
       return;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ GOOGLE DRIVE IMPORT ERROR: $e \n$stackTrace');
       if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
       }

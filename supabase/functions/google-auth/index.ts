@@ -474,7 +474,10 @@ Deno.serve(async (req: Request) => {
             provider: "google_drive",
             account_email: finalEmail,
             account_name: finalName,
-            scopes: ["https://www.googleapis.com/auth/drive.file"],
+            scopes: [
+              "https://www.googleapis.com/auth/drive.readonly",
+              "https://www.googleapis.com/auth/drive.file",
+            ],
             status: "connected",
             vault_refresh_token_id: vaultSecretId,
             updated_at: new Date().toISOString(),
@@ -489,8 +492,11 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Success: redirect to app with status-only deep link (ZERO codes or tokens in deep link)
+      // Success: redirect to app with status and optional access_token & picked_file_id
       let redirectUrl = "secondbrain://oauth/callback?status=success";
+      if (tokenData?.access_token) {
+        redirectUrl += `&access_token=${encodeURIComponent(tokenData.access_token)}`;
+      }
       if (pickedFileIds) {
         const firstPicked = pickedFileIds.split(",")[0].trim();
         if (firstPicked) {
@@ -674,20 +680,15 @@ Deno.serve(async (req: Request) => {
       authUrl.searchParams.set(
         "scope",
         isPicker
-          ? "https://www.googleapis.com/auth/drive.file"
-          : "https://www.googleapis.com/auth/drive.file email profile"
+          ? "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file"
+          : "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file email profile"
       );
       authUrl.searchParams.set("code_challenge", codeChallenge);
       authUrl.searchParams.set("code_challenge_method", "S256");
       authUrl.searchParams.set("state", stateToken);
       authUrl.searchParams.set("access_type", "offline");
-      // Google requires prompt=consent for the desktop/mobile Picker flow,
-      // including accounts that already have a valid Drive connection.
-      if (isPicker || !hasValidConnection) {
-        authUrl.searchParams.set("prompt", "consent");
-      } else if (!isPicker) {
-        authUrl.searchParams.set("prompt", "none");
-      }
+      // Force prompt=consent so that any new scopes (drive.readonly) are granted by the user
+      authUrl.searchParams.set("prompt", "consent");
       if (isPicker) {
         authUrl.searchParams.set("trigger_onepick", "true");
       }
@@ -1182,6 +1183,22 @@ Deno.serve(async (req: Request) => {
             );
           }
           exportedText = await resp.text();
+
+          // Also export as application/pdf for multimodal indexing
+          try {
+            const pdfExportUrl = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export`);
+            pdfExportUrl.searchParams.set("mimeType", "application/pdf");
+            const pdfResp = await fetch(pdfExportUrl.toString(), {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (pdfResp.ok) {
+              const pdfBytes = new Uint8Array(await pdfResp.arrayBuffer());
+              if (pdfBytes.byteLength <= maxAllowedBytes) {
+                mediaBase64 = uint8ArrayToBase64(pdfBytes);
+                mediaType = "pdf";
+              }
+            }
+          } catch (_) {}
         } else if (resolvedMime === "application/vnd.google-apps.spreadsheet") {
           extractionMethod = "google_sheets_export";
           const exportUrl = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export`);
@@ -1199,6 +1216,22 @@ Deno.serve(async (req: Request) => {
             );
           }
           exportedText = await resp.text();
+
+          // Also export as application/pdf
+          try {
+            const pdfExportUrl = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export`);
+            pdfExportUrl.searchParams.set("mimeType", "application/pdf");
+            const pdfResp = await fetch(pdfExportUrl.toString(), {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (pdfResp.ok) {
+              const pdfBytes = new Uint8Array(await pdfResp.arrayBuffer());
+              if (pdfBytes.byteLength <= maxAllowedBytes) {
+                mediaBase64 = uint8ArrayToBase64(pdfBytes);
+                mediaType = "pdf";
+              }
+            }
+          } catch (_) {}
         } else if (resolvedMime === "application/vnd.google-apps.presentation") {
           extractionMethod = "google_slides_export";
           const exportUrl = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export`);
@@ -1221,7 +1254,10 @@ Deno.serve(async (req: Request) => {
         else {
           const downloadUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
           const downloadResp = await fetch(downloadUrl, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: "*/*",
+            },
           });
 
           if (!downloadResp.ok) {

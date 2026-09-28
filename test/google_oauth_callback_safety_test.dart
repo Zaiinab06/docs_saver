@@ -87,7 +87,10 @@ class CallbackSafetyHandler {
       'provider': 'google_drive',
       'account_email': finalEmail,
       'account_name': finalName,
-      'scopes': ['https://www.googleapis.com/auth/drive.file'],
+      'scopes': [
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/drive.file',
+      ],
       'status': 'connected',
       'vault_refresh_token_id': vaultSecretId,
     };

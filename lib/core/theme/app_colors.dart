@@ -7,10 +7,18 @@ class AppColors {
   // Brand & Surface Tokens — Theme: Deep Royal Violet
   // Deep Royal Violet (#4E3985), Rich Deep Plum Slate (#48347D), Soft Violet Tint (#ECE8F6)
   // ==========================================
-  static const Color royalVelvet = Color(0xFF4E3985); // #4E3985 Primary Brand Color
-  static const Color royalVelvetDark = Color(0xFF48347D); // #48347D Deep Violet / Header transition
-  static const Color royalVelvetLight = Color(0xFFECE8F6); // #ECE8F6 Secondary soft tinted surface
-  static const Color scaffoldLight = Color(0xFFF8F9FD); // #F8F9FD Clean soft slate off-white
+  static const Color royalVelvet = Color(
+    0xFF4E3985,
+  ); // #4E3985 Primary Brand Color
+  static const Color royalVelvetDark = Color(
+    0xFF48347D,
+  ); // #48347D Deep Violet / Header transition
+  static const Color royalVelvetLight = Color(
+    0xFFECE8F6,
+  ); // #ECE8F6 Secondary soft tinted surface
+  static const Color scaffoldLight = Color(
+    0xFFF8F9FD,
+  ); // #F8F9FD Clean soft slate off-white
   static const Color white = Color(0xFFFFFFFF); // #FFFFFF Crisp Pure White
 
   // Backward compatibility aliases
@@ -77,7 +85,8 @@ class AppColors {
   // Primary Actions & Header
   // ==========================================
   static const Color primary = royalVelvet; // #4E3985 Primary Brand Color
-  static const Color primaryDark = royalVelvetDark; // #48347D Deep Violet / Header transition
+  static const Color primaryDark =
+      royalVelvetDark; // #48347D Deep Violet / Header transition
   static const Color primaryHover = royalVelvetDark;
   static const Color primaryActive = Color(0xFF3F2D6F);
   static const Color primaryDisabled = Color(0xFFB5A9D2);
@@ -103,11 +112,14 @@ class AppColors {
   // ==========================================
   // Background & Surfaces
   // ==========================================
-  static const Color background = scaffoldLight; // #F8F9FD Clean soft slate off-white
+  static const Color background =
+      scaffoldLight; // #F8F9FD Clean soft slate off-white
   static const Color cardBackground = white; // #FFFFFF Crisp Pure White
   static const Color toggleBackground = Color(0xFFECE8F6); // #ECE8F6
   static const Color inputFill = white; // #FFFFFF
-  static const Color softPillBackground = Color(0xFFECE8F6); // #ECE8F6 Soft tinted badge surface
+  static const Color softPillBackground = Color(
+    0xFFECE8F6,
+  ); // #ECE8F6 Soft tinted badge surface
   static const Color lightCyanTint = Color(0xFFECE8F6); // Soft tinted surface
   static const Color lightBlueTint = Color(0xFFECE8F6); // Neutral Soft Tint
   static const Color lightLavenderTint = Color(0xFFECE8F6); // Soft Tint
@@ -170,8 +182,12 @@ class AppColors {
   // ==========================================
   // Text Colors
   // ==========================================
-  static const Color textDarkest = Color(0xFF271E3C); // #271E3C Rich deep violet-black
-  static const Color textPrimary = Color(0xFF271E3C); // #271E3C Rich deep violet-black
+  static const Color textDarkest = Color(
+    0xFF271E3C,
+  ); // #271E3C Rich deep violet-black
+  static const Color textPrimary = Color(
+    0xFF271E3C,
+  ); // #271E3C Rich deep violet-black
   static const Color textSecondary = Color(0xFF6B7280); // #6B7280 Refined Slate
   static const Color textMuted = Color(0xFF8F9BB3); // #8F9BB3 Refined Slate
   static const Color textWhite = white; // #FFFFFF Crisp Pure White

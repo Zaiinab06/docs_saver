@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/google_drive_service.dart';
 import '../../domain/entities/google_doc_entity.dart';
 import '../../domain/entities/google_integration_status.dart';
 
@@ -40,7 +41,16 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
     debugPrint('[Google OAuth] Invoking deployed google-auth action=start.');
     final response = await client.functions.invoke(
       'google-auth',
-      body: {'action': 'start'},
+      body: {
+        'action': 'start',
+        'scopes':
+            'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',
+        'queryParams': {
+          'scopes': 'https://www.googleapis.com/auth/drive.readonly',
+          'access_type': 'offline',
+          'prompt': 'consent',
+        },
+      },
     );
 
     if (response.status == 200 &&
@@ -123,6 +133,7 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
 
   @override
   Future<void> disconnect() async {
+    GoogleDriveService.clearSession();
     final client = _supabase;
     if (client == null) {
       debugPrint(
@@ -151,6 +162,20 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
 
   @override
   Future<GoogleDocEntity> importDoc(String fileId) async {
+    // 1. Direct Google Drive REST API attempt if OAuth access token is available
+    final token = GoogleDriveService.resolveAccessToken();
+    if (token != null && token.isNotEmpty) {
+      try {
+        debugPrint('[Google Drive] Attempting direct download via REST API with access token...');
+        return await GoogleDriveService.importFileDirect(
+          fileId: fileId,
+          accessToken: token,
+        );
+      } catch (directErr, directStack) {
+        debugPrint('⚠️ Direct Google Drive download failed, falling back to backend edge function: $directErr\n$directStack');
+      }
+    }
+
     final client = _supabase;
     if (client == null) {
       throw const GoogleDocsImportException(
@@ -162,7 +187,11 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
     try {
       final response = await client.functions.invoke(
         'google-auth',
-        body: {'action': 'import_doc', 'fileId': fileId},
+        body: {
+          'action': 'import_doc',
+          'fileId': fileId,
+          if (token != null && token.isNotEmpty) 'accessToken': token,
+        },
       );
 
       final statusCode = response.status;
@@ -188,9 +217,11 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
         message: errorMessage,
         statusCode: statusCode,
       );
-    } on GoogleDocsImportException {
+    } on GoogleDocsImportException catch (e, stackTrace) {
+      debugPrint('❌ GOOGLE DRIVE IMPORT ERROR: $e \n$stackTrace');
       rethrow;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ GOOGLE DRIVE IMPORT ERROR: $e \n$stackTrace');
       // In supabase_flutter, non-200 responses may throw FunctionException
       if (e is FunctionException) {
         final details = e.details;
@@ -237,7 +268,16 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
     try {
       final response = await client.functions.invoke(
         'google-auth',
-        body: {'action': 'start_picker'},
+        body: {
+          'action': 'start_picker',
+          'scopes':
+              'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',
+          'queryParams': {
+            'scopes': 'https://www.googleapis.com/auth/drive.readonly',
+            'access_type': 'offline',
+            'prompt': 'consent',
+          },
+        },
       );
 
       if (response.status == 200 &&
@@ -280,5 +320,18 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
   @override
   Future<GoogleDocEntity> importDriveFile(String fileId) async {
     return importDoc(fileId);
+  }
+
+  /// Direct Supabase OAuth helper for Google authentication with required Drive scopes
+  Future<bool> signInWithGoogleOAuth({String? redirectTo}) async {
+    final client = _supabase;
+    if (client == null) {
+      throw Exception('Supabase client is not initialized.');
+    }
+    GoogleDriveService.clearSession();
+    return await GoogleDriveService.signInWithGoogleOAuth(
+      client: client,
+      redirectTo: redirectTo,
+    );
   }
 }

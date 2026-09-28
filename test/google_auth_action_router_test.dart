@@ -41,8 +41,8 @@ class GoogleAuthActionRouter {
         'action': normalized,
         'isPicker': picker,
         'scope': picker
-            ? 'https://www.googleapis.com/auth/drive.file'
-            : 'https://www.googleapis.com/auth/drive.file email profile',
+            ? 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file'
+            : 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file email profile',
         'triggerOnepick': picker,
       };
     }
@@ -65,12 +65,13 @@ void main() {
       );
     });
 
-    test('start_picker uses drive.file scope and trigger_onepick', () {
+    test('start_picker uses drive.readonly and drive.file scopes and trigger_onepick', () {
       final result = GoogleAuthActionRouter.route(action: 'start_picker');
 
       expect(result['isPicker'], isTrue);
       expect(result['triggerOnepick'], isTrue);
-      expect(result['scope'], 'https://www.googleapis.com/auth/drive.file');
+      expect(result['scope'], contains('https://www.googleapis.com/auth/drive.readonly'));
+      expect(result['scope'], contains('https://www.googleapis.com/auth/drive.file'));
       expect(result['scope'], isNot(contains('email')));
       expect(result['scope'], isNot(contains('profile')));
     });
@@ -84,8 +85,14 @@ void main() {
       expect(result['triggerOnepick'], isFalse);
       expect(
         result['scope'],
-        'https://www.googleapis.com/auth/drive.file email profile',
+        contains('https://www.googleapis.com/auth/drive.readonly'),
       );
+      expect(
+        result['scope'],
+        contains('https://www.googleapis.com/auth/drive.file'),
+      );
+      expect(result['scope'], contains('email'));
+      expect(result['scope'], contains('profile'));
     });
 
     test('status, disconnect, and import_doc remain allowed', () {
