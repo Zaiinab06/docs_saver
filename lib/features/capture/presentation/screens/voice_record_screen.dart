@@ -595,93 +595,90 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
             ),
           ),
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                // Auto/AI Chip
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    selected: _selectedCategory == null,
-                    showCheckmark: false,
-                    label: const Row(
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: 1 + _categories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final isAuto = index == 0;
+                final cat = isAuto ? null : _categories[index - 1];
+                final name = isAuto ? 'Auto (AI)' : cat!.name;
+                final icon = isAuto ? Icons.auto_awesome_rounded : cat!.icon;
+                final isSelected = isAuto
+                    ? (_selectedCategory == null)
+                    : (_selectedCategory == name);
+
+                const selectedBgColor = Color(0xFF483873);
+                const unselectedBgColor = Color(0xFFF1EEF9);
+                const unselectedTextColor = Color(0xFF2C2448);
+                const unselectedIconColor = Color(0xFF483873);
+
+                return InkWell(
+                  key: Key(
+                    isAuto
+                        ? 'category_chip_auto'
+                        : 'category_chip_${name.toLowerCase()}',
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = isAuto ? null : name;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(24),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBgColor : unselectedBgColor,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isSelected
+                            ? selectedBgColor
+                            : Colors.transparent,
+                        width: 1.0,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: selectedBgColor.withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.auto_awesome_rounded,
-                          size: 14,
-                          color: AppColors.primary,
+                          icon,
+                          size: 16,
+                          color: isSelected ? Colors.white : unselectedIconColor,
                         ),
-                        SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         Text(
-                          'Auto (AI)',
+                          name,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white
+                                : (isAuto
+                                    ? const Color(0xFF483873)
+                                    : unselectedTextColor),
                           ),
                         ),
                       ],
                     ),
-                    backgroundColor: AppColors.cardBackground,
-                    selectedColor: AppColors.lightCyanTint,
-                    side: BorderSide(
-                      color: _selectedCategory == null
-                          ? AppColors.primary
-                          : AppColors.chipInactiveBorder,
-                      width: 1.2,
-                    ),
-                    onSelected: (_) => setState(() => _selectedCategory = null),
                   ),
-                ),
-                ..._categories.map((cat) {
-                  final isSelected = _selectedCategory == cat.name;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      selected: isSelected,
-                      showCheckmark: false,
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            cat.icon,
-                            size: 14,
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            cat.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected
-                                  ? AppColors.primary
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: AppColors.cardBackground,
-                      selectedColor: AppColors.lightCyanTint,
-                      side: BorderSide(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.chipInactiveBorder,
-                        width: 1.2,
-                      ),
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedCategory = selected ? cat.name : null;
-                        });
-                      },
-                    ),
-                  );
-                }),
-              ],
+                );
+              },
             ),
           ),
 

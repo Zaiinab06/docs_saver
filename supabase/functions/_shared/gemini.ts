@@ -6,9 +6,9 @@
  * Fallback Embedding Model: "gemini-embedding-001" (on 429/5xx errors)
  */
 
-export const INGESTION_MODEL = "gemini-3.6-flash";
-export const SYNTHESIS_MODEL = "gemini-3.6-flash";
-export const SYNTHESIS_FALLBACK_MODEL = "gemini-3.8-flash";
+export const INGESTION_MODEL = "gemini-1.5-flash";
+export const SYNTHESIS_MODEL = "gemini-1.5-flash";
+export const SYNTHESIS_FALLBACK_MODEL = "gemini-2.0-flash";
 export const PRIMARY_EMBEDDING_MODEL = "gemini-embedding-2-preview";
 export const FALLBACK_EMBEDDING_MODEL = "gemini-embedding-001";
 export const EMBEDDING_DIMENSION = 768;
@@ -272,9 +272,9 @@ Analyze the note content and return clean structured JSON with title, category, 
         });
       }
     } else if (input.audioBase64 && input.audioBase64.trim().length > 0) {
-      let audioMime = input.mimeType || "audio/mp4";
-      if (audioMime === "audio/m4a" || audioMime === "audio/x-m4a") {
-        audioMime = "audio/mp4";
+      let audioMime = input.mimeType || "audio/m4a";
+      if (audioMime === "audio/x-m4a") {
+        audioMime = "audio/m4a";
       }
       parts.push({
         inline_data: {
@@ -299,11 +299,9 @@ Analyze the note content and return clean structured JSON with title, category, 
   };
 
   const candidateModels = [
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "gemini-3-flash-preview",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-8b",
   ];
 
   let lastError: Error | null = null;

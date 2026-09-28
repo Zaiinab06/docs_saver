@@ -80,6 +80,7 @@ class GeminiDirectService {
   static Future<Map<String, dynamic>> analyzeDirect({
     required String ocrText,
     String? imageBase64,
+    String? audioBase64,
     String? mimeType,
   }) async {
     final apiKey = await resolveApiKey();
@@ -88,7 +89,12 @@ class GeminiDirectService {
       throw Exception('Local GEMINI_API_KEY not configured for client-side fallback.');
     }
 
-    debugPrint('[GeminiDirectService] Calling Gemini 1.5 Flash directly (hasImage=${imageBase64 != null})...');
+    String cleanAudioBase64 = (audioBase64 ?? '').trim();
+    if (cleanAudioBase64.contains(';base64,')) {
+      cleanAudioBase64 = cleanAudioBase64.split(';base64,').last;
+    }
+    cleanAudioBase64 = cleanAudioBase64.replaceAll(RegExp(r'\s+'), '');
+    final bool hasAudio = cleanAudioBase64.isNotEmpty;
 
     String cleanBase64 = (imageBase64 ?? '').trim();
     if (cleanBase64.contains(';base64,')) {
@@ -98,15 +104,28 @@ class GeminiDirectService {
 
     final bool hasImage = cleanBase64.isNotEmpty;
 
-    final String promptText = hasImage
-        ? 'Analyze this image and describe exactly what is in it. Return a valid JSON object with: {"title": "Short Title (3-5 words)", "category": "Work|Personal|Study|Home", "summary": "2-sentence factual summary of what is seen", "tags": ["tag1", "tag2", "tag3"]}. Output ONLY raw JSON, no markdown formatting.'
-        : 'Analyze the following note content:\n"""\n$ocrText\n"""\nGenerate a concise Title, Category (e.g., Food, Personal, Work, Study), a 2-sentence summary, and 3-5 tags in JSON format with keys: "title", "category", "summary", "tags". Output ONLY raw JSON, no markdown formatting.';
+    debugPrint('[GeminiDirectService] Calling Gemini 1.5 Flash directly (hasAudio=$hasAudio, hasImage=$hasImage)...');
+
+    final String promptText = hasAudio
+        ? 'You are an expert speech recognition and audio transcription engine. Listen carefully to the attached audio and output clean structured JSON:\n'
+          '{"title": "Short Title (3-6 words)", "category": "Work|Personal|Study|Travel|Fashion|Food|Finance|Health", "summary": "1-2 sentence concise summary of the useful meaning", "tags": ["tag1", "tag2", "voice"], "transcript": "verbatim transcription of spoken words"}\n'
+          'Output ONLY valid raw JSON, no markdown formatting.'
+        : (hasImage
+            ? 'Analyze this image and describe exactly what is in it. Return a valid JSON object with: {"title": "Short Title (3-5 words)", "category": "Work|Personal|Study|Home", "summary": "2-sentence factual summary of what is seen", "tags": ["tag1", "tag2", "tag3"]}. Output ONLY raw JSON, no markdown formatting.'
+            : 'Analyze the following note content:\n"""\n$ocrText\n"""\nGenerate a concise Title, Category (e.g., Food, Personal, Work, Study), a 2-sentence summary, and 3-5 tags in JSON format with keys: "title", "category", "summary", "tags". Output ONLY raw JSON, no markdown formatting.');
 
     final List<Map<String, dynamic>> parts = [
       {'text': promptText},
     ];
 
-    if (hasImage) {
+    if (hasAudio) {
+      parts.add({
+        'inline_data': {
+          'mime_type': mimeType ?? 'audio/m4a',
+          'data': cleanAudioBase64,
+        },
+      });
+    } else if (hasImage) {
       parts.add({
         'inline_data': {
           'mime_type': mimeType ?? 'image/jpeg',
@@ -129,11 +148,9 @@ class GeminiDirectService {
     };
 
     final candidateModels = [
-      'gemini-3.8-flash',
-      'gemini-3.6-flash',
-      'gemini-flash-latest',
-      'gemini-flash-lite-latest',
-      'gemini-3-flash-preview',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash-8b',
     ];
 
     DioException? lastDioError;

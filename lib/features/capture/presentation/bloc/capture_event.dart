@@ -62,3 +62,13 @@ class MemoryUpdatedEvent extends CaptureEvent {
   @override
   List<Object?> get props => [updatedMemory];
 }
+
+class RetryMemoryIngestionEvent extends CaptureEvent {
+  final String memoryId;
+
+  const RetryMemoryIngestionEvent(this.memoryId);
+
+  @override
+  List<Object?> get props => [memoryId];
+}
+

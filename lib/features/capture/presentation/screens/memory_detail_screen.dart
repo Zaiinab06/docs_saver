@@ -58,6 +58,10 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   bool _isExtractedContentExpanded = false;
   String? _summary;
   StreamSubscription? _blocSubscription;
+  Timer? _statusPollTimer;
+  Timer? _timeoutTimer;
+  RealtimeChannel? _realtimeChannel;
+  bool _isTranscriptionTimedOut = false;
 
   String? get effectiveSummary {
     if (_summary != null && _summary!.trim().isNotEmpty) {
@@ -83,6 +87,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
       _memory = widget.initialMemory;
       _isPinned = widget.initialMemory!.isPinned;
       _isLoading = false;
+      _checkAndStartPendingMonitoring();
     }
     _loadMemoryFromLocalDb();
   }
@@ -91,6 +96,173 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _subscribeToBloc();
+    _checkAndStartPendingMonitoring();
+  }
+
+  void _checkAndStartPendingMonitoring() {
+    if (_memory?.aiStatus == 'pending') {
+      _startStatusPolling();
+      _startTimeoutTimer();
+      _subscribeToRealtime();
+    } else {
+      _stopPollingAndTimers();
+    }
+  }
+
+  void _stopPollingAndTimers() {
+    _statusPollTimer?.cancel();
+    _statusPollTimer = null;
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = null;
+    if (_isTranscriptionTimedOut) {
+      if (mounted) {
+        setState(() {
+          _isTranscriptionTimedOut = false;
+        });
+      } else {
+        _isTranscriptionTimedOut = false;
+      }
+    }
+  }
+
+  void _startTimeoutTimer() {
+    if (_timeoutTimer != null && _timeoutTimer!.isActive) {
+      return;
+    }
+    _timeoutTimer?.cancel();
+    _isTranscriptionTimedOut = false;
+    _timeoutTimer = Timer(const Duration(seconds: 25), () {
+      if (mounted && _memory?.aiStatus == 'pending') {
+        setState(() {
+          _isTranscriptionTimedOut = true;
+        });
+      }
+    });
+  }
+
+  void _startStatusPolling() {
+    if (_statusPollTimer != null && _statusPollTimer!.isActive) {
+      return;
+    }
+    _statusPollTimer?.cancel();
+    _statusPollTimer =
+        Timer.periodic(const Duration(milliseconds: 1500), (_) async {
+      if (!mounted) {
+        _statusPollTimer?.cancel();
+        return;
+      }
+      if (_memory != null && _memory!.aiStatus != 'pending') {
+        _stopPollingAndTimers();
+        return;
+      }
+
+      // 1. Check local Isar database first
+      try {
+        final isar = IsarService.instance;
+        final model = await isar.memoryModels
+            .filter()
+            .serverIdEqualTo(widget.memoryId)
+            .findFirst();
+        if (model != null && mounted) {
+          final entity = model.toEntity();
+          if (entity.aiStatus != 'pending') {
+            setState(() {
+              _memory = entity;
+              _isPinned = entity.isPinned;
+              _isTranscriptionTimedOut = false;
+            });
+            _stopPollingAndTimers();
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // 2. Check Supabase table if online and authenticated
+      try {
+        final client = Supabase.instance.client;
+        if (client.auth.currentUser != null) {
+          final res = await client
+              .from('memories')
+              .select()
+              .eq('id', widget.memoryId)
+              .maybeSingle();
+          if (res != null && mounted) {
+            final row = Map<String, dynamic>.from(res);
+            final status = row['ai_status']?.toString();
+            if (status != null && status != 'pending') {
+              final remoteModel = MemoryModel.fromMap(row, isSynced: true);
+              final entity = remoteModel.toEntity();
+              setState(() {
+                _memory = entity;
+                _isPinned = entity.isPinned;
+                _isTranscriptionTimedOut = false;
+              });
+              _stopPollingAndTimers();
+            }
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _subscribeToRealtime() {
+    try {
+      final client = Supabase.instance.client;
+      if (client.auth.currentUser == null) return;
+      _realtimeChannel?.unsubscribe();
+      _realtimeChannel = client
+          .channel('public:memories:${widget.memoryId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'memories',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: widget.memoryId,
+            ),
+            callback: (payload) {
+              if (!mounted) return;
+              final newRecord = payload.newRecord;
+              if (newRecord.isNotEmpty) {
+                final updatedModel =
+                    MemoryModel.fromMap(newRecord, isSynced: true);
+                final updatedEntity = updatedModel.toEntity();
+                setState(() {
+                  _memory = updatedEntity;
+                  _isPinned = updatedEntity.isPinned;
+                  if (updatedEntity.aiStatus != 'pending') {
+                    _isTranscriptionTimedOut = false;
+                    _stopPollingAndTimers();
+                  }
+                });
+              }
+            },
+          );
+      _realtimeChannel?.subscribe();
+    } catch (_) {}
+  }
+
+  void _retryTranscription() {
+    debugPrint('🎙️ AUDIO PROCESSING STARTED');
+    setState(() {
+      _isTranscriptionTimedOut = false;
+    });
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+    _startTimeoutTimer();
+    _startStatusPolling();
+    _subscribeToRealtime();
+    context.read<CaptureBloc>().add(RetryMemoryIngestionEvent(widget.memoryId));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Retrying audio transcription...'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _subscribeToBloc() {
@@ -105,11 +277,17 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           if (_memory == null ||
               _memory!.aiStatus != current.aiStatus ||
               _memory!.category != current.category ||
+              _memory!.title != current.title ||
+              _memory!.content != current.content ||
               _memory!.tags.length != current.tags.length) {
             _memory = current;
             _isPinned = current.isPinned;
             _isLoading = false;
             _notFound = false;
+            if (current.aiStatus != 'pending') {
+              _isTranscriptionTimedOut = false;
+              _stopPollingAndTimers();
+            }
           }
         }
       }
@@ -124,7 +302,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               _isPinned = updatedMemory.isPinned;
               _isLoading = false;
               _notFound = false;
+              if (updatedMemory.aiStatus != 'pending') {
+                _isTranscriptionTimedOut = false;
+                _stopPollingAndTimers();
+              }
             });
+            _checkAndStartPendingMonitoring();
           }
         }
       });
@@ -134,6 +317,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   @override
   void dispose() {
     _blocSubscription?.cancel();
+    _stopPollingAndTimers();
     super.dispose();
   }
 
@@ -153,7 +337,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             _isPinned = entity.isPinned;
             _isLoading = false;
             _notFound = false;
+            if (entity.aiStatus != 'pending') {
+              _isTranscriptionTimedOut = false;
+              _stopPollingAndTimers();
+            }
           });
+          _checkAndStartPendingMonitoring();
         } else if (_memory == null) {
           setState(() {
             _isLoading = false;
@@ -1176,6 +1365,112 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
+  Widget _buildTranscriptionTimeoutCard(
+    MemoryEntity memory, {
+    required bool isVoiceMemory,
+    required bool isVideoMemory,
+  }) {
+    final titleText = isVoiceMemory
+        ? 'Transcription is taking longer than usual'
+        : (isVideoMemory
+            ? 'Video analysis is taking longer than usual'
+            : 'Processing is taking longer than usual');
+    final subtitleText = memory.content.trim().isNotEmpty
+        ? 'Partial content: "${memory.content.trim()}"'
+        : (isVoiceMemory
+            ? 'Your voice recording is safely preserved. Tap Retry to process with fast transcription.'
+            : 'Your media is safely preserved. Tap Retry to analyze again.');
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.25),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.schedule_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  titleText,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitleText,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 36,
+            child: OutlinedButton.icon(
+              onPressed: _retryTranscription,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: Text(
+                isVoiceMemory ? 'Retry Transcription' : 'Retry Processing',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.5),
+                  width: 1.2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _memory == null) {
@@ -1610,54 +1905,61 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                     ),
                   ),
                 ] else if (memory.aiStatus == 'pending') ...[
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.lightCyanTint.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        width: 1.0,
+                  if (_isTranscriptionTimedOut && memory.isSynced)
+                    _buildTranscriptionTimeoutCard(
+                      memory,
+                      isVoiceMemory: isVoiceMemory,
+                      isVideoMemory: isVideoMemory,
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightCyanTint.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              memory.isSynced
+                                  ? (isVoiceMemory
+                                        ? 'Transcribing and organizing audio...'
+                                        : (isVideoMemory
+                                              ? 'Analyzing and organizing video...'
+                                              : 'Extracting and organizing document...'))
+                                  : (isVoiceMemory
+                                        ? 'Audio saved offline. Transcription will begin when online.'
+                                        : (isVideoMemory
+                                              ? 'Video saved offline. Analysis will begin when online.'
+                                              : 'Document saved offline. Text extraction will begin when online.')),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            memory.isSynced
-                                ? (isVoiceMemory
-                                      ? 'Transcribing and organizing audio...'
-                                      : (isVideoMemory
-                                            ? 'Analyzing and organizing video...'
-                                            : 'Extracting and organizing document...'))
-                                : (isVoiceMemory
-                                      ? 'Audio saved offline. Transcription will begin when online.'
-                                      : (isVideoMemory
-                                            ? 'Video saved offline. Analysis will begin when online.'
-                                            : 'Document saved offline. Text extraction will begin when online.')),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ],
 

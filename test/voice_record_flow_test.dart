@@ -234,10 +234,11 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify Record Voice option exists
-        expect(find.text('Record Voice'), findsOneWidget);
+        final recordVoiceFinder = find.byKey(const Key('capture_option_Record Voice'));
+        expect(recordVoiceFinder, findsOneWidget);
 
         // Tap Record Voice
-        await tester.tap(find.text('Record Voice'));
+        await tester.tap(recordVoiceFinder);
         await tester.pumpAndSettle();
 
         // Verify VoiceRecordScreen is pushed

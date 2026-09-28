@@ -213,6 +213,12 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
               ? (_selectedCategory == null)
               : (_selectedCategory == cat.name);
 
+          const selectedBgColor = Color(0xFF483873);
+          const unselectedBgColor = Color(0xFFF1EEF9);
+          const unselectedBorderColor = Color(0xFFE6E0F5);
+          const unselectedTextColor = Color(0xFF3B2F63);
+          const unselectedIconColor = Color(0xFF483873);
+
           return InkWell(
             key: Key(
               isAuto
@@ -221,25 +227,22 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
             ),
             onTap: () =>
                 setState(() => _selectedCategory = isAuto ? null : cat.name),
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(24),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                gradient: isSelected ? AppColors.primaryGradient : null,
-                color: isSelected ? null : AppColors.categoryChipBackground,
-                borderRadius: BorderRadius.circular(100),
+                color: isSelected ? selectedBgColor : unselectedBgColor,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: isSelected
-                      ? AppColors.primary
-                      : AppColors.categoryChipBorder,
-                  width: isSelected ? 1.6 : 1.0,
+                  color: isSelected ? selectedBgColor : unselectedBorderColor,
+                  width: 1.0,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.25),
-                          blurRadius: 8,
+                          color: selectedBgColor.withValues(alpha: 0.25),
+                          blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
                       ]
@@ -251,19 +254,19 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                   Icon(
                     cat.icon,
                     size: 16,
-                    color: isSelected ? AppColors.textWhite : AppColors.primary,
+                    color: isSelected ? Colors.white : unselectedIconColor,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     cat.name,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w600,
+                      fontWeight: FontWeight.w600,
                       color: isSelected
-                          ? AppColors.textWhite
-                          : AppColors.primary,
+                          ? Colors.white
+                          : (isAuto
+                              ? const Color(0xFF483873)
+                              : unselectedTextColor),
                     ),
                   ),
                 ],

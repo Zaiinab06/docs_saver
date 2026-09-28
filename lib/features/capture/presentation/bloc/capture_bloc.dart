@@ -8,6 +8,7 @@ import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/network/network_checker.dart';
+import '../../../../core/services/gemini_direct_service.dart';
 import '../../../../core/services/isar_service.dart';
 import '../../../../core/services/video_frame_extractor.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
@@ -53,6 +54,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     on<DeleteMemoryEvent>(_onDeleteMemory);
     on<SyncPendingMemoriesEvent>(_onSyncPendingMemories);
     on<MemoryUpdatedEvent>(_onMemoryUpdated);
+    on<RetryMemoryIngestionEvent>(_onRetryMemoryIngestion);
 
     _initConnectivityListener(
       connectivityStream ?? NetworkChecker.onConnectivityChanged,
@@ -411,48 +413,112 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       String? mimeType;
 
       if (isVoice && memory.mediaUrl != null && memory.mediaUrl!.isNotEmpty) {
+        debugPrint('🎙️ AUDIO PROCESSING STARTED');
+        final stopwatch = Stopwatch()..start();
         try {
           final file = File(memory.mediaUrl!);
           if (file.existsSync()) {
             final bytes = await file.readAsBytes();
+            final isMp3 = memory.mediaUrl!.toLowerCase().endsWith('.mp3');
+            mimeType = isMp3 ? 'audio/mp3' : 'audio/m4a';
             audioBase64 = await Isolate.run(() => base64Encode(bytes));
-            mimeType = 'audio/m4a';
 
+            // Background cloud storage upload if authenticated (unawaited so transcription starts immediately)
             final currentUserId = Supabase.instance.client.auth.currentUser?.id;
             if (currentUserId != null && currentUserId != 'local_user') {
+              final ext = isMp3 ? 'mp3' : 'm4a';
               final fileName =
-                  'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                  'voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
               final storageKey = '$currentUserId/$fileName';
-              await Supabase.instance.client.storage
-                  .from('memories')
-                  .uploadBinary(
-                    storageKey,
-                    bytes,
-                    fileOptions: const FileOptions(contentType: 'audio/m4a'),
-                  );
-              final publicUrl = Supabase.instance.client.storage
-                  .from('memories')
-                  .getPublicUrl(storageKey);
-              if (publicUrl.isNotEmpty) {
-                final isar = IsarService.instance;
-                final existing = await isar.memoryModels
-                    .filter()
-                    .serverIdEqualTo(memory.id)
-                    .findFirst();
-                if (existing != null) {
-                  existing.mediaUrl = publicUrl;
-                  await isar.writeTxn(() async {
-                    await isar.memoryModels.put(existing);
-                  });
+              unawaited(() async {
+                try {
+                  await Supabase.instance.client.storage
+                      .from('memories')
+                      .uploadBinary(
+                        storageKey,
+                        bytes,
+                        fileOptions: FileOptions(contentType: mimeType!),
+                      );
+                  final publicUrl = Supabase.instance.client.storage
+                      .from('memories')
+                      .getPublicUrl(storageKey);
+                  if (publicUrl.isNotEmpty) {
+                    final isar = IsarService.instance;
+                    final existing = await isar.memoryModels
+                        .filter()
+                        .serverIdEqualTo(memory.id)
+                        .findFirst();
+                    if (existing != null) {
+                      existing.mediaUrl = publicUrl;
+                      await isar.writeTxn(() async {
+                        await isar.memoryModels.put(existing);
+                      });
+                    }
+                    await Supabase.instance.client
+                        .from('memories')
+                        .update({'media_url': publicUrl})
+                        .eq('id', memory.id);
+                  }
+                } catch (e) {
+                  debugPrint('[VoiceAI Warning] Cloud storage upload failed: $e');
                 }
-                await Supabase.instance.client
-                    .from('memories')
-                    .update({'media_url': publicUrl})
-                    .eq('id', memory.id);
+              }());
+            }
+
+            debugPrint(
+              '[VoiceAI] Invoking GeminiDirectService with audio (${bytes.lengthInBytes} bytes, mimeType=$mimeType)...',
+            );
+            Map<String, dynamic> data = {};
+            try {
+              data = await GeminiDirectService.analyzeDirect(
+                ocrText:
+                    'Transcribe all spoken words and extract structured metadata with title, category, summary, and tags.',
+                audioBase64: audioBase64,
+                mimeType: mimeType,
+              );
+            } catch (e) {
+              debugPrint('[VoiceAI Warning] Direct Gemini audio analysis failed: $e');
+            }
+
+            if (data.isNotEmpty) {
+              final rawTitle = (data['title'] ?? '').toString().trim();
+              final rawCategory = (data['category'] ?? '').toString().trim();
+              final rawSummary = (data['summary'] ?? '').toString().trim();
+              final rawTranscript =
+                  (data['transcript'] ?? '').toString().trim();
+              final List<String> tags = [];
+              if (data['tags'] is List) {
+                tags.addAll(
+                  (data['tags'] as List).map(
+                    (t) => t.toString().toLowerCase().replaceAll('#', ''),
+                  ),
+                );
               }
+
+              final aiResult = AiIngestionResult(
+                title: rawTitle.isNotEmpty ? rawTitle : 'Voice Note',
+                category: rawCategory.isNotEmpty ? rawCategory : 'Personal',
+                tags: tags,
+                summary: rawSummary,
+                aiStatus: 'processed',
+                rawOcrText: rawTranscript,
+              );
+
+              debugPrint(
+                '🎙️ AUDIO PROCESSING COMPLETED in ${stopwatch.elapsedMilliseconds}ms: title="${aiResult.title}", transcript="${aiResult.rawOcrText}"',
+              );
+
+              await _updateMemoryWithVoiceAiResult(
+                memoryId: memory.id,
+                aiResult: aiResult,
+                originalMemory: memory,
+              );
+              return;
             }
           }
-        } catch (_) {}
+        } catch (e, stack) {
+          debugPrint('❌ [VoiceAI Error] Audio processing failed: $e\n$stack');
+        }
       } else if (isPdf &&
           memory.mediaUrl != null &&
           memory.mediaUrl!.isNotEmpty) {
@@ -931,6 +997,155 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         '[PhotoAI Error] _updateMemoryWithPhotoAiResult error: $e\n$stack',
       );
     }
+  }
+
+  Future<void> _updateMemoryWithVoiceAiResult({
+    required String memoryId,
+    required AiIngestionResult aiResult,
+    required MemoryEntity originalMemory,
+  }) async {
+    try {
+      final isar = IsarService.instance;
+      final existing = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(memoryId)
+          .findFirst();
+
+      final effectiveTitle = aiResult.title.isNotEmpty
+          ? aiResult.title
+          : originalMemory.title;
+      final effectiveCategory = aiResult.category.isNotEmpty
+          ? aiResult.category
+          : (originalMemory.category.isNotEmpty &&
+                  originalMemory.category != 'General'
+              ? originalMemory.category
+              : 'Personal');
+
+      final List<String> effectiveTags = List.from(originalMemory.tags);
+      for (final tag in aiResult.tags) {
+        if (!effectiveTags.contains(tag)) {
+          effectiveTags.add(tag);
+        }
+      }
+      if (!effectiveTags.contains('voice')) {
+        effectiveTags.add('voice');
+      }
+
+      final effectiveContent = (aiResult.rawOcrText != null &&
+              aiResult.rawOcrText!.trim().isNotEmpty)
+          ? aiResult.rawOcrText!.trim()
+          : originalMemory.content;
+
+      final summary = aiResult.summary.trim();
+      final meta = Map<String, dynamic>.from(
+        existing?.metadata ?? originalMemory.metadata ?? {},
+      );
+      if (summary.isNotEmpty) {
+        meta['summary'] = summary;
+      }
+      meta['file_type'] = 'voice';
+      if (aiResult.entities.isNotEmpty) {
+        meta['entities'] = aiResult.entities.map((e) => e.toMap()).toList();
+      }
+
+      if (existing != null) {
+        existing.title = effectiveTitle;
+        existing.category = effectiveCategory;
+        existing.tags = effectiveTags;
+        existing.content = effectiveContent;
+        existing.aiStatus = 'processed';
+        existing.metadata = meta;
+        existing.serverUpdatedAt = DateTime.now();
+        existing.isSynced = true;
+
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(existing);
+        });
+      }
+
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null && currentUserId != 'local_user') {
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'title': effectiveTitle,
+            'category': effectiveCategory,
+            'tags': effectiveTags,
+            'content': effectiveContent,
+            'ai_status': 'processed',
+            'metadata': meta,
+            'server_updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', memoryId);
+          debugPrint('[VoiceAI] Supabase DB updated for $memoryId');
+        } catch (e) {
+          debugPrint('[VoiceAI Warning] Supabase DB update error: $e');
+        }
+      }
+
+      final updatedEntity = (existing?.toEntity() ?? originalMemory).copyWith(
+        title: effectiveTitle,
+        category: effectiveCategory,
+        tags: effectiveTags,
+        content: effectiveContent,
+        aiStatus: 'processed',
+        metadata: meta,
+      );
+      add(MemoryUpdatedEvent(updatedEntity));
+      add(LoadMemoriesEvent());
+    } catch (e, stack) {
+      debugPrint('[VoiceAI Error] _updateMemoryWithVoiceAiResult error: $e\n$stack');
+    }
+  }
+
+  Future<void> _onRetryMemoryIngestion(
+    RetryMemoryIngestionEvent event,
+    Emitter<CaptureState> emit,
+  ) async {
+    try {
+      final isar = IsarService.instance;
+      final existing = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(event.memoryId)
+          .findFirst();
+      if (existing != null) {
+        final memory = existing.toEntity();
+        final isVoice = memory.tags.any((t) => t.toLowerCase() == 'voice') ||
+            (memory.mediaUrl != null &&
+                (memory.mediaUrl!.endsWith('.m4a') ||
+                    memory.mediaUrl!.endsWith('.aac') ||
+                    memory.mediaUrl!.endsWith('.mp3') ||
+                    memory.mediaUrl!.endsWith('.wav')));
+        final isPdf = (memory.mediaUrl != null &&
+                memory.mediaUrl!.toLowerCase().endsWith('.pdf')) ||
+            memory.tags.any((t) => t.toLowerCase() == 'pdf');
+        final isVideo = memory.isVideo ||
+            memory.fileType == 'video' ||
+            memory.tags.any((t) => t.toLowerCase() == 'video') ||
+            (memory.metadata != null &&
+                memory.metadata!['file_type'] == 'video') ||
+            (memory.mediaUrl != null &&
+                (memory.mediaUrl!.toLowerCase().endsWith('.mp4') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.mov') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.avi') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.mkv') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.webm') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.3gp') ||
+                    memory.mediaUrl!.toLowerCase().endsWith('.m4v')));
+        final isImage =
+            !isVideo && !isVoice && !isPdf && memory.mediaUrl != null;
+
+        unawaited(
+          _triggerBackgroundIngestion(
+            memory,
+            isNote: false,
+            isVoice: isVoice,
+            isPdf: isPdf,
+            isVideo: isVideo,
+            isImage: isImage,
+            isEmbeddingOnly: false,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _handleIngestionComplete(

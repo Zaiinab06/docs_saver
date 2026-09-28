@@ -92,6 +92,11 @@ class AiRepositoryImpl implements AiRepository {
         rawDocumentText = (data['document_text'] ?? '').toString().trim();
       } catch (_) {}
 
+      String rawTranscript = '';
+      try {
+        rawTranscript = (data['transcript'] ?? '').toString().trim();
+      } catch (_) {}
+
       // Normalize Category to the 8 official AppStrings categories
       final normalizedCategory = _normalizeCategory(rawCategory);
 
@@ -126,6 +131,12 @@ class AiRepositoryImpl implements AiRepository {
         tags.add('video');
       }
 
+      if ((ocrText.toLowerCase().contains('audio') ||
+              ocrText.toLowerCase().contains('voice')) &&
+          !tags.contains('voice')) {
+        tags.add('voice');
+      }
+
       // Extract Living Memory entities
       try {
         if (data['entities'] is List) {
@@ -142,7 +153,9 @@ class AiRepositoryImpl implements AiRepository {
       // Fallback title if AI returned an empty string
       String resolvedTitle = rawTitle;
       if (resolvedTitle.isEmpty) {
-        if (rawDocumentText.isNotEmpty) {
+        if (rawTranscript.isNotEmpty) {
+          resolvedTitle = 'Voice Note';
+        } else if (rawDocumentText.isNotEmpty) {
           resolvedTitle = 'Document Note';
         } else if (videoBase64 != null && videoBase64.isNotEmpty) {
           resolvedTitle = 'Video Memory';
@@ -163,10 +176,12 @@ class AiRepositoryImpl implements AiRepository {
 
       String aiStatus = (data['ai_status'] ?? 'processed').toString();
       if (aiStatus.isEmpty || aiStatus == 'pending') {
-        if (resolvedTitle.isNotEmpty || tags.isNotEmpty || resolvedSummary.isNotEmpty) {
+        if (resolvedTitle.isNotEmpty || tags.isNotEmpty || resolvedSummary.isNotEmpty || rawTranscript.isNotEmpty) {
           aiStatus = 'processed';
         }
       }
+
+      final effectiveOcrText = rawTranscript.isNotEmpty ? rawTranscript : ocrText;
 
       return AiIngestionResult(
         title: resolvedTitle,
@@ -175,7 +190,7 @@ class AiRepositoryImpl implements AiRepository {
         summary: resolvedSummary,
         entities: entities,
         aiStatus: aiStatus.isEmpty ? 'processed' : aiStatus,
-        rawOcrText: ocrText,
+        rawOcrText: effectiveOcrText,
         documentText: rawDocumentText.isNotEmpty ? rawDocumentText : null,
       );
     } catch (e, stackTrace) {
