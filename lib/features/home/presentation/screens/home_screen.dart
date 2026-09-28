@@ -502,37 +502,9 @@ class HomeScreenState extends State<HomeScreen> {
       (
         'Take Photo',
         Icons.camera_alt_rounded,
-        const Color(0xFFE11D48), // Solid Rose/Crimson
+        const Color(0xFFF43F5E), // Refined Coral Rose
         const Color(0xFFFFF1F2),
         _handleTakePhoto,
-      ),
-      (
-        'Scan Document',
-        Icons.document_scanner_rounded,
-        const Color(0xFF8B5CF6), // Soft Purple
-        const Color(0xFFF5F3FF),
-        _handleScanDocument,
-      ),
-      (
-        'Add Note',
-        Icons.edit_note_rounded,
-        const Color(0xFFD97706), // Soft Amber / Yellow
-        const Color(0xFFFFFBEB),
-        _handleAddNote,
-      ),
-      (
-        'Voice Note',
-        Icons.mic_rounded,
-        const Color(0xFF059669), // Soft Mint Green
-        const Color(0xFFECFDF5),
-        _handleRecordVoice,
-      ),
-      (
-        'Choose File',
-        Icons.description_rounded,
-        const Color(0xFF0284C7), // Soft Sky Blue
-        const Color(0xFFF0F9FF),
-        _handleChooseFile,
       ),
       (
         'Add Link',
@@ -542,18 +514,46 @@ class HomeScreenState extends State<HomeScreen> {
         _handleAddLink,
       ),
       (
-        'Google Drive',
-        Icons.add_to_drive_rounded,
-        const Color(0xFFCA8A04), // Branded Gold
-        const Color(0xFFFEFCE8),
-        _openGooglePicker,
-      ),
-      (
         'Add Video',
         Icons.videocam_rounded,
         const Color(0xFFDC2626), // Vibrant Red
         const Color(0xFFFEF2F2),
         _handleAddVideo,
+      ),
+      (
+        'Add Note',
+        Icons.edit_note_rounded,
+        const Color(0xFFEA580C), // Warm Tangerine / Orange
+        const Color(0xFFFFF7ED),
+        _handleAddNote,
+      ),
+      (
+        'Smart Scan',
+        Icons.document_scanner_rounded,
+        const Color(0xFF8B5CF6), // Soft Purple
+        const Color(0xFFF5F3FF),
+        _handleScanDocument,
+      ),
+      (
+        'Choose File',
+        Icons.description_rounded,
+        const Color(0xFF0284C7), // Soft Sky Blue
+        const Color(0xFFF0F9FF),
+        _handleChooseFile,
+      ),
+      (
+        'Voice Note',
+        Icons.mic_rounded,
+        const Color(0xFF059669), // Soft Mint Green
+        const Color(0xFFECFDF5),
+        _handleRecordVoice,
+      ),
+      (
+        'Google Drive',
+        Icons.add_to_drive_rounded,
+        const Color(0xFFCA8A04), // Branded Gold
+        const Color(0xFFFEFCE8),
+        _openGooglePicker,
       ),
     ];
 
@@ -596,6 +596,7 @@ class HomeScreenState extends State<HomeScreen> {
                 Container(
                   width: 42,
                   height: 42,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: action.$4,
                     borderRadius: BorderRadius.circular(12),
@@ -994,48 +995,61 @@ class HomeScreenState extends State<HomeScreen> {
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
+        statusBarColor: Color(0xFF4E3985),
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.backgroundOf(context),
-        body: SafeArea(
-          top:
-              false, // Fixed: Header gradient extends to top while content respects safe area padding
-          bottom: true,
-          child: BlocBuilder<CaptureBloc, CaptureState>(
-            builder: (context, state) {
-              return RefreshIndicator(
-                color: AppColors.primary,
-                backgroundColor: AppColors.cardBackgroundOf(context),
-                onRefresh: () async {
-                  context.read<CaptureBloc>().add(LoadMemoriesEvent());
-                  context.read<CaptureBloc>().add(SyncPendingMemoriesEvent());
-                },
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _buildHeader(context, userName, userInitial),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildDashboard(
-                        context,
-                        _memoriesFromState(state),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 80 + MediaQuery.paddingOf(context).bottom,
-                      ),
-                    ),
-                  ],
+        backgroundColor: const Color(0xFF4E3985),
+        body: Container(
+          color: const Color(0xFF4E3985),
+          child: SafeArea(
+            top: false,
+            bottom: true,
+            child: Column(
+              children: [
+                Container(
+                  height: MediaQuery.paddingOf(context).top,
+                  color: const Color(0xFF4E3985),
                 ),
-              );
-            },
+                Expanded(
+                  child: BlocBuilder<CaptureBloc, CaptureState>(
+                    builder: (context, state) {
+                      return SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(context, userName, userInitial),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: MediaQuery.sizeOf(context).height,
+                              ),
+                              child: Container(
+                                width: double.infinity,
+                                color: const Color(0xFFF8F8FC),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildDashboard(
+                                      context,
+                                      _memoriesFromState(state),
+                                    ),
+                                    SizedBox(
+                                      height: 80 + MediaQuery.paddingOf(context).bottom,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1094,7 +1108,7 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.camera_alt_rounded,
                         title: 'Take Photo',
                         isTakePhoto: true,
-                        iconColor: const Color(0xFFE11D48),
+                        iconColor: const Color(0xFFF43F5E),
                         iconBackground: const Color(0xFFFFF1F2),
                       ),
                       _buildCaptureOption(
@@ -1111,8 +1125,8 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.edit_note_rounded,
                         title: 'Add Note',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFD97706),
-                        iconBackground: const Color(0xFFFFFBEB),
+                        iconColor: const Color(0xFFEA580C),
+                        iconBackground: const Color(0xFFFFF7ED),
                         aliasKey: 'capture_option_Add Note',
                       ),
                       _buildCaptureOption(
@@ -2288,12 +2302,19 @@ class HomeScreenState extends State<HomeScreen> {
     String userName,
     String userInitial,
   ) {
-    final topPadding = MediaQuery.paddingOf(context).top;
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(20, topPadding + 12, 20, 24),
-      decoration: BoxDecoration(
+    return Stack(
+      children: [
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 30,
+          child: ColoredBox(color: Color(0xFFF8F8FC)),
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -2487,7 +2508,9 @@ class HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ],
+);
   }
 
   Widget _buildHeaderIconButton({

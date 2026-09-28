@@ -154,7 +154,7 @@ void main() {
 
         // Quick Actions are visible
         expect(find.text('Take Photo'), findsWidgets);
-        expect(find.text('Scan Document'), findsWidgets);
+        expect(find.text('Smart Scan'), findsWidgets);
 
         // Recent Memories section is visible with empty fallback card
         expect(find.text('Recent memories'), findsOneWidget);
@@ -494,7 +494,8 @@ void main() {
         // Verify bottom sheet appears with Take Photo
         expect(find.text('What do you want to save?'), findsOneWidget);
         expect(find.text('Take Photo'), findsNWidgets(2));
-        expect(find.text('Scan Document'), findsNWidgets(2));
+        expect(find.text('Smart Scan'), findsOneWidget);
+        expect(find.text('Scan Document'), findsOneWidget);
       },
     );
 
