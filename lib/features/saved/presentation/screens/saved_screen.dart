@@ -26,6 +26,88 @@ class SavedScreen extends StatefulWidget {
 class _SavedScreenState extends State<SavedScreen> {
   SavedTab _selectedTab = SavedTab.all;
 
+  // ─── Multi-select state ────────────────────────────────────────────────────
+
+  final Set<String> _selectedMemoryIds = {};
+
+  bool get _isSelectionMode => _selectedMemoryIds.isNotEmpty;
+
+  void _enterSelection(String id) {
+    setState(() => _selectedMemoryIds.add(id));
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedMemoryIds.contains(id)) {
+        _selectedMemoryIds.remove(id);
+      } else {
+        _selectedMemoryIds.add(id);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() => _selectedMemoryIds.clear());
+  }
+
+  void _selectAll(List<MemoryEntity> visible) {
+    setState(() {
+      final allIds = visible.map((m) => m.id).toSet();
+      if (_selectedMemoryIds.containsAll(allIds)) {
+        // All already selected → deselect all
+        _selectedMemoryIds.removeAll(allIds);
+      } else {
+        _selectedMemoryIds.addAll(allIds);
+      }
+    });
+  }
+
+  Future<void> _confirmBatchDelete(List<MemoryEntity> visible) async {
+    final count = _selectedMemoryIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete $count ${count == 1 ? 'Memory' : 'Memories'}?'),
+        content: Text(
+          'This will permanently delete $count selected '
+          '${count == 1 ? 'memory' : 'memories'}. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final idsToDelete = Set<String>.from(_selectedMemoryIds);
+      _clearSelection();
+      for (final id in idsToDelete) {
+        context.read<CaptureBloc>().add(DeleteMemoryEvent(id));
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$count ${count == 1 ? 'memory' : 'memories'} deleted.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
   String _formatTimeAgo(DateTime dateTime) {
     final diff = DateTime.now().difference(dateTime);
     if (diff.inSeconds < 60) {
@@ -222,173 +304,343 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
+  // ─── Card ──────────────────────────────────────────────────────────────────
+
   Widget _buildSavedCard(MemoryEntity memory) {
     final cleanSnippet = _formatSnippet(memory.content);
+    final isSelected = _selectedMemoryIds.contains(memory.id);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.subtleBorderOf(context),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+    return GestureDetector(
+      onLongPress: () {
+        if (!_isSelectionMode) {
+          _enterSelection(memory.id);
+        }
+      },
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleSelection(memory.id);
+        } else {
+          _openDetail(memory);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        decoration: BoxDecoration(
+          // Selected tint over card background
+          color: isSelected
+              ? const Color(0xFF0F3E32).withValues(alpha: 0.08)
+              : AppColors.cardBackgroundOf(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.subtleBorderOf(context),
+            width: isSelected ? 1.8 : 1.2,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: const BoxDecoration(
-            border: Border(
-              left: BorderSide(color: AppColors.primary, width: 4.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openDetail(memory),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Thumbnail/Icon
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceTintOf(context),
-                            borderRadius: BorderRadius.circular(12),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            children: [
+              // Card content
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.primary,
+                      width: 4.0,
+                    ),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Left Thumbnail/Icon — unchanged in selection mode
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceTintOf(context),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: _buildThumbnail(memory),
+                            ),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: _buildThumbnail(memory),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
+                          const SizedBox(width: 10),
 
-                        // Title & Category • Time
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                memory.title.isEmpty
-                                    ? 'Untitled Note'
-                                    : memory.title,
-                                style: TextStyle(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimaryOf(context),
-                                  letterSpacing: -0.2,
+                          // Title & Category • Time
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  memory.title.isEmpty
+                                      ? 'Untitled Note'
+                                      : memory.title,
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimaryOf(context),
+                                    letterSpacing: -0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${memory.category} • ${_formatTimeAgo(memory.clientCreatedAt)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondaryOf(context),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${memory.category} • ${_formatTimeAgo(memory.clientCreatedAt)}',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textSecondaryOf(context),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
 
-                        // Pin/Unpin Button
-                        IconButton(
-                          icon: Icon(
-                            memory.isPinned
-                                ? Icons.push_pin_rounded
-                                : Icons.push_pin_outlined,
-                            color: memory.isPinned
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                            size: 20,
+                          // In selection mode: show checkbox-style indicator
+                          // In normal mode: show pin button
+                          if (_isSelectionMode)
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 20,
+                              height: 20,
+                              margin: const EdgeInsets.only(left: 6),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                // RED when selected, transparent when not
+                                color: isSelected
+                                    ? const Color(0xFFEF4444)
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  // Red border when selected, muted grey when not
+                                  color: isSelected
+                                      ? const Color(0xFFEF4444)
+                                      : Colors.grey.shade400,
+                                  width: 2,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 12,
+                                    )
+                                  : null,
+                            )
+                          else
+                            SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: IconButton(
+                                icon: Icon(
+                                  memory.isPinned
+                                      ? Icons.push_pin_rounded
+                                      : Icons.push_pin_outlined,
+                                  color: memory.isPinned
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
+                                  size: 18,
+                                ),
+                                tooltip: memory.isPinned
+                                    ? 'Unpin memory'
+                                    : 'Pin memory',
+                                padding: EdgeInsets.zero,
+                                onPressed: () => _togglePinMemory(memory),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      if (cleanSnippet.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          cleanSnippet,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                            height: 1.35,
                           ),
-                          tooltip: memory.isPinned
-                              ? 'Unpin memory'
-                              : 'Pin memory',
-                          onPressed: () => _togglePinMemory(memory),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                    ),
-
-                    if (cleanSnippet.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        cleanSnippet,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          height: 1.4,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSegmentedControl() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Container(
-        height: 42,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: AppColors.toggleBackgroundOf(context),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: AppColors.borderOf(context), width: 1.0),
+  // ─── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader(List<MemoryEntity> displayedMemories) {
+    final topPad = MediaQuery.of(context).viewPadding.top + 16;
+    const color = Color(0xFF0F3E32);
+
+    if (_isSelectionMode) {
+      final allVisible = displayedMemories.map((m) => m.id).toSet();
+      final allSelected = allVisible.isNotEmpty &&
+          _selectedMemoryIds.containsAll(allVisible);
+
+      return Container(
+        width: double.infinity,
+        color: color,
+        padding: EdgeInsets.only(
+          top: topPad,
+          bottom: 12,
+          left: 4,
+          right: 4,
         ),
         child: Row(
           children: [
+            // Cancel selection
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 22),
+              onPressed: _clearSelection,
+              tooltip: 'Cancel selection',
+            ),
+            // Count
             Expanded(
-              child: _buildTabItem(
-                key: const Key('saved_tab_all'),
-                title: 'All',
-                isSelected: _selectedTab == SavedTab.all,
-                onTap: () {
-                  if (_selectedTab != SavedTab.all) {
-                    setState(() => _selectedTab = SavedTab.all);
-                  }
-                },
+              child: Text(
+                '${_selectedMemoryIds.length} Selected',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _buildTabItem(
-                key: const Key('saved_tab_pinned'),
-                title: 'Pinned',
-                isSelected: _selectedTab == SavedTab.pinned,
-                onTap: () {
-                  if (_selectedTab != SavedTab.pinned) {
-                    setState(() => _selectedTab = SavedTab.pinned);
-                  }
-                },
+            // Select All / Deselect All
+            TextButton.icon(
+              onPressed: () => _selectAll(displayedMemories),
+              icon: Icon(
+                allSelected
+                    ? Icons.deselect_rounded
+                    : Icons.select_all_rounded,
+                color: Colors.white,
+                size: 20,
               ),
+              label: Text(
+                allSelected ? 'Deselect' : 'All',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+              ),
+            ),
+            // Delete
+            IconButton(
+              icon: const Icon(
+                Icons.delete_outline,
+                color: Colors.white,
+                size: 22,
+              ),
+              tooltip: 'Delete selected',
+              onPressed: () => _confirmBatchDelete(displayedMemories),
             ),
           ],
+        ),
+      );
+    }
+
+    // Normal header
+    return Container(
+      width: double.infinity,
+      color: color,
+      padding: EdgeInsets.only(
+        top: topPad,
+        bottom: 20,
+        left: 20,
+        right: 20,
+      ),
+      child: const Text(
+        'Saved Memories',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  // ─── Tab Switcher ──────────────────────────────────────────────────────────
+
+  Widget _buildSegmentedControl() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: AppColors.toggleBackgroundOf(context),
+              borderRadius: BorderRadius.circular(100),
+              border:
+                  Border.all(color: AppColors.borderOf(context), width: 1.0),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildTabItem(
+                    key: const Key('saved_tab_all'),
+                    title: 'All',
+                    isSelected: _selectedTab == SavedTab.all,
+                    onTap: () {
+                      if (_selectedTab != SavedTab.all) {
+                        setState(() => _selectedTab = SavedTab.all);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _buildTabItem(
+                    key: const Key('saved_tab_pinned'),
+                    title: 'Pinned',
+                    isSelected: _selectedTab == SavedTab.pinned,
+                    onTap: () {
+                      if (_selectedTab != SavedTab.pinned) {
+                        setState(() => _selectedTab = SavedTab.pinned);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -424,7 +676,7 @@ class _SavedScreenState extends State<SavedScreen> {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               color: isSelected
                   ? AppColors.textWhite
@@ -435,6 +687,8 @@ class _SavedScreenState extends State<SavedScreen> {
       ),
     );
   }
+
+  // ─── Empty State ───────────────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
     final isPinnedTab = _selectedTab == SavedTab.pinned;
@@ -479,7 +733,7 @@ class _SavedScreenState extends State<SavedScreen> {
             const SizedBox(height: 8),
             Text(
               isPinnedTab
-                  ? 'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.'
+                  ? 'Pin important notes, links, or ideas from your Home screen to access them quickly.'
                   : 'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
               style: const TextStyle(
                 fontSize: 13.5,
@@ -495,103 +749,140 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
+  // ─── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: AppColors.backgroundOf(context),
-      appBar: AppBar(
-        toolbarHeight: 64,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-        automaticallyImplyLeading: false,
-        titleSpacing: 20,
-        title: const Text(
-          'Saved',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            letterSpacing: -0.3,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: AppColors.headerGradientOf(context),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
-                    .withValues(alpha: 0.20),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-        ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFF0F3E32),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
-      body: SafeArea(
-        child: BlocBuilder<CaptureBloc, CaptureState>(
-          builder: (context, state) {
-            final allMemories = state is CaptureLoaded
-                ? state.memories
-                : <MemoryEntity>[];
-            final pinnedMemories = allMemories.where((m) => m.isPinned).toList()
-              ..sort(MemoryEntity.compareByPinnedAndDate);
-            final sortedAllMemories = List<MemoryEntity>.from(allMemories)
-              ..sort(MemoryEntity.compareByPinnedAndDate);
+      child: PopScope(
+        // Back button in selection mode exits selection instead of navigating
+        canPop: !_isSelectionMode,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _isSelectionMode) {
+            _clearSelection();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.backgroundOf(context),
+          body: BlocBuilder<CaptureBloc, CaptureState>(
+            builder: (context, state) {
+              final allMemories = state is CaptureLoaded
+                  ? state.memories
+                  : <MemoryEntity>[];
+              final pinnedMemories =
+                  allMemories.where((m) => m.isPinned).toList()
+                    ..sort(MemoryEntity.compareByPinnedAndDate);
+              final sortedAllMemories =
+                  List<MemoryEntity>.from(allMemories)
+                    ..sort(MemoryEntity.compareByPinnedAndDate);
 
-            final displayedMemories = _selectedTab == SavedTab.all
-                ? sortedAllMemories
-                : pinnedMemories;
+              final displayedMemories = _selectedTab == SavedTab.all
+                  ? sortedAllMemories
+                  : pinnedMemories;
 
-            if (state is CaptureLoading && allMemories.isEmpty) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                ),
-              );
-            }
+              return Column(
+                children: [
+                  // ── Dynamic header (normal / selection mode) ────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: KeyedSubtree(
+                      key: ValueKey<bool>(_isSelectionMode),
+                      child: _buildHeader(displayedMemories),
+                    ),
+                  ),
 
-            return Column(
-              children: [
-                _buildSegmentedControl(),
-                Expanded(
-                  child: displayedMemories.isEmpty
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
-                          color: AppColors.primary,
-                          backgroundColor: AppColors.cardBackgroundOf(context),
-                          onRefresh: () async {
-                            context.read<CaptureBloc>().add(
-                              LoadMemoriesEvent(),
-                            );
-                          },
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 80),
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
+                  // ── Tab switcher + animated list ────────────────────────
+                  Expanded(
+                    child: () {
+                      if (state is CaptureLoading && allMemories.isEmpty) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.primary,
                             ),
-                            itemCount: displayedMemories.length,
-                            itemBuilder: (context, index) {
-                              return _buildSavedCard(displayedMemories[index]);
-                            },
                           ),
-                        ),
-                ),
-              ],
-            );
-          },
+                        );
+                      }
+                      return Column(
+                        children: [
+                          _buildSegmentedControl(),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 320),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (
+                                Widget child,
+                                Animation<double> animation,
+                              ) {
+                                final isForward =
+                                    _selectedTab == SavedTab.pinned;
+                                final slideIn = Tween<Offset>(
+                                  begin: Offset(
+                                    isForward ? 0.15 : -0.15,
+                                    0.0,
+                                  ),
+                                  end: Offset.zero,
+                                ).animate(animation);
+                                return SlideTransition(
+                                  position: slideIn,
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: displayedMemories.isEmpty
+                                  ? KeyedSubtree(
+                                      key: ValueKey<int>(
+                                        _selectedTab.index * 10,
+                                      ),
+                                      child: _buildEmptyState(),
+                                    )
+                                  : KeyedSubtree(
+                                      key: ValueKey<int>(_selectedTab.index),
+                                      child: RefreshIndicator(
+                                        color: AppColors.primary,
+                                        backgroundColor:
+                                            AppColors.cardBackgroundOf(context),
+                                        onRefresh: () async {
+                                          context.read<CaptureBloc>().add(
+                                            LoadMemoriesEvent(),
+                                          );
+                                        },
+                                        child: ListView.builder(
+                                          padding: const EdgeInsets.only(
+                                            top: 4,
+                                            bottom: 80,
+                                          ),
+                                          physics:
+                                              const AlwaysScrollableScrollPhysics(
+                                            parent: BouncingScrollPhysics(),
+                                          ),
+                                          itemCount: displayedMemories.length,
+                                          itemBuilder: (context, index) {
+                                            return _buildSavedCard(
+                                              displayedMemories[index],
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }(),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
