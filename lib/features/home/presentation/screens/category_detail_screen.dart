@@ -34,7 +34,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
     super.initState();
     final itemCount = widget.section.categories.length;
     // 50ms stagger per item with a baseline duration for smooth fluid entrance
-    final totalDurationMs = 280 + (itemCount * 50);
+    final totalDurationMs = 400 + (itemCount * 50);
     _animController = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: totalDurationMs),
@@ -116,53 +116,29 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundOf(context),
+      backgroundColor: const Color(0xFFFBFBF9),
       appBar: AppBar(
-        toolbarHeight: 112,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF0F3E32),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(32),
-            bottomRight: Radius.circular(32),
-          ),
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
+          statusBarColor: Color(0xFF0F3E32),
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
         ),
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           widget.section.title,
           style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
             color: Colors.white,
-            letterSpacing: -0.3,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: AppColors.headerGradientOf(context),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
-                    .withValues(alpha: 0.20),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
           ),
         ),
       ),
@@ -244,9 +220,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
     bool isDark,
   ) {
     final totalItems = widget.section.categories.length;
-    final totalDurationMs = 280 + (totalItems * 50);
+    final totalDurationMs = 400 + (totalItems * 50);
     final startFraction = (index * 50) / totalDurationMs;
-    final endFraction = ((index * 50) + 260) / totalDurationMs;
+    final endFraction = ((index * 50) + 400) / totalDurationMs;
 
     final curvedAnimation = CurvedAnimation(
       parent: _animController,

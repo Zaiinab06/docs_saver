@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -21,6 +22,8 @@ class BillTemplateSheet extends StatefulWidget {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       backgroundColor: Colors.transparent,
       builder: (_) => BillTemplateSheet(initialTemplate: initialTemplate),
     );
@@ -60,8 +63,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
     );
     _amountController = TextEditingController(text: initial?.amount ?? '');
     _dueDateController = TextEditingController(
-      text:
-          initial?.dueDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      text: initial?.dueDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now()),
     );
     _notesController = TextEditingController(text: initial?.notes ?? '');
     if (initial != null) {
@@ -92,6 +94,15 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
       firstDate: now.subtract(const Duration(days: 365)),
       lastDate: now.add(const Duration(days: 365 * 2)),
       helpText: 'Select Bill Due Date',
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: const Color(0xFF0F3E32),
+            secondary: const Color(0xFF0F3E32),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked != null) {
       setState(() {
@@ -106,6 +117,55 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
       orElse: () => {'icon': Icons.receipt_long_rounded},
     );
     return match['icon'] as IconData;
+  }
+
+  void _handleMenuSelection(String value) {
+    switch (value) {
+      case 'add':
+        setState(() {
+          _formKey.currentState?.reset();
+          _consumerNumberController.clear();
+          _amountController.clear();
+          _dueDateController.text = DateFormat(
+            'yyyy-MM-dd',
+          ).format(DateTime.now());
+          _notesController.clear();
+          _selectedBillType = 'Electricity';
+          _isPaid = false;
+        });
+        break;
+      case 'delete':
+        _confirmDeleteTemplate();
+        break;
+      case 'close':
+        Navigator.of(context).pop();
+        break;
+    }
+  }
+
+  Future<void> _confirmDeleteTemplate() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Template'),
+        content: const Text(
+          'Are you sure you want to delete this bill template? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop(false);
+    }
   }
 
   Future<void> _saveBill() async {
@@ -186,377 +246,460 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFF0F3E32),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
-      padding: EdgeInsets.fromLTRB(20, 14, 20, 24 + bottomInset),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle Bar
-                Center(
-                  child: Container(
+      child: ClipRRect(
+        borderRadius: BorderRadius.zero,
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            // Pinned fixed green header (does not scroll)
+            Container(
+              width: double.infinity,
+              color: const Color(0xFF0F3E32),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).viewPadding.top > 0
+                    ? MediaQuery.of(context).viewPadding.top + 10
+                    : 44.0,
+                bottom: 14,
+                left: 16,
+                right: 16,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
                     width: 40,
-                    height: 4,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.borderOf(context),
-                      borderRadius: BorderRadius.circular(2),
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _iconForBillType(_selectedBillType),
+                      color: Colors.white,
+                      size: 22,
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
-
-                // Header
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _iconForBillType(_selectedBillType),
-                        color: AppColors.primary,
-                        size: 22,
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Save Utility / Bill',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Save Utility / Bill',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimaryOf(context),
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Keep reference numbers and due dates organized',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Live Receipt Preview
-                _buildLiveReceiptPreview(context),
-                const SizedBox(height: 18),
-
-                // Bill Type Horizontal Choice Chips
-                Text(
-                  'Bill Type',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _billTypes.map((b) {
-                    final name = b['name'] as String;
-                    final icon = b['icon'] as IconData;
-                    final isSelected = _selectedBillType == name;
-                    return InkWell(
-                      onTap: () => setState(() => _selectedBillType = name),
-                      borderRadius: BorderRadius.circular(100),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.inputFillOf(context),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.borderOf(context),
-                          ),
-                        ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_horiz,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    onSelected: _handleMenuSelection,
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'add',
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              icon,
-                              size: 14,
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
+                              Icons.add_circle_outline,
+                              color: Color(0xFF0F3E32),
                             ),
-                            const SizedBox(width: 5),
-                            Text(
-                              name,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textPrimaryOf(context),
-                              ),
-                            ),
+                            SizedBox(width: 10),
+                            Text('Add New Template'),
                           ],
                         ),
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-
-                // Consumer / Reference Number
-                Text(
-                  'Consumer / Reference Number',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _consumerNumberController,
-                  decoration: _buildInputDecoration(
-                    context,
-                    hint: 'e.g. 08 11234 5678901 U',
-                    icon: Icons.tag_rounded,
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter consumer or reference number'
-                      : null,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 14),
-
-                // Amount & Due Date Row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Amount
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Amount',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimaryOf(context),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _amountController,
-                            keyboardType: TextInputType.text,
-                            decoration: _buildInputDecoration(
-                              context,
-                              hint: 'e.g. PKR 12,450',
-                              icon: Icons.payments_outlined,
-                            ),
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? 'Required'
-                                : null,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Due Date
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Due Date',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimaryOf(context),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _dueDateController,
-                            readOnly: true,
-                            onTap: _pickDueDate,
-                            decoration: _buildInputDecoration(
-                              context,
-                              hint: 'YYYY-MM-DD',
-                              icon: Icons.calendar_month_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Payment Status Switch Card
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _isPaid
-                        ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                        : const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _isPaid
-                          ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                          : const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isPaid
-                            ? Icons.check_circle_rounded
-                            : Icons.pending_rounded,
-                        color: _isPaid
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
                           children: [
-                            Text(
-                              _isPaid ? 'Bill Paid' : 'Payment Pending',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _isPaid
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFFF59E0B),
-                              ),
-                            ),
-                            Text(
-                              _isPaid
-                                  ? 'Marked as completed'
-                                  : 'Tap toggle when paid',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
+                            Icon(Icons.delete_outline, color: Colors.red),
+                            SizedBox(width: 10),
+                            Text('Delete Current Template'),
                           ],
                         ),
                       ),
-                      Switch.adaptive(
-                        value: _isPaid,
-                        activeTrackColor: const Color(0xFF10B981),
-                        onChanged: (val) => setState(() => _isPaid = val),
+                      const PopupMenuItem(
+                        value: 'close',
+                        child: Row(
+                          children: [
+                            Icon(Icons.close, color: Color(0xFF0F3E32)),
+                            SizedBox(width: 10),
+                            Text('Close Sheet'),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 14),
+                ],
+              ),
+            ),
 
-                // Notes
-                Text(
-                  'Notes (Optional)',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
+            // Scrollable form body only
+            Expanded(
+              child: Container(
+                color: const Color(0xFFFBFBF9),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.only(
+                    bottom:
+                        bottomInset +
+                        (MediaQuery.of(context).viewPadding.bottom > 0
+                            ? MediaQuery.of(context).viewPadding.bottom + 32
+                            : 32),
                   ),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _notesController,
-                  maxLines: 2,
-                  decoration: _buildInputDecoration(
-                    context,
-                    hint: 'e.g. Paid via mobile banking app',
-                    icon: Icons.notes_rounded,
-                  ),
-                ),
-                const SizedBox(height: 22),
+                  child: Form(
+                    key: _formKey,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Live Receipt Preview
+                          _buildLiveReceiptPreview(context),
+                          const SizedBox(height: 18),
 
-                // Submit Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveBill,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                          // Bill Type Horizontal Choice Chips
+                          Text(
+                            'Bill Type',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimaryOf(context),
                             ),
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _billTypes.map((b) {
+                              final name = b['name'] as String;
+                              final icon = b['icon'] as IconData;
+                              final isSelected = _selectedBillType == name;
+                              return InkWell(
+                                onTap: () =>
+                                    setState(() => _selectedBillType = name),
+                                borderRadius: BorderRadius.circular(100),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF0F3E32)
+                                        : AppColors.inputFillOf(context),
+                                    borderRadius: BorderRadius.circular(100),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFF0F3E32)
+                                          : AppColors.borderOf(context),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        icon,
+                                        size: 14,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        name,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : AppColors.textPrimaryOf(
+                                                  context,
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Consumer / Reference Number
+                          Text(
+                            'Consumer / Reference Number',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimaryOf(context),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _consumerNumberController,
+                            decoration: _buildInputDecoration(
+                              context,
+                              hint: 'e.g. 08 11234 5678901 U',
+                              icon: Icons.tag_rounded,
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Please enter consumer or reference number'
+                                : null,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Amount & Due Date Row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.save_rounded, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'Save Bill to Memory',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
+                              // Amount
+                              Expanded(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Amount',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimaryOf(context),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextFormField(
+                                      controller: _amountController,
+                                      keyboardType: TextInputType.text,
+                                      decoration: _buildInputDecoration(
+                                        context,
+                                        hint: 'e.g. PKR 12,450',
+                                        icon: Icons.payments_outlined,
+                                      ),
+                                      validator: (v) =>
+                                          (v == null || v.trim().isEmpty)
+                                          ? 'Required'
+                                          : null,
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Due Date
+                              Expanded(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Due Date',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimaryOf(context),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextFormField(
+                                      controller: _dueDateController,
+                                      readOnly: true,
+                                      onTap: _pickDueDate,
+                                      decoration: _buildInputDecoration(
+                                        context,
+                                        hint: 'YYYY-MM-DD',
+                                        icon: Icons.calendar_month_rounded,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 16),
+
+                          // Payment Status Switch Card
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _isPaid
+                                  ? const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: 0.1)
+                                  : const Color(
+                                      0xFFF59E0B,
+                                    ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _isPaid
+                                    ? const Color(
+                                        0xFF10B981,
+                                      ).withValues(alpha: 0.3)
+                                    : const Color(
+                                        0xFFF59E0B,
+                                      ).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isPaid
+                                      ? Icons.check_circle_rounded
+                                      : Icons.pending_rounded,
+                                  color: _isPaid
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B),
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _isPaid
+                                            ? 'Bill Paid'
+                                            : 'Payment Pending',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: _isPaid
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFFF59E0B),
+                                        ),
+                                      ),
+                                      Text(
+                                        _isPaid
+                                            ? 'Marked as completed'
+                                            : 'Tap toggle when paid',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch.adaptive(
+                                  value: _isPaid,
+                                  activeTrackColor: const Color(0xFF10B981),
+                                  onChanged: (val) =>
+                                      setState(() => _isPaid = val),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Notes
+                          Text(
+                            'Notes (Optional)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimaryOf(context),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _notesController,
+                            maxLines: 2,
+                            decoration: _buildInputDecoration(
+                              context,
+                              hint: 'e.g. Paid via mobile banking app',
+                              icon: Icons.notes_rounded,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+
+                          // Submit Button
+                          Container(
+                            margin: EdgeInsets.only(
+                              left: 16,
+                              right: 16,
+                              top: 12,
+                              bottom:
+                                  (MediaQuery.of(context).viewPadding.bottom > 0
+                                      ? MediaQuery.of(
+                                          context,
+                                        ).viewPadding.bottom
+                                      : 48.0) +
+                                  16.0,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: _isSaving ? null : _saveBill,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0F3E32),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: _isSaving
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                        ),
+                                      )
+                                    : const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.save_rounded, size: 20),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Save Bill to Memory',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 60),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -683,7 +826,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
     required IconData icon,
   }) {
     return InputDecoration(
-      prefixIcon: Icon(icon, size: 18, color: AppColors.textSecondary),
+      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF0F3E32)),
       hintText: hint,
       hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
       filled: true,
@@ -699,7 +842,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFF0F3E32), width: 1.5),
       ),
     );
   }

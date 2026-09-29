@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -321,8 +322,8 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
           children: [
             // Polished category icon in styled Violet Twilight circle
             Container(
-              width: 84,
-              height: 84,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 color: category.backgroundColor,
                 shape: BoxShape.circle,
@@ -336,10 +337,10 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                 ],
               ),
               child: Center(
-                child: Icon(category.icon, size: 40, color: category.iconColor),
+                child: Icon(category.icon, size: 32, color: category.iconColor),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 12),
 
             // Dynamic Empty State Title
             Text(
@@ -385,51 +386,22 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                     ),
                   ],
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      category.isCardTemplate
-                          ? Icons.credit_card_rounded
-                          : category.isBillTemplate
-                              ? Icons.receipt_long_rounded
-                              : Icons.add_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
+                    Icon(Icons.add, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
                     Text(
-                      category.isCardTemplate
-                          ? 'Add Card'
-                          : category.isBillTemplate
-                              ? 'Add Bill'
-                              : 'Add Memory',
-                      style: const TextStyle(
+                      'Add Memory',
+                      style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
                         color: Colors.white,
                         letterSpacing: -0.2,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Helper text below button
-            GestureDetector(
-              key: const Key('empty_state_other_methods_btn'),
-              onTap: () => _handleCapture(context),
-              child: const Text(
-                'or click + for other capture methods',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.textSecondary,
-                  letterSpacing: -0.1,
-                ),
-                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -587,76 +559,33 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkCardBackground : Colors.white,
+        backgroundColor: const Color(0xFF0F3E32),
         elevation: 0,
-        scrolledUnderElevation: 0.5,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Color(0xFF0F3E32),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
         centerTitle: false,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: isDark
-                ? AppColors.darkTextPrimary
-                : AppColors.violetTwilight800,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Hero(
-              tag: 'category_icon_${category.name}',
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkBackground
-                      : category.iconBackgroundColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark
-                        ? category.iconColor.withValues(alpha: 0.3)
-                        : category.borderColor,
-                    width: 1,
-                  ),
-                ),
-                child: Center(
-                  child:
-                      Icon(category.icon, size: 16, color: category.iconColor),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                category.name,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.violetTwilight800,
-                  letterSpacing: -0.3,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: isDark
-                ? AppColors.darkSubtleBorder
-                : AppColors.violetTwilight100.withValues(alpha: 0.5),
-            height: 1.0,
+        title: Text(
+          category.name,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
       body: SafeArea(
@@ -710,20 +639,24 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        key: const Key('category_memories_add_btn'),
-        heroTag: 'category_memories_fab',
-        onPressed: () => _handleCapture(context),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Icon(
-          Icons.add_rounded,
-          size: 28,
-        ),
+      floatingActionButton: BlocBuilder<CaptureBloc, CaptureState>(
+        builder: (context, state) {
+          final memories = state is CaptureLoaded
+              ? state.memories
+                    .where(
+                      (memory) =>
+                          _matchesCategory(memory.category, category.name),
+                    )
+                    .toList()
+              : <MemoryEntity>[];
+          if (memories.isEmpty) return const SizedBox.shrink();
+
+          return FloatingActionButton(
+            onPressed: () => _handleCapture(context),
+            backgroundColor: const Color(0xFF0F3E32),
+            child: const Icon(Icons.add, color: Colors.white),
+          );
+        },
       ),
     );
   }
