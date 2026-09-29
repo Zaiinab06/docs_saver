@@ -1,25 +1,27 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:url_launcher/url_launcher.dart';
 // ignore: depend_on_referenced_packages
 import 'package:app_links/app_links.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/profile_notifier.dart';
 import '../../../../core/theme/theme_cubit.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
-import '../../../capture/domain/entities/memory_entity.dart';
 import '../../../capture/presentation/bloc/capture_bloc.dart';
-import '../../../capture/presentation/bloc/capture_event.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../integrations/data/datasources/google_auth_remote_data_source.dart';
 import '../../../integrations/data/repositories/google_auth_repository_impl.dart';
 import '../../../integrations/domain/entities/google_integration_status.dart';
 import '../../../integrations/presentation/cubit/google_auth_cubit.dart';
+import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,6 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   late final GoogleAuthCubit _googleAuthCubit;
   StreamSubscription<Uri>? _deepLinkSubscription;
   AppLinks? _appLinks;
+  File? _profileImageFile;
+
 
   @override
   void initState() {
@@ -97,6 +101,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   String _getUserName(BuildContext context) {
+    if (ProfileNotifier.nameNotifier.value != null && ProfileNotifier.nameNotifier.value!.trim().isNotEmpty) {
+      return ProfileNotifier.nameNotifier.value!.trim();
+    }
     try {
       final authState = context.read<AuthBloc>().state;
       if (authState is Authenticated &&
@@ -127,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         }
       }
     } catch (_) {}
-    return 'Second Brain User';
+    return 'DocsSaver User';
   }
 
   String _getUserEmail(BuildContext context) {
@@ -150,16 +157,9 @@ class _SettingsScreenState extends State<SettingsScreen>
         return user.email!;
       }
     } catch (_) {}
-    return 'user@secondbrain.app';
+    return 'user@docssaver.app';
   }
 
-  String _getUserInitial(String name) {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.toLowerCase() == 'second brain user') {
-      return 'U';
-    }
-    return trimmed[0].toUpperCase();
-  }
 
   Future<void> _confirmSignOut(BuildContext context, bool isDark) async {
     final confirmed = await showDialog<bool>(
@@ -183,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
           ),
           content: Text(
-            'Are you sure you want to sign out of Second Brain?',
+            'Are you sure you want to sign out of DocsSaver?',
             style: TextStyle(
               fontSize: 14,
               color: isDark
@@ -305,128 +305,37 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
-  void _showAccountDetails(
+  Future<void> _navigateToEditProfile(
     BuildContext context,
     String userName,
     String userEmail,
-    bool isDark,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark
-          ? AppColors.darkCardBackground
-          : AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  ) async {
+    final updatedImage = await Navigator.push<File?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(
+          initialName: userName,
+          initialEmail: userEmail,
+          initialProfileImage: _profileImageFile,
+        ),
       ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkSubtleBorder
-                          : AppColors.chipInactiveBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Account Information',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildInfoRow('Name', userName, isDark),
-                const SizedBox(height: 12),
-                _buildInfoRow('Email', userEmail, isDark),
-                const SizedBox(height: 12),
-                _buildInfoRow('Authentication', 'Supabase Auth', isDark),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark
-                          ? AppColors.periwinkle300
-                          : AppColors.primary,
-                      side: BorderSide(
-                        color: isDark
-                            ? AppColors.periwinkle300
-                            : AppColors.primary,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
-  }
 
-  Widget _buildInfoRow(String label, String value, bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13.5,
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.textSecondary,
-          ),
-        ),
-        Flexible(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.end,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
+    // Trigger rebuild to update profile name (and image if changed)
+    if (mounted) {
+      setState(() {
+        if (updatedImage != null) {
+          _profileImageFile = updatedImage;
+        }
+      });
+    }
   }
 
   Future<void> _handleContactSupport(BuildContext context, bool isDark) async {
     final emailUri = Uri(
       scheme: 'mailto',
-      path: 'support@secondbrain.app',
-      queryParameters: {'subject': 'Second Brain Support & Feedback'},
+      path: 'support@docssaver.app',
+      queryParameters: {'subject': 'DocsSaver Support & Feedback'},
     );
     try {
       final launched = await launchUrl(
@@ -478,7 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
               const SizedBox(height: 8),
               SelectableText(
-                'support@secondbrain.app',
+                'support@docssaver.app',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -583,91 +492,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  void _showAiDetails(BuildContext context, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: isDark
-              ? AppColors.darkCardBackground
-              : AppColors.cardBackground,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.auto_awesome_rounded,
-                color: isDark ? AppColors.periwinkle300 : AppColors.primary,
-                size: 24,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'AI Knowledge Engine',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.textPrimary,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Second Brain uses Google Gemini to automatically understand and organize your memories:',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '• Multi-modal OCR for images & document scans\n'
-                '• Accurate speech-to-text audio transcription\n'
-                '• Smart 8-category classification & semantic tags\n'
-                '• Living Memory entity extraction\n'
-                '• 768-dimensional pgvector semantic search',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.textPrimary,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                'Got It',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.periwinkle300 : AppColors.primary,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   void _showAboutSecondBrain(BuildContext context, bool isDark) {
     showAboutDialog(
       context: context,
-      applicationName: 'Second Brain',
+      applicationName: 'DocsSaver',
       applicationVersion: 'v$_appVersion',
       applicationIcon: Container(
         width: 48,
@@ -688,7 +517,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       children: [
         Text(
-          'Second Brain is an AI-powered personal knowledge assistant designed to capture, organize, and retrieve your ideas, documents, audio recordings, and notes effortlessly.',
+          'DocsSaver is an AI-powered personal knowledge assistant designed to capture, organize, and retrieve your ideas, documents, audio recordings, and notes effortlessly.',
           style: TextStyle(
             fontSize: 13.5,
             color: isDark
@@ -703,41 +532,18 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   Widget _buildSectionHeader({
     required String title,
-    required IconData icon,
     required bool isDark,
   }) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.darkSubtleBorder
-                  : AppColors.violetTwilight100.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              size: 15,
-              color: isDark ? AppColors.periwinkle300 : AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.textSecondary,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.only(left: 4, top: 24, bottom: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
@@ -745,11 +551,11 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _buildCard({required List<Widget> children, required bool isDark}) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+        color: isDark ? AppColors.darkCardBackground : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
-          width: 1.2,
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
@@ -774,18 +580,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     required bool isDark,
   }) {
     final effectiveTitleColor =
-        titleColor ??
-        (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
-    final effectiveSubtitleColor = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.textSecondary;
+        titleColor ?? (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
+    final effectiveSubtitleColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
     final effectiveIconColor =
         iconColor ?? (isDark ? AppColors.periwinkle300 : AppColors.primary);
-    final iconBgColor = iconColor != null
-        ? iconColor.withValues(alpha: 0.1)
-        : (isDark
-              ? AppColors.primary.withValues(alpha: 0.2)
-              : AppColors.primary.withValues(alpha: 0.1));
 
     return Material(
       color: Colors.transparent,
@@ -796,16 +595,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 20, color: effectiveIconColor),
-              ),
-              const SizedBox(width: 14),
+              Icon(icon, size: 24, color: effectiveIconColor),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -814,9 +605,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                       title,
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         color: effectiveTitleColor,
-                        letterSpacing: -0.2,
                       ),
                     ),
                     if (subtitle != null) ...[
@@ -824,9 +614,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 13,
                           color: effectiveSubtitleColor,
-                          height: 1.3,
                         ),
                       ),
                     ],
@@ -837,11 +626,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 trailing
               else if (onTap != null)
                 Icon(
-                  Icons.chevron_right_rounded,
+                  Icons.chevron_right,
                   size: 20,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.textSecondary,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                 ),
             ],
           ),
@@ -854,21 +641,66 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Divider(
       height: 1,
       thickness: 1,
-      indent: 68,
-      endIndent: 16,
+      indent: 56,
+      endIndent: 0,
       color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
     );
   }
 
-  String _getThemeDescription(ThemeMode mode) {
+  String _getThemeShortDescription(ThemeMode mode) {
     switch (mode) {
       case ThemeMode.light:
-        return 'Light mode active';
+        return 'Light';
       case ThemeMode.dark:
-        return 'Dark mode active';
+        return 'Dark';
       case ThemeMode.system:
-        return 'Following device system theme';
+        return 'System';
     }
+  }
+
+  void _showThemePickerModal(BuildContext context, ThemeMode currentMode, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? AppColors.darkCardBackground : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Select Theme',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildThemeSelector(context, currentMode, isDark),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildThemeSelector(
@@ -1002,98 +834,30 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    String userName,
-    String userInitial,
-    bool isDark,
-  ) {
-    final topPadding = MediaQuery.paddingOf(context).top;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        // Header gradient background
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.fromLTRB(20, topPadding + 20, 20, 56),
-          decoration: BoxDecoration(
-            gradient: AppColors.headerGradientOf(context),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
-                    .withValues(alpha: 0.20),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Settings',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Manage your Second Brain',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.white70,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ],
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: MediaQuery.of(context).viewPadding.top + 16,
+        bottom: 20,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F3E32),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: const Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'Settings',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
-        // Overlapping avatar at bottom edge of header
-        Positioned(
-          bottom: -40,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.darkCardBackground
-                  : AppColors.cardBackground,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.white,
-                width: 4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                userInitial,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? AppColors.periwinkle300 : AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -1105,10 +869,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     } catch (_) {}
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? AppColors.darkBackground : AppColors.background;
+    final scaffoldBg = isDark ? AppColors.darkBackground : const Color(0xFFFBFBF9);
     final userName = _getUserName(context);
     final userEmail = _getUserEmail(context);
-    final userInitial = _getUserInitial(userName);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -1118,177 +881,41 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       child: Scaffold(
         backgroundColor: scaffoldBg,
-        body: SafeArea(
-          top: false,
-          bottom: true,
-          child: BlocBuilder<CaptureBloc, CaptureState>(
-            builder: (context, captureState) {
-              final List<MemoryEntity> memories = captureState is CaptureLoaded
-                  ? captureState.memories
-                  : const <MemoryEntity>[];
-              final pendingCount = memories.where((m) => !m.isSynced).length;
-              final totalCount = memories.length;
+        body: Column(
+          children: [
+            // 1. Pinned Header Container
+            _buildHeader(context),
 
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  children: [
-                    // 1. Header with Overlapping Avatar
-                    _buildHeader(context, userName, userInitial, isDark),
-
-                    const SizedBox(
-                      height: 52,
-                    ), // Clearance for overlapping avatar
-                    // Centered Real Authenticated User Name and Email
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          Text(
-                            userName,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : AppColors.textPrimary,
-                              letterSpacing: -0.3,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            userEmail,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.textSecondary,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Content Sections
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+            Expanded(
+              child: BlocBuilder<CaptureBloc, CaptureState>(
+                builder: (context, captureState) {
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 1. Account Section Card
-                          _buildSectionHeader(
-                            title: 'ACCOUNT',
-                            icon: Icons.person_outline_rounded,
-                            isDark: isDark,
-                          ),
+                          // Grouped Settings Sections
+                          // ACCOUNT DETAILS
+                          _buildSectionHeader(title: 'Account Details', isDark: isDark),
                           _buildCard(
                             isDark: isDark,
                             children: [
                               _buildTile(
-                                icon: Icons.person_outline_rounded,
-                                title: 'Profile',
-                                subtitle: 'View account details',
-                                trailing: Icon(
-                                  Icons.chevron_right_rounded,
-                                  size: 20,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.textSecondary,
-                                ),
-                                onTap: () => _showAccountDetails(
-                                  context,
-                                  userName,
-                                  userEmail,
-                                  isDark,
-                                ),
+                                icon: Icons.person_outline,
+                                title: 'Account',
+                                onTap: () => _navigateToEditProfile(context, userName, userEmail),
                                 isDark: isDark,
                               ),
                               _buildDivider(isDark: isDark),
-                              _buildTile(
-                                icon: Icons.mail_outline_rounded,
-                                title: 'Email',
-                                subtitle: userEmail,
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? AppColors.primary.withValues(
-                                            alpha: 0.25,
-                                          )
-                                        : AppColors.lightCyanTint,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: AppColors.primary.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Active',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark
-                                          ? AppColors.periwinkle300
-                                          : AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                                onTap: () => _showAccountDetails(
-                                  context,
-                                  userName,
-                                  userEmail,
-                                  isDark,
-                                ),
-                                isDark: isDark,
-                              ),
-                              _buildDivider(isDark: isDark),
-                              _buildTile(
-                                icon: Icons.logout_rounded,
-                                iconColor: AppColors.errorText,
-                                title: 'Sign Out',
-                                titleColor: AppColors.errorText,
-                                subtitle:
-                                    'Sign out of your Second Brain account',
-                                onTap: () => _confirmSignOut(context, isDark),
-                                isDark: isDark,
-                              ),
-                            ],
-                          ),
-
-                          // 2. Connected Accounts Section
-                          _buildSectionHeader(
-                            title: 'CONNECTED ACCOUNTS',
-                            icon: Icons.link_rounded,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
-                              BlocConsumer<
-                                GoogleAuthCubit,
-                                GoogleIntegrationStatus
-                              >(
+                              BlocConsumer<GoogleAuthCubit, GoogleIntegrationStatus>(
                                 bloc: _googleAuthCubit,
                                 listener: (context, googleStatus) {
-                                  if (googleStatus.errorMessage != null &&
-                                      googleStatus.errorMessage!.isNotEmpty) {
+                                  if (googleStatus.errorMessage != null && googleStatus.errorMessage!.isNotEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(
-                                          googleStatus.errorMessage!,
-                                        ),
+                                        content: Text(googleStatus.errorMessage!),
                                         backgroundColor: AppColors.errorText,
                                         behavior: SnackBarBehavior.floating,
                                         duration: const Duration(seconds: 4),
@@ -1298,145 +925,42 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 },
                                 builder: (context, googleStatus) {
                                   final isConnected = googleStatus.isConnected;
-                                  final isConnecting =
-                                      googleStatus.isConnecting;
-                                  final email = googleStatus.email;
-
-                                  String subtitle;
-                                  if (isConnecting) {
-                                    subtitle =
-                                        'Opening Google sign-in in system browser...';
-                                  } else if (isConnected) {
-                                    subtitle = email != null && email.isNotEmpty
-                                        ? 'Connected as $email'
-                                        : 'Connected to Google Drive';
-                                  } else if (googleStatus.state ==
-                                      GoogleConnectionState.cancelled) {
-                                    subtitle =
-                                        'Connection was cancelled. Tap to retry.';
-                                  } else if (googleStatus.state ==
-                                      GoogleConnectionState.connectionFailed) {
-                                    subtitle =
-                                        'Connection failed. Tap to retry.';
-                                  } else {
-                                    subtitle =
-                                        'Connect your Google account for Docs import';
-                                  }
-
+                                  final isConnecting = googleStatus.isConnecting;
+                                  
                                   Widget trailingWidget;
                                   if (isConnecting) {
                                     trailingWidget = const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              AppColors.primary,
-                                            ),
-                                      ),
+                                      width: 18, height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary)),
                                     );
-                                  } else if (isConnected) {
+                                  } else {
                                     trailingWidget = Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isDark
-                                                ? AppColors.primary.withValues(
-                                                    alpha: 0.25,
-                                                  )
-                                                : AppColors.lightCyanTint,
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
+                                        if (isConnected)
+                                          Text(
                                             'Connected',
                                             style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                              color: isDark
-                                                  ? AppColors.periwinkle300
-                                                  : AppColors.primary,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark ? AppColors.periwinkle300 : AppColors.primary,
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.link_off_rounded,
-                                            size: 20,
-                                          ),
-                                          color: AppColors.errorText,
-                                          tooltip: 'Disconnect Google Account',
-                                          onPressed: () =>
-                                              _confirmDisconnectGoogle(isDark),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.chevron_right,
+                                          size: 20,
+                                          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                                         ),
                                       ],
-                                    );
-                                  } else {
-                                    trailingWidget = Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? AppColors.primary.withValues(
-                                                alpha: 0.25,
-                                              )
-                                            : AppColors.lightCyanTint,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.login_rounded,
-                                            size: 14,
-                                            color: isDark
-                                                ? AppColors.periwinkle300
-                                                : AppColors.primary,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Connect',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: isDark
-                                                  ? AppColors.periwinkle300
-                                                  : AppColors.primary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
                                     );
                                   }
 
                                   return _buildTile(
-                                    icon: Icons.account_circle_outlined,
-                                    title: 'Google Drive',
-                                    subtitle: subtitle,
+                                    icon: Icons.cloud_outlined,
+                                    title: 'Cloud & Sync',
                                     trailing: trailingWidget,
-                                    onTap: isConnecting
-                                        ? null
-                                        : (isConnected
-                                              ? () => _confirmDisconnectGoogle(
-                                                  isDark,
-                                                )
-                                              : () =>
-                                                    _googleAuthCubit.connect()),
+                                    onTap: isConnecting ? null : (isConnected ? () => _confirmDisconnectGoogle(isDark) : () => _googleAuthCubit.connect()),
                                     isDark: isDark,
                                   );
                                 },
@@ -1444,321 +968,108 @@ class _SettingsScreenState extends State<SettingsScreen>
                             ],
                           ),
 
-                          // 3. Appearance Section
-                          _buildSectionHeader(
-                            title: 'APPEARANCE',
-                            icon: Icons.palette_outlined,
-                            isDark: isDark,
-                          ),
+                          // GENERAL
+                          _buildSectionHeader(title: 'General', isDark: isDark),
                           _buildCard(
                             isDark: isDark,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  14,
-                                  16,
-                                  14,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              _buildTile(
+                                icon: Icons.notifications_none,
+                                title: 'Notifications',
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 38,
-                                          height: 38,
-                                          decoration: BoxDecoration(
-                                            color: isDark
-                                                ? AppColors.primary.withValues(
-                                                    alpha: 0.2,
-                                                  )
-                                                : AppColors.primary.withValues(
-                                                    alpha: 0.1,
-                                                  ),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.palette_outlined,
-                                            size: 20,
-                                            color: isDark
-                                                ? AppColors.periwinkle300
-                                                : AppColors.primary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Theme',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isDark
-                                                      ? AppColors
-                                                            .darkTextPrimary
-                                                      : AppColors.textPrimary,
-                                                  letterSpacing: -0.2,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _getThemeDescription(
-                                                  currentThemeMode,
-                                                ),
-                                                style: TextStyle(
-                                                  fontSize: 12.5,
-                                                  color: isDark
-                                                      ? AppColors
-                                                            .darkTextSecondary
-                                                      : AppColors.textSecondary,
-                                                  height: 1.3,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      'On',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                                      ),
                                     ),
-                                    const SizedBox(height: 14),
-                                    _buildThemeSelector(
-                                      context,
-                                      currentThemeMode,
-                                      isDark,
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      size: 20,
+                                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-
-                          // 3. Notifications Section
-                          _buildSectionHeader(
-                            title: 'NOTIFICATIONS',
-                            icon: Icons.notifications_none_rounded,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
-                              _buildTile(
-                                icon: Icons.notifications_none_rounded,
-                                title: 'Push Notifications',
-                                subtitle: 'Memory reminders and suggestions',
-                                trailing: Text(
-                                  'Enabled',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.periwinkle300
-                                        : AppColors.primary,
-                                  ),
-                                ),
-                                isDark: isDark,
-                              ),
-                            ],
-                          ),
-
-                          // 4. Data & Storage Section
-                          _buildSectionHeader(
-                            title: 'DATA & STORAGE',
-                            icon: Icons.cloud_sync_outlined,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
-                              _buildTile(
-                                icon: Icons.cloud_sync_outlined,
-                                title: 'Sync Offline Memories',
-                                subtitle: pendingCount > 0
-                                    ? '$pendingCount memories waiting to sync'
-                                    : 'Synchronize local cache with Supabase cloud',
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? AppColors.primary.withValues(
-                                            alpha: 0.25,
-                                          )
-                                        : AppColors.lightCyanTint,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: AppColors.primary.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.sync_rounded,
-                                        size: 14,
-                                        color: isDark
-                                            ? AppColors.periwinkle300
-                                            : AppColors.primary,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Sync Now',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark
-                                              ? AppColors.periwinkle300
-                                              : AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                onTap: () {
-                                  context.read<CaptureBloc>().add(
-                                    SyncPendingMemoriesEvent(),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Syncing memories with cloud...',
-                                      ),
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
+                                onTap: () {},
                                 isDark: isDark,
                               ),
                               _buildDivider(isDark: isDark),
                               _buildTile(
-                                icon: Icons.storage_rounded,
-                                title: 'Local Database',
-                                subtitle:
-                                    'Isar Embedded Database • $totalCount saved',
-                                trailing: Text(
-                                  'Active',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.periwinkle300
-                                        : AppColors.primary,
-                                  ),
+                                icon: Icons.wb_sunny_outlined,
+                                title: 'Theme / Mode',
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _getThemeShortDescription(currentThemeMode),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      size: 20,
+                                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                                    ),
+                                  ],
                                 ),
+                                onTap: () => _showThemePickerModal(context, currentThemeMode, isDark),
                                 isDark: isDark,
                               ),
                             ],
                           ),
 
-                          // 5. AI & Knowledge Engine Section
-                          _buildSectionHeader(
-                            title: 'AI & KNOWLEDGE ENGINE',
-                            icon: Icons.auto_awesome_outlined,
-                            isDark: isDark,
-                          ),
+                          // SUPPORT & SECURITY
+                          _buildSectionHeader(title: 'Support & Security', isDark: isDark),
                           _buildCard(
                             isDark: isDark,
                             children: [
                               _buildTile(
-                                icon: Icons.psychology_outlined,
-                                title: 'AI Knowledge Engine',
-                                subtitle:
-                                    'Google Gemini • OCR, Audio & Semantic Search',
-                                trailing: Text(
-                                  'Active',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.periwinkle300
-                                        : AppColors.primary,
-                                  ),
-                                ),
-                                onTap: () => _showAiDetails(context, isDark),
-                                isDark: isDark,
-                              ),
-                            ],
-                          ),
-
-                          // 6. Help & Support Section
-                          _buildSectionHeader(
-                            title: 'HELP & SUPPORT',
-                            icon: Icons.help_outline_rounded,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
-                              _buildTile(
-                                icon: Icons.mail_outline_rounded,
-                                title: 'Contact Support',
-                                subtitle:
-                                    'Reach out to support@secondbrain.app',
-                                onTap: () =>
-                                    _handleContactSupport(context, isDark),
-                                isDark: isDark,
-                              ),
-                            ],
-                          ),
-
-                          // 7. Privacy & Security Section
-                          _buildSectionHeader(
-                            title: 'PRIVACY & SECURITY',
-                            icon: Icons.shield_outlined,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
-                              _buildTile(
-                                icon: Icons.lock_outline_rounded,
+                                icon: Icons.lock_outline,
                                 title: 'Privacy & Data Protection',
-                                subtitle:
-                                    'Your memories are encrypted and tenant-isolated',
-                                onTap: () =>
-                                    _showPrivacyDetails(context, isDark),
+                                onTap: () => _showPrivacyDetails(context, isDark),
                                 isDark: isDark,
                               ),
-                            ],
-                          ),
-
-                          // 8. About Section
-                          _buildSectionHeader(
-                            title: 'ABOUT',
-                            icon: Icons.info_outline_rounded,
-                            isDark: isDark,
-                          ),
-                          _buildCard(
-                            isDark: isDark,
-                            children: [
+                              _buildDivider(isDark: isDark),
                               _buildTile(
-                                icon: Icons.psychology_rounded,
-                                title: 'Second Brain',
-                                subtitle:
-                                    'v$_appVersion • AI-powered personal knowledge assistant',
-                                onTap: () =>
-                                    _showAboutSecondBrain(context, isDark),
+                                icon: Icons.mail_outline,
+                                title: 'Contact Support',
+                                onTap: () => _handleContactSupport(context, isDark),
+                                isDark: isDark,
+                              ),
+                              _buildDivider(isDark: isDark),
+                              _buildTile(
+                                icon: Icons.info_outline,
+                                title: 'About DocsSaver',
+                                onTap: () => _showAboutSecondBrain(context, isDark),
+                                isDark: isDark,
+                              ),
+                              _buildDivider(isDark: isDark),
+                              _buildTile(
+                                icon: Icons.logout,
+                                iconColor: const Color(0xFFEF4444),
+                                title: 'Sign Out',
+                                titleColor: const Color(0xFFEF4444),
+                                onTap: () => _confirmSignOut(context, isDark),
                                 isDark: isDark,
                               ),
                             ],
                           ),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

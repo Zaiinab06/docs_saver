@@ -43,6 +43,8 @@ import '../../../integrations/data/datasources/google_auth_remote_data_source.da
 import '../../../integrations/data/repositories/google_auth_repository_impl.dart';
 import '../../../integrations/domain/entities/google_doc_entity.dart';
 import '../../../integrations/domain/repositories/google_auth_repository.dart';
+import '../../../../core/utils/profile_notifier.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
 
@@ -146,6 +148,17 @@ class HomeScreenState extends State<HomeScreen> {
           });
     } catch (_) {}
     _initDeepLinks();
+    _loadStoredName();
+  }
+
+  Future<void> _loadStoredName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedName = prefs.getString('user_full_name');
+      if (storedName != null && storedName.isNotEmpty) {
+        ProfileNotifier.nameNotifier.value = storedName;
+      }
+    } catch (_) {}
   }
 
   void _initDeepLinks() {
@@ -993,7 +1006,6 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userName = _getUserName();
-    final userInitial = _getUserInitial(userName);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -1017,7 +1029,13 @@ class HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildHeader(context, userName, userInitial),
+                          ValueListenableBuilder<String?>(
+                            valueListenable: ProfileNotifier.nameNotifier,
+                            builder: (context, newName, _) {
+                              final nameToUse = (newName != null && newName.trim().isNotEmpty) ? newName.trim() : userName;
+                              return _buildHeader(context, nameToUse, _getUserInitial(nameToUse));
+                            },
+                          ),
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               minHeight: MediaQuery.sizeOf(context).height,
@@ -2617,8 +2635,8 @@ class HomeScreenState extends State<HomeScreen> {
                               SnackBar(
                                 content: Text(
                                   isFallback
-                                      ? 'Your Second Brain'
-                                      : "$userName's Second Brain",
+                                      ? 'Your DocsSaver'
+                                      : "$userName's DocsSaver",
                                 ),
                                 duration: const Duration(seconds: 2),
                                 behavior: SnackBarBehavior.floating,
