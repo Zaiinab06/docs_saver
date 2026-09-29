@@ -342,8 +342,8 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                     const Expanded(
                       child: Text(
                         'Save Bank Card',
-                        style: TextStyle(
-                          color: Colors.white,
+                        style: const TextStyle(
+                  color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -406,7 +406,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
               // Scrollable form body only
               Expanded(
                 child: Container(
-                  color: const Color(0xFFFBFBF9),
+                  color: isDark ? const Color(0xFF162320) : const Color(0xFFFBFBF9),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     padding: EdgeInsets.only(
@@ -472,9 +472,9 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                             )) ...[
                               const SizedBox(height: 8),
                               TextFormField(
-                                controller: _bankNameController,
-                                style: const TextStyle(
-                                  color: Color(0xFF1E293B),
+                            controller: _bankNameController,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : const Color(0xFF1E293B),
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -503,10 +503,10 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                             ),
                             const SizedBox(height: 6),
                             TextFormField(
-                              controller: _cardholderController,
+                            controller: _cardholderController,
                               textCapitalization: TextCapitalization.words,
-                              style: const TextStyle(
-                                color: Color(0xFF1E293B),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -533,13 +533,13 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                             ),
                             const SizedBox(height: 6),
                             TextFormField(
-                              controller: _cardNumberController,
+                            controller: _cardNumberController,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
                               ],
-                              style: const TextStyle(
-                                color: Color(0xFF1E293B),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -587,8 +587,8 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                                       TextFormField(
                                         controller: _expiryController,
                                         keyboardType: TextInputType.number,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1E293B),
+                                        style: TextStyle(
+                                          color: isDark ? Colors.white : const Color(0xFF1E293B),
                                           fontSize: 15,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -670,10 +670,10 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                             ),
                             const SizedBox(height: 6),
                             TextFormField(
-                              controller: _notesController,
+                            controller: _notesController,
                               maxLines: 2,
-                              style: const TextStyle(
-                                color: Color(0xFF1E293B),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -814,7 +814,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                 child: Text(
                   _selectedCardType.toUpperCase(),
                   style: const TextStyle(
-                    color: Colors.white,
+                  color: Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.0,
@@ -845,7 +845,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
           Text(
             numberText,
             style: const TextStyle(
-              color: Colors.white,
+                  color: Colors.white,
               fontSize: 17,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
@@ -873,7 +873,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                     Text(
                       cardholderText,
                       style: const TextStyle(
-                        color: Colors.white,
+                  color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
@@ -899,7 +899,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                   Text(
                     expiryText,
                     style: const TextStyle(
-                      color: Colors.white,
+                  color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -919,21 +919,22 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
     required IconData icon,
     Widget? suffixIcon,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
-      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF0F3E32)),
+      prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white70 : const Color(0xFF0F3E32)),
       suffixIcon: suffixIcon,
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+      hintStyle: TextStyle(fontSize: 13, color: isDark ? Colors.white38 : Colors.grey.shade600),
       filled: true,
-      fillColor: AppColors.inputFillOf(context),
+      fillColor: isDark ? const Color(0xFF1F2F2B) : Colors.grey.shade100,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.borderOf(context), width: 1),
+        borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.grey.shade300, width: 1),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.borderOf(context), width: 1),
+        borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.grey.shade300, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -949,6 +950,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
     required String value,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
@@ -964,8 +966,8 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
         ),
         child: Text(
           value,
-          style: const TextStyle(
-            color: Color(0xFF1E293B),
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -1053,3 +1055,14 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+

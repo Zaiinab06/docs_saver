@@ -34,15 +34,17 @@ class BillDisplayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPaid = template.isPaid;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
+        color: isDark ? const Color(0xFF162320) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isPaid
-              ? const Color(0xFF10B981).withValues(alpha: 0.3)
-              : AppColors.primary.withValues(alpha: 0.3),
+          color: isDark
+              ? const Color(0x14FFFFFF)
+              : Colors.grey.shade200,
           width: 1.2,
         ),
         boxShadow: [
@@ -84,14 +86,14 @@ class BillDisplayCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimaryOf(context),
+                          color: isDark ? Colors.white : AppColors.textPrimaryOf(context),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Utility & Financial Voucher',
                         style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textSecondary,
+                          color: isDark ? Colors.white54 : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -154,12 +156,12 @@ class BillDisplayCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimaryOf(context),
+              color: isDark ? Colors.white : AppColors.textPrimaryOf(context),
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1, color: AppColors.chipInactiveBorder),
+          Divider(height: 1, thickness: 1, color: isDark ? Colors.white10 : Colors.grey.shade200),
           const SizedBox(height: 14),
 
           // Consumer / Reference Number Card with Copy
@@ -177,12 +179,12 @@ class BillDisplayCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'CONSUMER / REF NUMBER',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
+                          color: isDark ? Colors.white54 : AppColors.textSecondary,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -193,7 +195,7 @@ class BillDisplayCard extends StatelessWidget {
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           fontFamily: 'monospace',
-                          color: AppColors.textPrimaryOf(context),
+                          color: isDark ? Colors.white : AppColors.textPrimaryOf(context),
                         ),
                       ),
                     ],
@@ -251,18 +253,18 @@ class BillDisplayCard extends StatelessWidget {
           // Due Date Row
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.calendar_month_rounded,
                 size: 16,
-                color: AppColors.textSecondary,
+                color: isDark ? Colors.white54 : AppColors.textSecondary,
               ),
               const SizedBox(width: 6),
               Text(
                 'Due Date: ${template.dueDate}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+                  color: isDark ? Colors.white54 : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -272,19 +274,19 @@ class BillDisplayCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.notes_rounded,
                   size: 16,
-                  color: AppColors.textSecondary,
+                  color: isDark ? Colors.white54 : AppColors.textSecondary,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     template.notes!.trim(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
-                      color: AppColors.textSecondary,
+                      color: isDark ? Colors.white54 : AppColors.textSecondary,
                     ),
                   ),
                 ),
@@ -296,3 +298,6 @@ class BillDisplayCard extends StatelessWidget {
     );
   }
 }
+
+
+

@@ -47,6 +47,7 @@ import '../../../../core/utils/profile_notifier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
+import '../../../settings/presentation/screens/edit_profile_screen.dart';
 
 // Header/banner gradients built on the single unified AppColors.kDeepSagePine tone.
 const LinearGradient _unifiedSageHeaderGradient = LinearGradient(
@@ -157,6 +158,10 @@ class HomeScreenState extends State<HomeScreen> {
       final storedName = prefs.getString('user_full_name');
       if (storedName != null && storedName.isNotEmpty) {
         ProfileNotifier.nameNotifier.value = storedName;
+      }
+      final storedImage = prefs.getString('user_profile_image');
+      if (storedImage != null && storedImage.isNotEmpty) {
+        ProfileNotifier.imagePathNotifier.value = storedImage;
       }
     } catch (_) {}
   }
@@ -375,6 +380,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSectionTitle(BuildContext context, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
@@ -382,7 +388,7 @@ class HomeScreenState extends State<HomeScreen> {
         style: TextStyle(
           fontSize: 16.5,
           fontWeight: FontWeight.w800,
-          color: AppColors.textPrimaryOf(context),
+          color: isDark ? Colors.white : AppColors.textPrimaryOf(context),
           letterSpacing: -0.3,
         ),
       ),
@@ -496,61 +502,63 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     final actions = [
       (
         'Take Photo',
         Icons.camera_alt_rounded,
         const Color(0xFFD97706),
-        const Color(0xFFFFF2DC),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFF2DC),
         _handleTakePhoto,
       ),
       (
         'Add Link',
         Icons.link_rounded,
         const Color(0xFF1E5E48),
-        const Color(0xFFE5EFE9),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFE5EFE9),
         _handleAddLink,
       ),
       (
         'Add Video',
         Icons.videocam_rounded,
         const Color(0xFFE76535),
-        const Color(0xFFFFEBE3),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFEBE3),
         _handleAddVideo,
       ),
       (
         'Add Note',
         Icons.edit_note_rounded,
         const Color(0xFFD97706),
-        const Color(0xFFFFF2DC),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFF2DC),
         _handleAddNote,
       ),
       (
         'Smart Scan',
         Icons.document_scanner_rounded,
         const Color(0xFFE76535),
-        const Color(0xFFFFEBE3),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFEBE3),
         _handleScanDocument,
       ),
       (
         'Choose File',
         Icons.description_rounded,
         const Color(0xFF2B5EA7),
-        const Color(0xFFE8EEF8),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFE8EEF8),
         _handleChooseFile,
       ),
       (
         'Voice Note',
         Icons.mic_rounded,
         const Color(0xFFD97706),
-        const Color(0xFFFFF2DC),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFF2DC),
         _handleRecordVoice,
       ),
       (
         'Google Drive',
         Icons.add_to_drive_rounded,
         Colors.white,
-        const Color(0xFFFFF2DC),
+        isDark ? const Color(0xFF23332F) : const Color(0xFFFFF2DC),
         _openGooglePicker,
       ),
     ];
@@ -767,7 +775,7 @@ class HomeScreenState extends State<HomeScreen> {
     final categoryText = memory.category.isNotEmpty
         ? memory.category
         : 'General';
-    final (icon, iconBg, iconColor) = _memoryIconAndColor(memory);
+    final (icon, iconBg, iconColor) = _memoryIconAndColor(context, memory);
 
     return Material(
       color: Colors.transparent,
@@ -930,14 +938,16 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  (IconData, Color, Color) _memoryIconAndColor(MemoryEntity memory) {
+  (IconData, Color, Color) _memoryIconAndColor(BuildContext context, MemoryEntity memory) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const darkBg = Color(0xFF23332F);
     final cat = memory.category.toLowerCase();
     final media = memory.mediaUrl?.toLowerCase() ?? '';
 
     if (media.endsWith('.mp4') || media.endsWith('.mov') || cat == 'video') {
       return (
         Icons.videocam_rounded,
-        const Color(0xFFFFEBE3),
+        isDark ? darkBg : const Color(0xFFFFEBE3),
         const Color(0xFFE76535),
       );
     }
@@ -947,21 +957,21 @@ class HomeScreenState extends State<HomeScreen> {
         cat == 'photo') {
       return (
         Icons.image_rounded,
-        const Color(0xFFEEF2FF),
+        isDark ? darkBg : const Color(0xFFEEF2FF),
         const Color(0xFF4F46E5),
       );
     }
     if (cat == 'audio' || cat == 'voice') {
       return (
         Icons.mic_rounded,
-        const Color(0xFFECFDF5),
+        isDark ? darkBg : const Color(0xFFECFDF5),
         const Color(0xFF059669),
       );
     }
     if (cat == 'link') {
       return (
         Icons.link_rounded,
-        const Color(0xFFFFFBEB),
+        isDark ? darkBg : const Color(0xFFFFFBEB),
         const Color(0xFFD97706),
       );
     }
@@ -971,20 +981,20 @@ class HomeScreenState extends State<HomeScreen> {
         media.endsWith('.pdf')) {
       return (
         Icons.description_outlined,
-        const Color(0xFFE5EFE9),
+        isDark ? darkBg : const Color(0xFFE5EFE9),
         const Color(0xFF1E5E48),
       );
     }
     if (cat == 'work' || cat == 'study') {
       return (
         Icons.folder_open_rounded,
-        const Color(0xFFF5F3FF),
+        isDark ? darkBg : const Color(0xFFF5F3FF),
         const Color(0xFF7C3AED),
       );
     }
     return (
       Icons.description_outlined,
-      const Color(0xFFE5EFE9),
+      isDark ? darkBg : const Color(0xFFE5EFE9),
       const Color(0xFF1E5E48),
     );
   }
@@ -1006,6 +1016,9 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userName = _getUserName();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBgColor = isDark ? const Color(0xFF0F1715) : AppColors.backgroundOf(context);
+    final bodyBgColor = isDark ? const Color(0xFF0F1715) : const Color(0xFFF8F8FC);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -1014,11 +1027,11 @@ class HomeScreenState extends State<HomeScreen> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.backgroundOf(context),
+        backgroundColor: scaffoldBgColor,
         body: Stack(
           children: [
             Container(
-              color: AppColors.backgroundOf(context),
+              color: scaffoldBgColor,
               child: SafeArea(
                 top: false,
                 bottom: true,
@@ -1042,7 +1055,7 @@ class HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Container(
                               width: double.infinity,
-                              color: const Color(0xFFF8F8FC),
+                              color: bodyBgColor,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -1072,7 +1085,9 @@ class HomeScreenState extends State<HomeScreen> {
               right: 0,
               child: Container(
                 height: MediaQuery.of(context).padding.top,
-                color: const Color(0xFF0F3E32),
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF0C1412) 
+                    : const Color(0xFF0F3E32),
               ),
             ),
           ],
@@ -2544,7 +2559,13 @@ class HomeScreenState extends State<HomeScreen> {
           width: double.infinity,
           padding: EdgeInsets.fromLTRB(20, topPadding + 6, 20, 18),
           decoration: BoxDecoration(
-            gradient: _unifiedSageHeaderGradient,
+            gradient: isDark
+                ? const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF0C1412), Color(0xFF0C1412)],
+                  )
+                : _unifiedSageHeaderGradient,
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(36),
               bottomRight: Radius.circular(36),
@@ -2628,52 +2649,68 @@ class HomeScreenState extends State<HomeScreen> {
                         child: InkWell(
                           key: const Key('home_profile_avatar_btn'),
                           onTap: () {
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            final isFallback =
-                                userName.toLowerCase() == 'there';
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  isFallback
-                                      ? 'Your DocsSaver'
-                                      : "$userName's DocsSaver",
-                                ),
-                                duration: const Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
+                            String email = '';
+                            try {
+                              final user = Supabase.instance.client.auth.currentUser;
+                              if (user?.email != null) {
+                                email = user!.email!;
+                              }
+                            } catch (_) {}
+                            final initialImage = ProfileNotifier.imagePathNotifier.value != null 
+                                ? File(ProfileNotifier.imagePathNotifier.value!) 
+                                : null;
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(
+                              initialName: userName,
+                              initialEmail: email,
+                              initialProfileImage: initialImage,
+                            )));
                           },
                           borderRadius: BorderRadius.circular(100),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryOf(context),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryOf(
-                                    context,
-                                  ).withValues(alpha: 0.35),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
+                          child: ValueListenableBuilder<String?>(
+                            valueListenable: ProfileNotifier.imagePathNotifier,
+                            builder: (context, imagePath, _) {
+                              return Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryOf(context),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryOf(
+                                        context,
+                                      ).withValues(alpha: 0.35),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                  image: (imagePath != null && imagePath.isNotEmpty)
+                                      ? DecorationImage(
+                                          image: imagePath.startsWith('http')
+                                              ? NetworkImage(imagePath) as ImageProvider
+                                              : FileImage(File(imagePath)),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                userInitial.isNotEmpty ? userInitial : 'S',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
+                                child: (imagePath == null || imagePath.isEmpty)
+                                    ? Center(
+                                        child: Text(
+                                          userInitial.isNotEmpty ? userInitial : 'S',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -2704,11 +2741,11 @@ class HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 5, 6, 5),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF111827)
+                          ? const Color(0xFF13201D)
                           : const Color(0xFFFFFFFF),
                       borderRadius: BorderRadius.circular(28),
                       border: isDark
-                          ? Border.all(color: const Color(0xFF1E293B))
+                          ? Border.all(color: const Color(0x14FFFFFF), width: 1.0)
                           : Border.all(color: Colors.white, width: 1.0),
                       boxShadow: [
                         BoxShadow(
@@ -2725,7 +2762,7 @@ class HomeScreenState extends State<HomeScreen> {
                         Icon(
                           Icons.search_rounded,
                           color: isDark
-                              ? const Color(0xFF94A3B8)
+                              ? Colors.white70
                               : const Color(0xFF64748B),
                           size: 20,
                         ),
@@ -2736,7 +2773,7 @@ class HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               color: isDark
-                                  ? const Color(0xFF94A3B8)
+                                  ? Colors.white70
                                   : const Color(0xFF64748B),
                               fontWeight: FontWeight.w400,
                               letterSpacing: -0.1,
@@ -2748,9 +2785,7 @@ class HomeScreenState extends State<HomeScreen> {
                           height: 34,
                           decoration: BoxDecoration(
                             color: isDark
-                                ? AppColors.kDeepSagePine.withValues(
-                                    alpha: 0.25,
-                                  )
+                                ? const Color(0xFF1B2C27)
                                 : const Color(0xFFE5EFE9),
                             shape: BoxShape.circle,
                           ),
@@ -3007,7 +3042,7 @@ class HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimaryOf(context),
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : AppColors.textPrimaryOf(context),
                   letterSpacing: -0.2,
                   height: 1.15,
                 ),
@@ -3016,9 +3051,9 @@ class HomeScreenState extends State<HomeScreen> {
               Text(
                 '$itemCount items',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10.5,
-                  color: Color(0xFF71827B),
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF71827B),
                   fontWeight: FontWeight.w400,
                 ),
               ),

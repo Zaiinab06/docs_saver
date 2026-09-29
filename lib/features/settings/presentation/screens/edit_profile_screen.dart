@@ -132,7 +132,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppColors.darkBackground : const Color(0xFFFBFBF9);
+    final bgColor = isDark ? const Color(0xFF0C1412) : const Color(0xFFFBFBF9);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -152,7 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 left: 16,
                 right: 16,
               ),
-              color: const Color(0xFF0F3E32),
+              color: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
               child: Row(
                 children: [
                   IconButton(
@@ -261,12 +261,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       controller: _nameController,
                       style: TextStyle(
                         fontSize: 16,
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                       decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF0F3E32)),
+                        prefixIcon: Icon(Icons.person_outline, color: isDark ? Colors.white70 : const Color(0xFF0F3E32)),
                         filled: true,
-                        fillColor: isDark ? AppColors.darkCardBackground : Colors.white,
+                        fillColor: isDark ? const Color(0xFF1B2C27) : Colors.white,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14), 
@@ -301,13 +301,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       enabled: false,
                       style: TextStyle(
                         fontSize: 16,
-                        color: isDark ? AppColors.darkTextSecondary : Colors.grey.shade600,
+                        color: isDark ? Colors.white60 : Colors.grey.shade600,
                       ),
                       decoration: InputDecoration(
-                        prefixIcon: Icon(Icons.mail_outline, color: isDark ? AppColors.darkTextSecondary : Colors.grey.shade500),
-                        suffixIcon: Icon(Icons.lock_outline, color: isDark ? AppColors.darkTextSecondary : Colors.grey.shade400, size: 20),
+                        prefixIcon: Icon(Icons.mail_outline, color: isDark ? Colors.white70 : Colors.grey.shade500),
+                        suffixIcon: Icon(Icons.lock_outline, color: isDark ? Colors.white38 : Colors.grey.shade400, size: 20),
                         filled: true,
-                        fillColor: isDark ? AppColors.darkBackground.withValues(alpha: 0.5) : Colors.grey.shade100,
+                        fillColor: isDark ? const Color(0xFF1B2C27).withValues(alpha: 0.5) : Colors.grey.shade100,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14), 
@@ -339,6 +339,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         try {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setString('user_full_name', newName);
+                          if (_profileImageFile != null) {
+                            await prefs.setString('user_profile_image', _profileImageFile!.path);
+                            ProfileNotifier.imagePathNotifier.value = _profileImageFile!.path;
+                          } else {
+                            await prefs.remove('user_profile_image');
+                            ProfileNotifier.imagePathNotifier.value = null;
+                          }
                           // Update global notifier
                           ProfileNotifier.nameNotifier.value = newName;
                           

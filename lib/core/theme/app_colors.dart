@@ -109,7 +109,7 @@ class AppColors {
   static const LinearGradient headerGradientDark = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF0B2F23), Color(0xFF144D3C), Color(0xFF1E634E)],
+    colors: [Color(0xFF0C1412), Color(0xFF131D1B)],
   );
 
   static const LinearGradient headerGradient = headerGradientLight;
@@ -145,11 +145,11 @@ class AppColors {
   static const Color darkPrimary = Color(0xFF2A836C);
   static const Color darkSecondary = Color(0xFFA8C9B5);
   static const Color darkAccent = Color(0xFFFF9B78);
-  static const Color darkBackground = Color(0xFF101D19);
-  static const Color darkCardBackground = Color(0xFF182722);
-  static const Color darkSurface = Color(0xFF182722);
-  static const Color darkSubtleBorder = Color(0xFF31433A);
-  static const Color darkBorder = Color(0xFF31433A);
+  static const Color darkBackground = Color(0xFF0F1715);
+  static const Color darkCardBackground = Color(0xFF162320);
+  static const Color darkSurface = Color(0xFF162320);
+  static const Color darkSubtleBorder = Color(0x0FFFFFFF);
+  static const Color darkBorder = Color(0x0FFFFFFF);
   static const Color darkTextPrimary = Color(0xFFF4F6F0);
   static const Color darkTextSecondary = Color(0xFFB5C2B9);
   static const Color darkTextMuted = Color(0xFF8D9A93);
@@ -189,7 +189,7 @@ class AppColors {
       isDark(context) ? darkCardBackground : inputFill;
 
   static Color surfaceTintOf(BuildContext context) =>
-      isDark(context) ? darkCardBackground : lightCyanTint;
+      isDark(context) ? const Color(0xFF23332F) : lightCyanTint;
 
   static LinearGradient headerGradientOf(BuildContext context) =>
       isDark(context) ? headerGradientDark : headerGradientLight;

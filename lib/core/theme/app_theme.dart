@@ -149,9 +149,9 @@ class AppTheme {
         foregroundColor: AppColors.textWhite,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.darkCardBackground,
-        selectedItemColor: AppColors.darkAccent,
-        unselectedItemColor: AppColors.darkTextSecondary,
+        backgroundColor: Color(0xFF0C1412),
+        selectedItemColor: Color(0xFFE59866),
+        unselectedItemColor: Colors.white54,
       ),
       cardTheme: CardThemeData(
         color: AppColors.darkCardBackground,

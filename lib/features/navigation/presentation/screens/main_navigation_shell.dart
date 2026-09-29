@@ -44,11 +44,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = AppColors.backgroundOf(context);
-    final navBg = isDark ? AppColors.darkSurface : AppColors.surface;
+    final navBg = isDark ? const Color(0xFF0C1412) : AppColors.surface;
     final navBorder = AppColors.borderOf(context);
-    final selectedNavColor = isDark ? AppColors.darkAccent : AppColors.primary;
+    final selectedNavColor = isDark ? const Color(0xFFE59866) : AppColors.primary;
     final unselectedNavColor = isDark
-        ? AppColors.darkTextSecondary
+        ? Colors.white54
         : AppColors.textSecondary;
 
     return PopScope(

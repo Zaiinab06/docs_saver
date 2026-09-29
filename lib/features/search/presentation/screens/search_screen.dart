@@ -205,153 +205,159 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canGoBack = widget.showBackButton ?? Navigator.of(context).canPop();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canGoBack = widget.showBackButton ?? Navigator.of(context).canPop();
 
     return BlocProvider.value(
       value: _bloc,
-      child: Scaffold(
-        backgroundColor: AppColors.backgroundOf(context),
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          toolbarHeight: 76,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          surfaceTintColor: Colors.transparent,
-          systemOverlayStyle: const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-            statusBarBrightness: Brightness.dark,
-          ),
-          automaticallyImplyLeading: false,
-          leading: canGoBack
-              ? IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              : null,
-          actions: canGoBack ? const [SizedBox(width: 56)] : null,
-          centerTitle: true,
-          titleSpacing: 0,
-          title: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+        child: Scaffold(
+          backgroundColor: isDark ? const Color(0xFF0C1412) : AppColors.backgroundOf(context),
+          resizeToAvoidBottomInset: true,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(80),
             child: Container(
-              height: 36,
-              padding: const EdgeInsets.only(left: 16, right: 8),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).viewPadding.top + 10,
+                bottom: 16,
+                left: 20,
+                right: 20,
+              ),
               decoration: BoxDecoration(
-                color: AppColors.cardBackgroundOf(context),
-                borderRadius: BorderRadius.circular(100),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF0C1412)
+                    : const Color(0xFF0F3E32),
+                borderRadius: BorderRadius.zero,
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.search_rounded,
-                    color: AppColors.textSecondaryOf(context),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      autofocus: widget.autofocus,
-                      onChanged: _onQueryChanged,
-                      onSubmitted: _onQuerySubmitted,
-                      textInputAction: TextInputAction.search,
-                      textAlignVertical: TextAlignVertical.center,
-                      style: TextStyle(
-                        color: AppColors.textPrimaryOf(context),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        filled: false,
-                        fillColor: Colors.transparent,
-                        hintText: AppStrings.homeSearchHint,
-                        hintStyle: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondaryOf(
-                            context,
-                          ).withValues(alpha: 0.85),
-                          fontWeight: FontWeight.w400,
+                  if (canGoBack)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
                         ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 380),
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.only(left: 16, right: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardBackgroundOf(context),
+                            borderRadius: BorderRadius.circular(100),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_rounded,
+                                color: AppColors.textSecondaryOf(context),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  autofocus: widget.autofocus,
+                                  onChanged: _onQueryChanged,
+                                  onSubmitted: _onQuerySubmitted,
+                                  textInputAction: TextInputAction.search,
+                                  textAlignVertical: TextAlignVertical.center,
+                                  style: TextStyle(
+                                    color: AppColors.textPrimaryOf(context),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  decoration: InputDecoration(
+                                    isCollapsed: true,
+                                    filled: false,
+                                    fillColor: Colors.transparent,
+                                    hintText: AppStrings.homeSearchHint,
+                                    hintStyle: TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textSecondaryOf(
+                                        context,
+                                      ).withValues(alpha: 0.85),
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                  ),
+                                ),
+                              ),
+                              if (_searchController.text.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: AppColors.textSecondary,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  splashRadius: 18,
+                                  onPressed: _clearSearch,
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  if (_searchController.text.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: AppColors.textSecondary,
-                        size: 18,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
-                      ),
-                      splashRadius: 18,
-                      onPressed: _clearSearch,
-                    ),
+                  if (canGoBack)
+                    const SizedBox(width: 36), // Balance the back button for centering
                 ],
               ),
             ),
           ),
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: AppColors.headerGradientOf(context),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isDark ? AppColors.darkPrimary : AppColors.primary)
-                      .withValues(alpha: 0.20),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
+          body: BlocBuilder<SearchBloc, SearchState>(
+            builder: (context, state) {
+              if (state is SearchLoading) {
+                return _buildLoadingState(state.query);
+              } else if (state is SearchLoaded) {
+                return _buildLoadedState(state);
+              } else if (state is SearchEmpty) {
+                return _buildEmptyState(state);
+              } else if (state is SearchError) {
+                return _buildErrorState(state);
+              }
+              return _buildInitialState(context);
+            },
           ),
-        ),
-        body: BlocBuilder<SearchBloc, SearchState>(
-          builder: (context, state) {
-            if (state is SearchLoading) {
-              return _buildLoadingState(state.query);
-            } else if (state is SearchLoaded) {
-              return _buildLoadedState(state);
-            } else if (state is SearchEmpty) {
-              return _buildEmptyState(state);
-            } else if (state is SearchError) {
-              return _buildErrorState(state);
-            }
-            return _buildInitialState();
-          },
         ),
       ),
     );
   }
 
-  Widget _buildInitialState() {
+  Widget _buildInitialState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(24, 110, 24, 24),
@@ -362,8 +368,9 @@ class _SearchScreenState extends State<SearchScreen> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.lightCyanTint,
+                color: isDark ? const Color(0xFF162320) : AppColors.lightCyanTint,
                 shape: BoxShape.circle,
+                border: isDark ? Border.all(color: const Color(0x0FFFFFFF)) : null,
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.15),
@@ -372,29 +379,29 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome_rounded,
                 size: 38,
-                color: AppColors.primary,
+                color: isDark ? const Color(0xFF4EAE91) : AppColors.primary,
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Semantic Search',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: isDark ? Colors.white : AppColors.textPrimary,
                 letterSpacing: -0.3,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Search by meaning, feeling, or concept —\nnot just exact keywords.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13.5,
-                color: AppColors.textSecondary,
+                color: isDark ? Colors.white60 : AppColors.textSecondary,
                 height: 1.4,
               ),
             ),

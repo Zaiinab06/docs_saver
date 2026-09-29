@@ -309,6 +309,7 @@ class _SavedScreenState extends State<SavedScreen> {
   Widget _buildSavedCard(MemoryEntity memory) {
     final cleanSnippet = _formatSnippet(memory.content);
     final isSelected = _selectedMemoryIds.contains(memory.id);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
       onLongPress: () {
@@ -378,7 +379,7 @@ class _SavedScreenState extends State<SavedScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceTintOf(context),
+                              color: isDark ? const Color(0xFF1F2F2B) : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: ClipRRect(
@@ -437,7 +438,7 @@ class _SavedScreenState extends State<SavedScreen> {
                                   // Red border when selected, muted grey when not
                                   color: isSelected
                                       ? const Color(0xFFEF4444)
-                                      : Colors.grey.shade400,
+                                      : (isDark ? Colors.white30 : Colors.grey.shade400),
                                   width: 2,
                                 ),
                               ),
@@ -500,8 +501,9 @@ class _SavedScreenState extends State<SavedScreen> {
   // ─── Header ────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(List<MemoryEntity> displayedMemories) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final topPad = MediaQuery.of(context).viewPadding.top + 16;
-    const color = Color(0xFF0F3E32);
+    final color = isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32);
 
     if (_isSelectionMode) {
       final allVisible = displayedMemories.map((m) => m.id).toSet();
@@ -615,6 +617,7 @@ class _SavedScreenState extends State<SavedScreen> {
               children: [
                 Expanded(
                   child: _buildTabItem(
+                    context,
                     key: const Key('saved_tab_all'),
                     title: 'All',
                     isSelected: _selectedTab == SavedTab.all,
@@ -628,6 +631,7 @@ class _SavedScreenState extends State<SavedScreen> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: _buildTabItem(
+                    context,
                     key: const Key('saved_tab_pinned'),
                     title: 'Pinned',
                     isSelected: _selectedTab == SavedTab.pinned,
@@ -646,12 +650,14 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
-  Widget _buildTabItem({
+  Widget _buildTabItem(
+    BuildContext context, {
     Key? key,
     required String title,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       key: key,
       onTap: onTap,
@@ -660,9 +666,11 @@ class _SavedScreenState extends State<SavedScreen> {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected 
+              ? (isDark ? const Color(0xFF1B4D3E) : AppColors.primary) 
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(100),
-          boxShadow: isSelected
+          boxShadow: isSelected && !isDark
               ? [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.25),
@@ -680,7 +688,7 @@ class _SavedScreenState extends State<SavedScreen> {
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               color: isSelected
                   ? AppColors.textWhite
-                  : AppColors.textSecondaryOf(context),
+                  : (isDark ? Colors.white60 : AppColors.textSecondaryOf(context)),
             ),
           ),
         ),
@@ -753,9 +761,10 @@ class _SavedScreenState extends State<SavedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Color(0xFF0F3E32),
+      value: SystemUiOverlayStyle(
+        statusBarColor: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
       ),

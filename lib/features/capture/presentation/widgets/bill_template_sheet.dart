@@ -244,6 +244,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -350,7 +351,8 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
             // Scrollable form body only
             Expanded(
               child: Container(
-                color: const Color(0xFFFBFBF9),
+                color: isDark ? const Color(0xFF162320) : const Color(0xFFFBFBF9),
+
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   padding: EdgeInsets.only(
@@ -453,6 +455,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
+                            style: isDark ? const TextStyle(color: Colors.white) : null,
                             controller: _consumerNumberController,
                             decoration: _buildInputDecoration(
                               context,
@@ -486,7 +489,8 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
                                     ),
                                     const SizedBox(height: 6),
                                     TextFormField(
-                                      controller: _amountController,
+                                      style: isDark ? const TextStyle(color: Colors.white) : null,
+                                        controller: _amountController,
                                       keyboardType: TextInputType.text,
                                       decoration: _buildInputDecoration(
                                         context,
@@ -520,7 +524,8 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
                                     ),
                                     const SizedBox(height: 6),
                                     TextFormField(
-                                      controller: _dueDateController,
+                                      style: isDark ? const TextStyle(color: Colors.white) : null,
+                                        controller: _dueDateController,
                                       readOnly: true,
                                       onTap: _pickDueDate,
                                       decoration: _buildInputDecoration(
@@ -624,6 +629,7 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
+                            style: isDark ? const TextStyle(color: Colors.white) : null,
                             controller: _notesController,
                             maxLines: 2,
                             decoration: _buildInputDecoration(
@@ -825,20 +831,21 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
     required String hint,
     required IconData icon,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
-      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF0F3E32)),
+      prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white70 : const Color(0xFF0F3E32)),
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+      hintStyle: TextStyle(fontSize: 13, color: isDark ? Colors.white38 : Colors.grey.shade600),
       filled: true,
-      fillColor: AppColors.inputFillOf(context),
+      fillColor: isDark ? const Color(0xFF1F2F2B) : Colors.grey.shade100,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.borderOf(context), width: 1),
+        borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.grey.shade300, width: 1),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.borderOf(context), width: 1),
+        borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.grey.shade300, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -847,3 +854,6 @@ class _BillTemplateSheetState extends State<BillTemplateSheet> {
     );
   }
 }
+
+
+

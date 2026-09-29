@@ -554,7 +554,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         color: isDark ? AppColors.darkCardBackground : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
+          color: isDark ? const Color(0x0DFFFFFF) : AppColors.subtleBorder,
           width: 1.0,
         ),
         boxShadow: [
@@ -580,9 +580,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     required bool isDark,
   }) {
     final effectiveTitleColor =
-        titleColor ?? (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
+        titleColor ?? (isDark ? Colors.white : AppColors.textPrimary);
     final effectiveSubtitleColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+        isDark ? Colors.white60 : AppColors.textSecondary;
     final effectiveIconColor =
         iconColor ?? (isDark ? AppColors.periwinkle300 : AppColors.primary);
 
@@ -628,7 +628,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 Icon(
                   Icons.chevron_right,
                   size: 20,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  color: isDark ? Colors.white38 : AppColors.textSecondary,
                 ),
             ],
           ),
@@ -666,38 +666,42 @@ class _SettingsScreenState extends State<SettingsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
-                      borderRadius: BorderRadius.circular(2),
+        return BlocBuilder<ThemeCubit, ThemeMode>(
+          builder: (context, state) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkSubtleBorder : AppColors.subtleBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Select Theme',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildThemeSelector(context, state, isDark),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  'Select Theme',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildThemeSelector(context, currentMode, isDark),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -778,9 +782,13 @@ class _SettingsScreenState extends State<SettingsScreen>
       color: Colors.transparent,
       child: InkWell(
         key: key,
-        onTap: () {
+        onTap: () async {
           try {
             context.read<ThemeCubit>().setThemeMode(mode);
+            await Future.delayed(const Duration(milliseconds: 250));
+            if (context.mounted) {
+              Navigator.of(context).pop();
+            }
           } catch (_) {}
         },
         borderRadius: BorderRadius.circular(10),
@@ -835,6 +843,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.only(
@@ -843,8 +852,8 @@ class _SettingsScreenState extends State<SettingsScreen>
         top: MediaQuery.of(context).viewPadding.top + 16,
         bottom: 20,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F3E32),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
         borderRadius: BorderRadius.zero,
       ),
       child: const Align(
@@ -869,7 +878,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     } catch (_) {}
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? AppColors.darkBackground : const Color(0xFFFBFBF9);
+    final scaffoldBg = isDark ? const Color(0xFF0C1412) : const Color(0xFFFBFBF9);
     final userName = _getUserName(context);
     final userEmail = _getUserEmail(context);
 

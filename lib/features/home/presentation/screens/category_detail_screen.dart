@@ -116,15 +116,15 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBF9),
+      backgroundColor: isDark ? const Color(0xFF0C1412) : const Color(0xFFFBFBF9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F3E32),
+        backgroundColor: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Color(0xFF0F3E32),
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
         ),
@@ -251,12 +251,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.cardBackgroundOf(context),
+            color: isDark ? const Color(0xFF162320) : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isDark
-                  ? category.iconColor.withValues(alpha: 0.25)
-                  : AppColors.border,
+                  ? const Color(0x0FFFFFFF)
+                  : Colors.grey.shade200,
               width: 1.2,
             ),
             boxShadow: [

@@ -412,13 +412,14 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
   Widget _buildMemoryCard(BuildContext context, MemoryEntity memory) {
     final cleanSnippet = _formatSnippet(memory.content);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackgroundOf(context),
+        color: isDark ? const Color(0xFF162320) : AppColors.cardBackgroundOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderOf(context), width: 1.2),
+        border: Border.all(color: isDark ? const Color(0x0FFFFFFF) : AppColors.borderOf(context), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: AppColors.violetTwilight500.withValues(alpha: 0.04),
@@ -454,7 +455,7 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: category.backgroundColor,
+                        color: isDark ? const Color(0xFF1E2D29) : category.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: ClipRRect(
@@ -473,10 +474,10 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                             memory.title.isEmpty
                                 ? 'Untitled Note'
                                 : memory.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15.5,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.violetTwilight900,
+                              color: isDark ? Colors.white : AppColors.violetTwilight900,
                               letterSpacing: -0.2,
                             ),
                             maxLines: 1,
@@ -485,10 +486,10 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                           const SizedBox(height: 3),
                           Text(
                             '${memory.category} • ${_formatTimeAgo(memory.clientCreatedAt)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.violetTwilight600,
+                              color: isDark ? Colors.white60 : AppColors.violetTwilight600,
                             ),
                           ),
                         ],
@@ -496,9 +497,9 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                     ),
 
                     // Chevron icon
-                    const Icon(
+                    Icon(
                       Icons.chevron_right_rounded,
-                      color: AppColors.violetTwilight400,
+                      color: isDark ? Colors.white38 : AppColors.violetTwilight400,
                       size: 22,
                     ),
                   ],
@@ -508,9 +509,9 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
                   const SizedBox(height: 10),
                   Text(
                     cleanSnippet,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: isDark ? Colors.white60 : AppColors.textSecondary,
                       height: 1.4,
                     ),
                     maxLines: 3,
@@ -559,10 +560,11 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.backgroundOf(context),
+      backgroundColor: isDark ? const Color(0xFF0C1412) : const Color(0xFFFBFBF9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F3E32),
+        backgroundColor: isDark ? const Color(0xFF0C1412) : const Color(0xFF0F3E32),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
