@@ -43,16 +43,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? AppColors.darkBackground : AppColors.background;
-    final navBg = isDark
-        ? AppColors.darkCardBackground
-        : AppColors.cardBackground;
-    final navBorder = isDark
-        ? AppColors.darkSubtleBorder
-        : AppColors.chipInactiveBorder;
-    final selectedNavColor = isDark
-        ? AppColors.periwinkle300
-        : AppColors.primary;
+    final scaffoldBg = AppColors.backgroundOf(context);
+    final navBg = isDark ? AppColors.darkSurface : AppColors.surface;
+    final navBorder = AppColors.borderOf(context);
+    final selectedNavColor = isDark ? AppColors.darkAccent : AppColors.primary;
     final unselectedNavColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.textSecondary;
@@ -135,11 +129,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: AppColors.kDeepSagePine,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.38),
+                              color: AppColors.kDeepSagePine.withValues(
+                                alpha: 0.38,
+                              ),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -171,11 +167,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: AppColors.kDeepSagePine,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.38),
+                              color: AppColors.kDeepSagePine.withValues(
+                                alpha: 0.38,
+                              ),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),

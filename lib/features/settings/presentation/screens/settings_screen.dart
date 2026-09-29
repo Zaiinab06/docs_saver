@@ -1019,38 +1019,39 @@ class _SettingsScreenState extends State<SettingsScreen>
           width: double.infinity,
           padding: EdgeInsets.fromLTRB(20, topPadding + 20, 20, 56),
           decoration: BoxDecoration(
-            gradient: AppColors.headerGradient,
+            gradient: AppColors.headerGradientOf(context),
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(24),
               bottomRight: Radius.circular(24),
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.22),
+                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                    .withValues(alpha: 0.20),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: Column(
+          child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Settings',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textWhite,
+                  color: Colors.white,
                   letterSpacing: -0.4,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Manage your Second Brain',
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w400,
-                  color: AppColors.textWhite.withValues(alpha: 0.88),
+                  color: Colors.white70,
                   letterSpacing: -0.1,
                 ),
               ),

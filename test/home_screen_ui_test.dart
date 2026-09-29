@@ -97,8 +97,10 @@ void main() {
         serverUpdatedAt: DateTime(2026, 9, 13, 8, 0),
       );
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
-      binding.platformDispatcher.views.first.physicalSize =
-          const Size(800, 1400);
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        800,
+        1400,
+      );
       binding.platformDispatcher.views.first.devicePixelRatio = 1.0;
     });
 
@@ -133,7 +135,7 @@ void main() {
         await tester.pumpWidget(createTestApp([]));
         await tester.pumpAndSettle();
 
-        // Header is visible with dynamic fallback greeting, waving hand emoji, and subtitle
+        // Header is visible with dynamic greeting and its subtitle
         expect(find.text('Hey there'), findsOneWidget);
         expect(find.text('👋'), findsOneWidget);
         expect(find.text("Let's capture more ideas today"), findsOneWidget);
@@ -328,7 +330,10 @@ void main() {
 
         // Dynamic empty state verification
         expect(find.text('No Work yet'), findsOneWidget);
-        expect(find.text('or click + for other capture methods'), findsOneWidget);
+        expect(
+          find.text('or click + for other capture methods'),
+          findsOneWidget,
+        );
 
         // Back navigation to CategoryDetailScreen
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
@@ -465,21 +470,20 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets(
-      'Dynamic User Name: Zainab displays Hey Zainab and initial Z',
-      (tester) async {
-        await tester.pumpWidget(createTestApp([], userName: 'Zainab'));
-        await tester.pumpAndSettle();
+    testWidgets('Dynamic User Name: Zainab displays Hey Zainab and initial Z', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createTestApp([], userName: 'Zainab'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Hey Zainab'), findsOneWidget);
-        expect(find.text('Z'), findsOneWidget);
+      expect(find.text('Hey Zainab'), findsOneWidget);
+      expect(find.text('Z'), findsOneWidget);
 
-        await tester.tap(find.byKey(const Key('home_profile_avatar_btn')));
-        await tester.pump();
-        expect(find.text("Zainab's Second Brain"), findsOneWidget);
-        await tester.pumpAndSettle();
-      },
-    );
+      await tester.tap(find.byKey(const Key('home_profile_avatar_btn')));
+      await tester.pump();
+      expect(find.text("Zainab's Second Brain"), findsOneWidget);
+      await tester.pumpAndSettle();
+    });
 
     testWidgets(
       'State I: + capture button opens the bottom sheet with Take Photo',
@@ -499,20 +503,21 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Recent memories See all navigates to SavedScreen tab',
-      (tester) async {
-        await tester.pumpWidget(createTestApp([workMemory]));
-        await tester.pumpAndSettle();
+    testWidgets('Recent memories See all navigates to SavedScreen tab', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createTestApp([workMemory]));
+      await tester.pumpAndSettle();
 
-        // Tap See all beside Recent memories
-        await tester.tap(find.byKey(const Key('home_recent_memories_see_all_btn')));
-        await tester.pumpAndSettle();
+      // Tap See all beside Recent memories
+      await tester.tap(
+        find.byKey(const Key('home_recent_memories_see_all_btn')),
+      );
+      await tester.pumpAndSettle();
 
-        // SavedScreen is now displayed
-        expect(find.byType(SavedScreen), findsOneWidget);
-      },
-    );
+      // SavedScreen is now displayed
+      expect(find.byType(SavedScreen), findsOneWidget);
+    });
 
     testWidgets(
       'Pro Upgrade Banner: Tap close button dismisses the banner cleanly',
@@ -522,7 +527,10 @@ void main() {
 
         // Initially visible
         expect(find.textContaining('Upgrade to DocsSaver'), findsOneWidget);
-        expect(find.text('Unlock smart reminders and other features'), findsOneWidget);
+        expect(
+          find.text('Unlock smart reminders and other features'),
+          findsOneWidget,
+        );
         expect(find.byKey(const Key('pro_banner_close_btn')), findsOneWidget);
 
         // Tap close (X) button

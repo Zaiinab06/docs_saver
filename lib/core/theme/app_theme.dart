@@ -9,28 +9,34 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
+      cardColor: AppColors.cardBackground,
+      dividerColor: AppColors.border,
+      textTheme: ThemeData.light().textTheme.apply(
+        bodyColor: AppColors.textSecondary,
+        displayColor: AppColors.textPrimary,
+      ),
       colorScheme: const ColorScheme(
         brightness: Brightness.light,
         primary: AppColors.primary,
         onPrimary: AppColors.textWhite,
-        secondary: AppColors.primaryDark,
+        secondary: AppColors.secondary,
         onSecondary: AppColors.textWhite,
-        tertiary: AppColors.softPillBackground,
-        onTertiary: AppColors.primary,
+        tertiary: AppColors.accent,
+        onTertiary: AppColors.textWhite,
         error: AppColors.statusFailed,
         onError: AppColors.textWhite,
-        surface: AppColors.cardBackground,
+        surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.cardBackground,
-        foregroundColor: AppColors.textDarkest,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
-        iconTheme: IconThemeData(color: AppColors.textDarkest),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         titleTextStyle: TextStyle(
-          color: AppColors.textDarkest,
+          color: AppColors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.3,
@@ -51,7 +57,7 @@ class AppTheme {
         foregroundColor: AppColors.textWhite,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
       ),
@@ -82,12 +88,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.border, width: 1.0),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.focusedBorder,
-            width: 1.5,
-          ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: AppColors.focusedBorder, width: 1.5),
         ),
       ),
     );
@@ -98,17 +101,23 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackground,
+      cardColor: AppColors.darkCardBackground,
+      dividerColor: AppColors.darkBorder,
+      textTheme: ThemeData.dark().textTheme.apply(
+        bodyColor: AppColors.darkTextSecondary,
+        displayColor: AppColors.darkTextPrimary,
+      ),
       colorScheme: const ColorScheme(
         brightness: Brightness.dark,
-        primary: AppColors.periwinkle300,
-        onPrimary: AppColors.periwinkle900,
-        secondary: AppColors.periwinkle400,
-        onSecondary: AppColors.periwinkle900,
-        tertiary: AppColors.periwinkle200,
-        onTertiary: AppColors.periwinkle900,
+        primary: AppColors.darkPrimary,
+        onPrimary: AppColors.textWhite,
+        secondary: AppColors.darkSecondary,
+        onSecondary: AppColors.textWhite,
+        tertiary: AppColors.darkAccent,
+        onTertiary: AppColors.darkBackground,
         error: AppColors.statusFailed,
         onError: AppColors.textWhite,
-        surface: AppColors.darkCardBackground,
+        surface: AppColors.darkSurface,
         onSurface: AppColors.darkTextPrimary,
       ),
       appBarTheme: const AppBarTheme(
@@ -127,7 +136,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.darkPrimary,
           foregroundColor: AppColors.textWhite,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -136,12 +145,12 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.darkPrimary,
         foregroundColor: AppColors.textWhite,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.darkCardBackground,
-        selectedItemColor: AppColors.periwinkle300,
+        selectedItemColor: AppColors.darkAccent,
         unselectedItemColor: AppColors.darkTextSecondary,
       ),
       cardTheme: CardThemeData(
@@ -149,7 +158,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.darkBorder, width: 1.0),
+          side: const BorderSide(color: AppColors.darkSubtleBorder, width: 1.0),
         ),
       ),
       dividerTheme: const DividerThemeData(
@@ -165,18 +174,21 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.darkBorder, width: 1.0),
+          borderSide: const BorderSide(
+            color: AppColors.darkSubtleBorder,
+            width: 1.0,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.darkBorder, width: 1.0),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: AppColors.periwinkle300,
-            width: 1.5,
+            color: AppColors.darkSubtleBorder,
+            width: 1.0,
           ),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: AppColors.darkPrimary, width: 1.5),
         ),
       ),
     );

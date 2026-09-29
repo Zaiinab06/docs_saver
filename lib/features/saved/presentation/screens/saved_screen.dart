@@ -497,6 +497,7 @@ class _SavedScreenState extends State<SavedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
@@ -517,20 +518,21 @@ class _SavedScreenState extends State<SavedScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppColors.textWhite,
+            color: Colors.white,
             letterSpacing: -0.3,
           ),
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: AppColors.headerGradient,
+            gradient: AppColors.headerGradientOf(context),
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(24),
               bottomRight: Radius.circular(24),
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.22),
+                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                    .withValues(alpha: 0.20),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),

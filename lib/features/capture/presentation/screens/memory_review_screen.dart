@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -272,7 +273,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                 .last
                 .toLowerCase();
             mimeType = CaptureRepositoryImpl.resolveMimeType(extension);
-            debugPrint('[MemoryReview AI] Document read: size=$fileSize bytes, mime=$mimeType');
+            debugPrint(
+              '[MemoryReview AI] Document read: size=$fileSize bytes, mime=$mimeType',
+            );
           }
         } else if (widget.imageFile != null) {
           final prep = await ImageUtils.prepareImageForAi(
@@ -289,7 +292,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
           }
         }
       } catch (readErr) {
-        debugPrint('[MemoryReview AI Warning] Failed to read media file for retry: $readErr');
+        debugPrint(
+          '[MemoryReview AI Warning] Failed to read media file for retry: $readErr',
+        );
       }
 
       final useCase =
@@ -319,9 +324,9 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
                 result.documentText != null &&
                 result.documentText!.trim().isNotEmpty)
           : (result.aiStatus == 'processed' ||
-             result.title.isNotEmpty ||
-             result.summary.isNotEmpty ||
-             result.tags.isNotEmpty);
+                result.title.isNotEmpty ||
+                result.summary.isNotEmpty ||
+                result.tags.isNotEmpty);
 
       if (isSuccess && mounted) {
         setState(() {
@@ -808,29 +813,50 @@ class _MemoryReviewScreenState extends State<MemoryReviewScreen>
     final isAiProcessed = _currentAiStatus == 'processed';
     final isAiFailed = _currentAiStatus == 'failed';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundOf(context),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: AppColors.textPrimaryOf(context),
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
+        title: const Text(
           'Review & Save',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimaryOf(context),
+            color: Colors.white,
             letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: AppColors.headerGradientOf(context),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                    .withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(

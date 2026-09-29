@@ -4,137 +4,156 @@ class AppColors {
   AppColors._();
 
   // ==========================================
-  // Brand & Surface Tokens — Theme: Deep Royal Violet
-  // Deep Royal Violet (#4E3985), Rich Deep Plum Slate (#48347D), Soft Violet Tint (#ECE8F6)
+  // Brand & Surface Tokens — Light Mode (Sage & Ivory)
   // ==========================================
-  static const Color royalVelvet = Color(
-    0xFF4E3985,
-  ); // #4E3985 Primary Brand Color
-  static const Color royalVelvetDark = Color(
-    0xFF48347D,
-  ); // #48347D Deep Violet / Header transition
-  static const Color royalVelvetLight = Color(
-    0xFFECE8F6,
-  ); // #ECE8F6 Secondary soft tinted surface
-  static const Color scaffoldLight = Color(
-    0xFFF8F9FD,
-  ); // #F8F9FD Clean soft slate off-white
-  static const Color white = Color(0xFFFFFFFF); // #FFFFFF Crisp Pure White
+  static const Color primary = Color(0xFF1F6B57);
+  static const Color secondary = Color(0xFFA8C9B5);
+  static const Color accent = Color(0xFFFF9B78);
+  static const Color accent2 = Color(0xFFF6C66A);
+  static const Color background = Color(0xFFF8F6F0);
+  static const Color cardBackground = Color(0xFFFCFBF7);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF17332D);
+  static const Color textSecondary = Color(0xFF71827B);
+  static const Color textMuted = Color(0xFF8D9A93);
+  static const Color textWhite = Color(0xFFFFFFFF);
+  static const Color textDarkest = textPrimary;
+  static const Color scaffoldLight = background;
+  static const Color white = Color(0xFFFFFFFF);
 
   // Backward compatibility aliases
-  static const Color royalSlateBlue = royalVelvet;
-  static const Color royalSlateBlueDark = royalVelvetDark;
-  static const Color royalSlateBlueLight = royalVelvetLight;
-  static const Color imperialSapphire = royalVelvet;
-  static const Color midnightNavy = Color(0xFF271E3C);
-  static const Color burnishedGold = royalVelvet;
-  static const Color burnishedGoldDark = royalVelvetDark;
-  static const Color burnishedGoldLight = royalVelvetLight;
-  static const Color emeraldTeal = royalVelvet;
-  static const Color emeraldTealDark = royalVelvetDark;
-  static const Color slateTint = scaffoldLight;
+  static const Color royalVelvet = primary;
+  static const Color royalVelvetDark = Color(0xFF2A836C);
+  static const Color royalVelvetLight = Color(0xFFEAF1EC);
+  static const Color royalSlateBlue = primary;
+  static const Color royalSlateBlueDark = Color(0xFF2A836C);
+  static const Color royalSlateBlueLight = Color(0xFFEAF1EC);
+  static const Color imperialSapphire = primary;
+  static const Color midnightNavy = Color(0xFF17332D);
+  static const Color burnishedGold = primary;
+  static const Color burnishedGoldDark = Color(0xFF2A836C);
+  static const Color burnishedGoldLight = Color(0xFFEAF1EC);
+  static const Color emeraldTeal = secondary;
+  static const Color emeraldTealDark = Color(0xFF0891B2);
+  static const Color slateTint = background;
 
-  // Velvet Palette Scales
-  static const Color slateBlue50 = Color(0xFFECE8F6);
-  static const Color slateBlue100 = Color(0xFFDFD9EE);
-  static const Color slateBlue200 = Color(0xFFC7BCE0);
-  static const Color slateBlue300 = Color(0xFFA696CC);
-  static const Color slateBlue400 = Color(0xFF7B66AC);
-  static const Color slateBlue500 = royalVelvet; // #4E3985
-  static const Color slateBlue600 = royalVelvetDark; // #48347D
-  static const Color slateBlue700 = Color(0xFF3F2D6F);
-  static const Color slateBlue800 = Color(0xFF322359);
-  static const Color slateBlue900 = Color(0xFF271E3C);
+  // Velvet / Indigo Palette Scales
+  static const Color slateBlue50 = Color(0xFFF2F5F0);
+  static const Color slateBlue100 = Color(0xFFE1E8E2);
+  static const Color slateBlue200 = Color(0xFFC9D9CD);
+  static const Color slateBlue300 = secondary;
+  static const Color slateBlue400 = Color(0xFF6D9E87);
+  static const Color slateBlue500 = primary;
+  static const Color slateBlue600 = Color(0xFF2A836C);
+  static const Color slateBlue700 = Color(0xFF1F6B57);
+  static const Color slateBlue800 = Color(0xFF17332D);
+  static const Color slateBlue900 = Color(0xFF10251F);
 
   // Gold aliases preserved for backward compatibility
-  static const Color gold50 = Color(0xFFFFFBEB);
-  static const Color gold100 = Color(0xFFFEF3C7);
-  static const Color gold200 = Color(0xFFFDE68A);
-  static const Color gold300 = Color(0xFFFCD34D);
-  static const Color gold400 = Color(0xFFFBBF24);
-  static const Color gold500 = Color(0xFFF59E0B);
-  static const Color gold600 = royalVelvet;
-  static const Color gold700 = royalVelvetDark;
-  static const Color gold800 = Color(0xFF3F2D6F);
-  static const Color gold900 = Color(0xFF271E3C);
+  static const Color gold50 = Color(0xFFFFF8E8);
+  static const Color gold100 = Color(0xFFFCECCB);
+  static const Color gold200 = Color(0xFFF6C66A);
+  static const Color gold300 = Color(0xFFE9B44F);
+  static const Color gold400 = Color(0xFFD9A43B);
+  static const Color gold500 = Color(0xFFC18A2C);
+  static const Color gold600 = Color(0xFFA87522);
+  static const Color gold700 = Color(0xFF8D601B);
+  static const Color gold800 = Color(0xFF714D18);
+  static const Color gold900 = Color(0xFF563B15);
 
-  // Indigo / Periwinkle compatibility aliases mapped to Velvet scale
-  static const Color indigo50 = Color(0xFFECE8F6);
-  static const Color indigo100 = Color(0xFFDFD9EE);
-  static const Color indigo200 = Color(0xFFC7BCE0);
-  static const Color indigo300 = Color(0xFFA696CC);
-  static const Color indigo400 = Color(0xFF7B66AC);
-  static const Color indigo500 = royalVelvet;
-  static const Color indigo600 = royalVelvetDark;
-  static const Color indigo700 = Color(0xFF3F2D6F);
-  static const Color indigo800 = Color(0xFF322359);
-  static const Color indigo900 = Color(0xFF271E3C);
+  // Indigo / Periwinkle compatibility aliases
+  static const Color indigo50 = slateBlue50;
+  static const Color indigo100 = slateBlue100;
+  static const Color indigo200 = slateBlue200;
+  static const Color indigo300 = slateBlue300;
+  static const Color indigo400 = slateBlue400;
+  static const Color indigo500 = primary;
+  static const Color indigo600 = slateBlue600;
+  static const Color indigo700 = slateBlue700;
+  static const Color indigo800 = slateBlue800;
+  static const Color indigo900 = slateBlue900;
 
-  static const Color periwinkle50 = Color(0xFFECE8F6);
-  static const Color periwinkle100 = Color(0xFFDFD9EE);
-  static const Color periwinkle200 = Color(0xFFC7BCE0);
-  static const Color periwinkle300 = Color(0xFFA696CC);
-  static const Color periwinkle400 = Color(0xFF7B66AC);
-  static const Color periwinkle500 = royalVelvet;
-  static const Color periwinkle600 = royalVelvetDark;
-  static const Color periwinkle700 = Color(0xFF3F2D6F);
-  static const Color periwinkle800 = Color(0xFF271E3C);
-  static const Color periwinkle900 = Color(0xFF271E3C);
+  static const Color periwinkle50 = slateBlue50;
+  static const Color periwinkle100 = slateBlue100;
+  static const Color periwinkle200 = slateBlue200;
+  static const Color periwinkle300 = slateBlue300;
+  static const Color periwinkle400 = slateBlue400;
+  static const Color periwinkle500 = primary;
+  static const Color periwinkle600 = slateBlue600;
+  static const Color periwinkle700 = slateBlue700;
+  static const Color periwinkle800 = slateBlue800;
+  static const Color periwinkle900 = slateBlue900;
 
   // ==========================================
-  // Primary Actions & Header
+  // Primary Actions & Header Gradients
   // ==========================================
-  static const Color primary = royalVelvet; // #4E3985 Primary Brand Color
-  static const Color primaryDark =
-      royalVelvetDark; // #48347D Deep Violet / Header transition
-  static const Color primaryHover = royalVelvetDark;
-  static const Color primaryActive = Color(0xFF3F2D6F);
-  static const Color primaryDisabled = Color(0xFFB5A9D2);
+  // Single unified tone for the status bar, header, and center nav button.
+  static const Color kDeepSagePine = Color(0xFF0F3E32);
+  static const Color primaryDark = Color(0xFF174B40);
+  static const Color primaryHover = Color(0xFF2A836C);
+  static const Color primaryActive = Color(0xFF174B40);
+  static const Color primaryDisabled = Color(0xFFA8C9B5);
 
-  // Rich Royal Velvet gradient
+  static const LinearGradient headerGradientLight = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFF0B2F23), // Exact dark status-bar pine green
+      Color(0xFF0F3E30),
+      Color(0xFF144D3C),
+      Color(0xFF1E634E),
+    ],
+    stops: [0.0, 0.25, 0.65, 1.0],
+  );
+
+  static const LinearGradient headerGradientDark = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF0B2F23), Color(0xFF144D3C), Color(0xFF1E634E)],
+  );
+
+  static const LinearGradient headerGradient = headerGradientLight;
+
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [royalVelvet, royalVelvetDark],
+    colors: [Color(0xFF1F6B57), Color(0xFF2A836C)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // Top header container: Royal Velvet #4E3985
-  static const Color headerBackground = royalVelvet; // #4E3985
-  static const Color headerStart = royalVelvet; // #4E3985
-  static const Color headerEnd = royalVelvetDark; // #48347D
-
-  static const LinearGradient headerGradient = LinearGradient(
-    colors: [royalVelvet, royalVelvetDark],
+  static const LinearGradient primaryGradientDark = LinearGradient(
+    colors: [Color(0xFF174B40), Color(0xFF2A836C)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // ==========================================
-  // Background & Surfaces
-  // ==========================================
-  static const Color background =
-      scaffoldLight; // #F8F9FD Clean soft slate off-white
-  static const Color cardBackground = white; // #FFFFFF Crisp Pure White
-  static const Color toggleBackground = Color(0xFFECE8F6); // #ECE8F6
-  static const Color inputFill = white; // #FFFFFF
-  static const Color softPillBackground = Color(
-    0xFFECE8F6,
-  ); // #ECE8F6 Soft tinted badge surface
-  static const Color lightCyanTint = Color(0xFFECE8F6); // Soft tinted surface
-  static const Color lightBlueTint = Color(0xFFECE8F6); // Neutral Soft Tint
-  static const Color lightLavenderTint = Color(0xFFECE8F6); // Soft Tint
+  // Top header container colors
+  static const Color headerBackground = primary;
+  static const Color headerStart = Color(0xFF1F6B57);
+  static const Color headerEnd = Color(0xFFA8C9B5);
+
+  // Surfaces & Fills
+  static const Color toggleBackground = Color(0xFFEAF1EC);
+  static const Color inputFill = white;
+  static const Color softPillBackground = Color(0xFFEAF1EC);
+  static const Color lightCyanTint = Color(0xFFEAF1EC);
+  static const Color lightBlueTint = Color(0xFFEAF1EC);
+  static const Color lightLavenderTint = Color(0xFFF8F6F0);
 
   // ==========================================
-  // Dark Theme Tokens (Deep Slate Vault)
+  // Dark Theme Tokens (High Saturation & Contrast)
   // ==========================================
-  static const Color darkBackground = Color(0xFF0F172A);
-  static const Color darkCardBackground = Color(0xFF1E293B);
-  static const Color darkSubtleBorder = Color(0xFF334155);
-  static const Color darkBorder = Color(0xFF475569);
-  static const Color darkTextPrimary = Color(0xFFF8F9FD);
-  static const Color darkTextSecondary = Color(0xFF94A3B8);
-  static const Color darkTextMuted = Color(0xFF64748B);
-  static const Color darkToggleBackground = Color(0xFF334155);
+  static const Color darkPrimary = Color(0xFF2A836C);
+  static const Color darkSecondary = Color(0xFFA8C9B5);
+  static const Color darkAccent = Color(0xFFFF9B78);
+  static const Color darkBackground = Color(0xFF101D19);
+  static const Color darkCardBackground = Color(0xFF182722);
+  static const Color darkSurface = Color(0xFF182722);
+  static const Color darkSubtleBorder = Color(0xFF31433A);
+  static const Color darkBorder = Color(0xFF31433A);
+  static const Color darkTextPrimary = Color(0xFFF4F6F0);
+  static const Color darkTextSecondary = Color(0xFFB5C2B9);
+  static const Color darkTextMuted = Color(0xFF8D9A93);
+  static const Color darkToggleBackground = Color(0xFF263B33);
 
   // ==========================================
   // Context-aware Theme Helpers
@@ -172,34 +191,36 @@ class AppColors {
   static Color surfaceTintOf(BuildContext context) =>
       isDark(context) ? darkCardBackground : lightCyanTint;
 
+  static LinearGradient headerGradientOf(BuildContext context) =>
+      isDark(context) ? headerGradientDark : headerGradientLight;
+
+  static LinearGradient primaryGradientOf(BuildContext context) =>
+      isDark(context) ? primaryGradientDark : primaryGradient;
+
+  static Color primaryOf(BuildContext context) =>
+      isDark(context) ? darkPrimary : primary;
+
+  static Color secondaryOf(BuildContext context) =>
+      isDark(context) ? darkSecondary : secondary;
+
+  static Color accentOf(BuildContext context) =>
+      isDark(context) ? darkAccent : accent;
+
   // ==========================================
   // Chips
   // ==========================================
-  static const Color chipInactiveBackground = white; // #FFFFFF
-  static const Color chipInactiveBorder = Color(0xFFE5E7EB); // #E5E7EB
-  static const Color chipActiveBackground = royalVelvet; // #4E3985
-
-  // ==========================================
-  // Text Colors
-  // ==========================================
-  static const Color textDarkest = Color(
-    0xFF271E3C,
-  ); // #271E3C Rich deep violet-black
-  static const Color textPrimary = Color(
-    0xFF271E3C,
-  ); // #271E3C Rich deep violet-black
-  static const Color textSecondary = Color(0xFF6B7280); // #6B7280 Refined Slate
-  static const Color textMuted = Color(0xFF8F9BB3); // #8F9BB3 Refined Slate
-  static const Color textWhite = white; // #FFFFFF Crisp Pure White
+  static const Color chipInactiveBackground = white;
+  static const Color chipInactiveBorder = Color(0xFFE1E8E2);
+  static const Color chipActiveBackground = primary;
 
   // ==========================================
   // Borders & Errors
   // ==========================================
-  static const Color border = Color(0xFFE5E7EB); // #E5E7EB Subtle Border
-  static const Color subtleBorder = Color(0xFFF1F5F9); // #F1F5F9
-  static const Color focusedBorder = royalVelvet; // #4E3985
-  static const Color errorBorder = Color(0xFFE63946);
-  static const Color errorText = Color(0xFFE63946);
+  static const Color border = Color(0xFFE1E8E2);
+  static const Color subtleBorder = Color(0xFFE1E8E2);
+  static const Color focusedBorder = primary;
+  static const Color errorBorder = Color(0xFFEF4444);
+  static const Color errorText = Color(0xFFEF4444);
 
   // ==========================================
   // Status Indicators & Badges

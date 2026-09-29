@@ -46,6 +46,18 @@ import '../../../integrations/domain/repositories/google_auth_repository.dart';
 import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
 
+// Header/banner gradients built on the single unified AppColors.kDeepSagePine tone.
+const LinearGradient _unifiedSageHeaderGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [Color(0xFF0F3E32), Color(0xFF134E3F), Color(0xFF165948)],
+);
+const LinearGradient _unifiedSageBannerGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [Color(0xFF0F3E32), Color(0xFF165948)],
+);
+
 class _FallbackAiRemoteDataSource implements AiRemoteDataSource {
   @override
   Future<Map<String, dynamic>> invokeIngestion({
@@ -282,7 +294,7 @@ class HomeScreenState extends State<HomeScreen> {
   String _getUserInitial(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty || trimmed.toLowerCase() == 'there') {
-      return 'U';
+      return 'S';
     }
     return trimmed[0].toUpperCase();
   }
@@ -291,7 +303,6 @@ class HomeScreenState extends State<HomeScreen> {
     if (state is CaptureLoaded) return state.memories;
     return const [];
   }
-
 
   void _showUnavailableFeature(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -366,52 +377,51 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildUpgradeBanner(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2C1E52).withValues(alpha: 0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            gradient: _unifiedSageBannerGradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.kDeepSagePine.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 20, 14),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _buildGoldenCrownIcon(size: 38),
-                const SizedBox(width: 12),
-                Expanded(
+                const CustomPaint(
+                  size: Size(32, 28),
+                  painter: _GoldenCrownPainter(),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'Upgrade to DocsSaver Pro',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14.5,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: 3),
                       Text(
                         'Unlock smart reminders and other features',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.70),
-                          fontSize: 11.5,
+                          color: Colors.white70,
+                          fontSize: 11,
                           fontWeight: FontWeight.w400,
                           height: 1.25,
                         ),
@@ -419,38 +429,30 @@ class HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _showUnavailableFeature('DocsSaver Pro'),
-                    borderRadius: BorderRadius.circular(24),
-                    child: Ink(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: [Color(0xFF9065FD), Color(0xFF6B42D1)],
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(right: 24),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showUnavailableFeature('DocsSaver Pro'),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Ink(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF6B42D1).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAA61E),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Go Pro',
+                          style: TextStyle(
+                            color: Color(0xFF241400),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
-                      child: const Text(
-                        'Go Pro →',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -459,38 +461,24 @@ class HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          Positioned(
-            top: 6,
-            right: 6,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                key: const Key('pro_banner_close_btn'),
-                onTap: () => setState(() => _isProBannerVisible = false),
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 17,
-                    color: Colors.white.withValues(alpha: 0.70),
-                  ),
-                ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('pro_banner_close_btn'),
+              onTap: () => setState(() => _isProBannerVisible = false),
+              borderRadius: BorderRadius.circular(14),
+              child: const Padding(
+                padding: EdgeInsets.all(2.0),
+                child: Icon(Icons.close_rounded, color: Colors.white, size: 16),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGoldenCrownIcon({double size = 38}) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _GoldenCrownPainter(),
-      ),
+        ),
+      ],
     );
   }
 
@@ -499,57 +487,57 @@ class HomeScreenState extends State<HomeScreen> {
       (
         'Take Photo',
         Icons.camera_alt_rounded,
-        const Color(0xFFF43F5E), // Refined Coral Rose
-        const Color(0xFFFFF1F2),
+        const Color(0xFFD97706),
+        const Color(0xFFFFF2DC),
         _handleTakePhoto,
       ),
       (
         'Add Link',
         Icons.link_rounded,
-        const Color(0xFF6366F1), // Soft Violet
-        const Color(0xFFEEF2FF),
+        const Color(0xFF1E5E48),
+        const Color(0xFFE5EFE9),
         _handleAddLink,
       ),
       (
         'Add Video',
         Icons.videocam_rounded,
-        const Color(0xFFDC2626), // Vibrant Red
-        const Color(0xFFFEF2F2),
+        const Color(0xFFE76535),
+        const Color(0xFFFFEBE3),
         _handleAddVideo,
       ),
       (
         'Add Note',
         Icons.edit_note_rounded,
-        const Color(0xFFEA580C), // Warm Tangerine / Orange
-        const Color(0xFFFFF7ED),
+        const Color(0xFFD97706),
+        const Color(0xFFFFF2DC),
         _handleAddNote,
       ),
       (
         'Smart Scan',
         Icons.document_scanner_rounded,
-        const Color(0xFF8B5CF6), // Soft Purple
-        const Color(0xFFF5F3FF),
+        const Color(0xFFE76535),
+        const Color(0xFFFFEBE3),
         _handleScanDocument,
       ),
       (
         'Choose File',
         Icons.description_rounded,
-        const Color(0xFF0284C7), // Soft Sky Blue
-        const Color(0xFFF0F9FF),
+        const Color(0xFF2B5EA7),
+        const Color(0xFFE8EEF8),
         _handleChooseFile,
       ),
       (
         'Voice Note',
         Icons.mic_rounded,
-        const Color(0xFF059669), // Soft Mint Green
-        const Color(0xFFECFDF5),
+        const Color(0xFFD97706),
+        const Color(0xFFFFF2DC),
         _handleRecordVoice,
       ),
       (
         'Google Drive',
         Icons.add_to_drive_rounded,
-        const Color(0xFFCA8A04), // Branded Gold
-        const Color(0xFFFEFCE8),
+        Colors.white,
+        const Color(0xFFFFF2DC),
         _openGooglePicker,
       ),
     ];
@@ -575,7 +563,7 @@ class HomeScreenState extends State<HomeScreen> {
         itemCount: actions.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          mainAxisExtent: 74,
+          mainAxisExtent: 82,
           mainAxisSpacing: 10,
           crossAxisSpacing: 8,
         ),
@@ -591,14 +579,21 @@ class HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 48,
+                  height: 48,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: action.$4,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(action.$2, color: action.$3, size: 20),
+                  child: label == 'Google Drive'
+                      ? Image.asset(
+                          'assets/images/google_drive.png',
+                          width: 24,
+                          height: 24,
+                          fit: BoxFit.contain,
+                        )
+                      : Icon(action.$2, color: action.$3, size: 24),
                 ),
                 const SizedBox(height: 5),
                 Text(
@@ -608,9 +603,9 @@ class HomeScreenState extends State<HomeScreen> {
                   softWrap: true,
                   overflow: TextOverflow.visible,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppColors.textPrimaryOf(context),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     height: 1.15,
                     letterSpacing: -0.2,
                   ),
@@ -929,8 +924,8 @@ class HomeScreenState extends State<HomeScreen> {
     if (media.endsWith('.mp4') || media.endsWith('.mov') || cat == 'video') {
       return (
         Icons.videocam_rounded,
-        const Color(0xFFFEE2E2),
-        const Color(0xFFDC2626),
+        const Color(0xFFFFEBE3),
+        const Color(0xFFE76535),
       );
     }
     if (media.endsWith('.jpg') ||
@@ -957,6 +952,16 @@ class HomeScreenState extends State<HomeScreen> {
         const Color(0xFFD97706),
       );
     }
+    if (cat == 'document' ||
+        cat == 'note' ||
+        cat == 'notes' ||
+        media.endsWith('.pdf')) {
+      return (
+        Icons.description_outlined,
+        const Color(0xFFE5EFE9),
+        const Color(0xFF1E5E48),
+      );
+    }
     if (cat == 'work' || cat == 'study') {
       return (
         Icons.folder_open_rounded,
@@ -966,8 +971,8 @@ class HomeScreenState extends State<HomeScreen> {
     }
     return (
       Icons.description_outlined,
-      const Color(0xFFF1F5F9),
-      const Color(0xFF475569),
+      const Color(0xFFE5EFE9),
+      const Color(0xFF1E5E48),
     );
   }
 
@@ -992,62 +997,67 @@ class HomeScreenState extends State<HomeScreen> {
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
-        statusBarColor: Color(0xFF4E3985),
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF4E3985),
-        body: Container(
-          color: const Color(0xFF4E3985),
-          child: SafeArea(
-            top: false,
-            bottom: true,
-            child: Column(
-              children: [
-                Container(
-                  height: MediaQuery.paddingOf(context).top,
-                  color: const Color(0xFF4E3985),
-                ),
-                Expanded(
-                  child: BlocBuilder<CaptureBloc, CaptureState>(
-                    builder: (context, state) {
-                      return SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildHeader(context, userName, userInitial),
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: MediaQuery.sizeOf(context).height,
-                              ),
-                              child: Container(
-                                width: double.infinity,
-                                color: const Color(0xFFF8F8FC),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildDashboard(
-                                      context,
-                                      _memoriesFromState(state),
-                                    ),
-                                    SizedBox(
-                                      height: 80 + MediaQuery.paddingOf(context).bottom,
-                                    ),
-                                  ],
-                                ),
+        backgroundColor: AppColors.backgroundOf(context),
+        body: Stack(
+          children: [
+            Container(
+              color: AppColors.backgroundOf(context),
+              child: SafeArea(
+                top: false,
+                bottom: true,
+                child: BlocBuilder<CaptureBloc, CaptureState>(
+                  builder: (context, state) {
+                    return SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHeader(context, userName, userInitial),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: MediaQuery.sizeOf(context).height,
+                            ),
+                            child: Container(
+                              width: double.infinity,
+                              color: const Color(0xFFF8F8FC),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildDashboard(
+                                    context,
+                                    _memoriesFromState(state),
+                                  ),
+                                  SizedBox(
+                                    height:
+                                        80 +
+                                        MediaQuery.paddingOf(context).bottom,
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ],
+              ),
             ),
-          ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: MediaQuery.of(context).padding.top,
+                color: const Color(0xFF0F3E32),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1105,16 +1115,16 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.camera_alt_rounded,
                         title: 'Take Photo',
                         isTakePhoto: true,
-                        iconColor: const Color(0xFFF43F5E),
-                        iconBackground: const Color(0xFFFFF1F2),
+                        iconColor: const Color(0xFFD97706),
+                        iconBackground: const Color(0xFFFFF2DC),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.document_scanner_rounded,
                         title: 'Scan Document',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF8B5CF6),
-                        iconBackground: const Color(0xFFF5F3FF),
+                        iconColor: const Color(0xFFE76535),
+                        iconBackground: const Color(0xFFFFEBE3),
                         aliasKey: 'capture_option_Scan Document',
                       ),
                       _buildCaptureOption(
@@ -1122,8 +1132,8 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.edit_note_rounded,
                         title: 'Add Note',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFEA580C),
-                        iconBackground: const Color(0xFFFFF7ED),
+                        iconColor: const Color(0xFFD97706),
+                        iconBackground: const Color(0xFFFFF2DC),
                         aliasKey: 'capture_option_Add Note',
                       ),
                       _buildCaptureOption(
@@ -1131,8 +1141,8 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.mic_rounded,
                         title: 'Voice Note',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF059669),
-                        iconBackground: const Color(0xFFECFDF5),
+                        iconColor: const Color(0xFFD97706),
+                        iconBackground: const Color(0xFFFFF2DC),
                         aliasKey: 'capture_option_Record Voice',
                       ),
                       _buildCaptureOption(
@@ -1140,32 +1150,33 @@ class HomeScreenState extends State<HomeScreen> {
                         icon: Icons.description_rounded,
                         title: 'Choose File',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF0284C7),
-                        iconBackground: const Color(0xFFF0F9FF),
+                        iconColor: const Color(0xFF2B5EA7),
+                        iconBackground: const Color(0xFFE8EEF8),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.link_rounded,
                         title: 'Add Link',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFF6366F1),
-                        iconBackground: const Color(0xFFEEF2FF),
+                        iconColor: const Color(0xFF1E5E48),
+                        iconBackground: const Color(0xFFE5EFE9),
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.add_to_drive_rounded,
                         title: 'Google Drive',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFCA8A04),
-                        iconBackground: const Color(0xFFFEFCE8),
+                        iconColor: const Color(0xFFD97706),
+                        iconBackground: const Color(0xFFFFF2DC),
+                        iconAsset: 'assets/images/google_drive.png',
                       ),
                       _buildCaptureOption(
                         context: sheetContext,
                         icon: Icons.videocam_rounded,
                         title: 'Add Video',
                         isTakePhoto: false,
-                        iconColor: const Color(0xFFDC2626),
-                        iconBackground: const Color(0xFFFEF2F2),
+                        iconColor: const Color(0xFFE76535),
+                        iconBackground: const Color(0xFFFFEBE3),
                       ),
                     ],
                   ),
@@ -1229,7 +1240,10 @@ class HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8F7FC),
                       borderRadius: BorderRadius.circular(16),
@@ -1244,7 +1258,9 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF4E3985).withValues(alpha: 0.10),
+                            color: const Color(
+                              0xFF4E3985,
+                            ).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -1297,7 +1313,10 @@ class HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8F7FC),
                       borderRadius: BorderRadius.circular(16),
@@ -1312,7 +1331,9 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF4E3985).withValues(alpha: 0.10),
+                            color: const Color(
+                              0xFF4E3985,
+                            ).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -1407,8 +1428,8 @@ class HomeScreenState extends State<HomeScreen> {
         final message =
             errorMsg.contains('permission') || errorMsg.contains('denied')
             ? (source == ImageSource.camera
-                ? 'Camera permission denied. Please enable camera access in Settings.'
-                : 'Gallery access denied. Please enable photos permission in Settings.')
+                  ? 'Camera permission denied. Please enable camera access in Settings.'
+                  : 'Gallery access denied. Please enable photos permission in Settings.')
             : 'Unable to open image picker: ${e.toString()}';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
@@ -2388,6 +2409,7 @@ class HomeScreenState extends State<HomeScreen> {
     required bool isTakePhoto,
     Color? iconColor,
     Color? iconBackground,
+    String? iconAsset,
     String? aliasKey,
   }) {
     final inkWell = InkWell(
@@ -2430,19 +2452,31 @@ class HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: iconBackground ?? AppColors.surfaceTintOf(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                color: iconColor ?? AppColors.primary,
-                size: 19,
-              ),
-            ),
+            iconAsset == null
+                ? Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: iconBackground ?? AppColors.surfaceTintOf(context),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: iconColor ?? AppColors.primary,
+                      size: 19,
+                    ),
+                  )
+                : Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: iconBackground ?? const Color(0xFFFFF2DC),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    // Shrinks the drive logo to match the ~18-20px icon footprint of siblings
+                    padding: const EdgeInsets.all(12.0),
+                    child: Image.asset(iconAsset, fit: BoxFit.contain),
+                  ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -2476,215 +2510,250 @@ class HomeScreenState extends State<HomeScreen> {
     String userName,
     String userInitial,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final topPadding = MediaQuery.paddingOf(context).top;
+
     return Stack(
       children: [
-        const Positioned(
+        Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          height: 30,
-          child: ColoredBox(color: Color(0xFFF8F8FC)),
+          height: 36,
+          child: ColoredBox(color: AppColors.backgroundOf(context)),
         ),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, topPadding + 6, 20, 18),
           decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2C1E52).withValues(alpha: 0.28),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top row: "Hey {User Name} 👋" with subtitle on left, Bell & Avatar on right
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Hey $userName',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: -0.4,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('👋', style: TextStyle(fontSize: 20)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Let's capture more ideas today",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFFECE8F6),
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Bell Icon Button (notifications / reminders)
-                  _buildHeaderIconButton(
-                    key: const Key('home_bell_btn'),
-                    icon: Icons.notifications_none_rounded,
-                    hasBadge: true,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No new notifications'),
-                          duration: Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  // User Profile Avatar Button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const Key('home_profile_avatar_btn'),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        final isFallback = userName.toLowerCase() == 'there';
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              isFallback
-                                  ? 'Your Second Brain'
-                                  : "$userName's Second Brain",
-                            ),
-                            duration: const Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(100),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            width: 1.0,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            userInitial,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            gradient: _unifiedSageHeaderGradient,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(36),
+              bottomRight: Radius.circular(36),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.kDeepSagePine.withValues(alpha: 0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-
-          // Below header: Dedicated pill-shaped Search Bar with crisp white surface
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: const Key('home_search_btn'),
-              onTap: () {
-                if (widget.onSearchTap != null) {
-                  widget.onSearchTap!();
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SearchScreen()),
-                  );
-                }
-              },
-              borderRadius: BorderRadius.circular(100),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(100),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Greeting and account actions
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Hey $userName',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            const Text('👋', style: TextStyle(fontSize: 20)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Let's capture more ideas today",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.search_rounded,
-                      color: Color(0xFF6B7280),
-                      size: 20,
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Search your memories',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: -0.1,
+                  ),
+                  const SizedBox(width: 10),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Bell Icon Button
+                      _buildHeaderIconButton(
+                        key: const Key('home_bell_btn'),
+                        icon: Icons.notifications_none_rounded,
+                        hasBadge: true,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No new notifications'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // User Profile Avatar Button with letter 'S'
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: const Key('home_profile_avatar_btn'),
+                          onTap: () {
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            final isFallback =
+                                userName.toLowerCase() == 'there';
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isFallback
+                                      ? 'Your Second Brain'
+                                      : "$userName's Second Brain",
+                                ),
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(100),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOf(context),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryOf(
+                                    context,
+                                  ).withValues(alpha: 0.35),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                userInitial.isNotEmpty ? userInitial : 'S',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Search bar
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const Key('home_search_btn'),
+                  onTap: () {
+                    if (widget.onSearchTap != null) {
+                      widget.onSearchTap!();
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SearchScreen()),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(28),
+                  child: Container(
+                    width: double.infinity,
+                    height: 44,
+                    padding: const EdgeInsets.fromLTRB(16, 5, 6, 5),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF111827)
+                          : const Color(0xFFFFFFFF),
+                      borderRadius: BorderRadius.circular(28),
+                      border: isDark
+                          ? Border.all(color: const Color(0xFF1E293B))
+                          : Border.all(color: Colors.white, width: 1.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.30 : 0.07,
+                          ),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Search your memories',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B),
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.kDeepSagePine.withValues(
+                                    alpha: 0.25,
+                                  )
+                                : const Color(0xFFE5EFE9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.tune_rounded,
+                            size: 18,
+                            color: isDark
+                                ? const Color(0xFFA8C9B5)
+                                : const Color(0xFF0F3E32),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    ),
-  ],
-);
+        ),
+      ],
+    );
   }
 
   Widget _buildHeaderIconButton({
@@ -2693,6 +2762,7 @@ class HomeScreenState extends State<HomeScreen> {
     required VoidCallback onTap,
     bool hasBadge = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2703,18 +2773,33 @@ class HomeScreenState extends State<HomeScreen> {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : const Color(0xFFFCFBF7),
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.16)
+                  : Colors.white,
               width: 1.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              Icon(icon, color: Colors.white, size: 20),
+              Icon(
+                icon,
+                color: isDark ? Colors.white : const Color(0xFF0F3E32),
+                size: 20,
+              ),
               if (hasBadge)
                 Positioned(
                   top: 9,
@@ -2723,7 +2808,7 @@ class HomeScreenState extends State<HomeScreen> {
                     width: 6,
                     height: 6,
                     decoration: const BoxDecoration(
-                      color: Color(0xFFF59E0B),
+                      color: Color(0xFFFF9B78),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -2740,22 +2825,27 @@ class HomeScreenState extends State<HomeScreen> {
     List<MemoryEntity> memories,
   ) {
     return SizedBox(
-      height: 104,
+      height: 116,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: CategorySectionsData.sections.length,
         itemBuilder: (context, index) {
           final section = CategorySectionsData.sections[index];
+          final itemCount = memories.where((memory) {
+            final memoryCategory = memory.category.trim().toLowerCase();
+            return section.categories.any((category) {
+              final categoryName = category.name.toLowerCase();
+              return categoryName == memoryCategory ||
+                  categoryName.startsWith('$memoryCategory &');
+            });
+          }).length;
           final isLast = index == CategorySectionsData.sections.length - 1;
           return Padding(
             padding: EdgeInsets.only(right: isLast ? 0 : 10),
             child: SizedBox(
               width: 106,
-              child: _buildCategorySectionCard(
-                context,
-                section,
-              ),
+              child: _buildCategorySectionCard(context, section, itemCount),
             ),
           );
         },
@@ -2768,33 +2858,33 @@ class HomeScreenState extends State<HomeScreen> {
     return switch (sectionId) {
       'documents_records' => (
         icon: Icons.folder_rounded,
-        iconColor: const Color(0xFF4E3985), // Deep Royal Violet
-        circleBg: const Color(0xFFECE8F6), // Soft tinted badge surface
-        border: const Color(0xFFDDD6ED),
+        iconColor: const Color(0xFF2B5EA7),
+        circleBg: const Color(0xFFE8EEF8),
+        border: AppColors.border,
       ),
       'work_learning' => (
         icon: Icons.school_rounded,
-        iconColor: const Color(0xFF059669), // Green
-        circleBg: const Color(0xFFECFDF5), // Pastel green tone
-        border: const Color(0xFFA7F3D0),
+        iconColor: const Color(0xFFD98A00),
+        circleBg: const Color(0xFFFFF4D9),
+        border: AppColors.border,
       ),
       'home_utilities' => (
         icon: Icons.home_rounded,
-        iconColor: const Color(0xFFD97706), // Orange / Amber
-        circleBg: const Color(0xFFFFFBEB), // Pastel amber tone
-        border: const Color(0xFFFDE68A),
+        iconColor: const Color(0xFFE25574),
+        circleBg: const Color(0xFFFFEEF2),
+        border: AppColors.gold100,
       ),
       'personal_life' => (
         icon: Icons.person_rounded,
-        iconColor: const Color(0xFFE11D48), // Pink / Rose
-        circleBg: const Color(0xFFFFF1F2), // Pastel rose tone
-        border: const Color(0xFFFECDD3),
+        iconColor: const Color(0xFFE76535),
+        circleBg: const Color(0xFFFFEBE3),
+        border: AppColors.border,
       ),
       _ => (
         icon: Icons.folder_rounded,
-        iconColor: const Color(0xFF4E3985),
-        circleBg: const Color(0xFFECE8F6),
-        border: const Color(0xFFDDD6ED),
+        iconColor: AppColors.primary,
+        circleBg: AppColors.toggleBackground,
+        border: AppColors.border,
       ),
     };
   }
@@ -2802,6 +2892,7 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildCategorySectionCard(
     BuildContext context,
     CategorySectionItem section,
+    int itemCount,
   ) {
     final style = _categoryStyle(section.id);
     final displayTitle = switch (section.id) {
@@ -2843,8 +2934,10 @@ class HomeScreenState extends State<HomeScreen> {
                     end: Offset.zero,
                   ).animate(curvedSlide),
                   child: FadeTransition(
-                    opacity:
-                        Tween<double>(begin: 0.0, end: 1.0).animate(curvedFade),
+                    opacity: Tween<double>(
+                      begin: 0.0,
+                      end: 1.0,
+                    ).animate(curvedFade),
                     child: child,
                   ),
                 );
@@ -2854,14 +2947,11 @@ class HomeScreenState extends State<HomeScreen> {
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.cardBackgroundOf(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.borderOf(context),
-              width: 1.0,
-            ),
+            border: Border.all(color: AppColors.borderOf(context), width: 1.0),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.03),
@@ -2875,25 +2965,21 @@ class HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: style.circleBg,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: style.iconColor.withValues(alpha: 0.18),
                     width: 1.0,
                   ),
                 ),
                 child: Center(
-                  child: Icon(
-                    style.icon,
-                    color: style.iconColor,
-                    size: 22,
-                  ),
+                  child: Icon(style.icon, color: style.iconColor, size: 20),
                 ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 4),
               Text(
                 displayTitle,
                 textAlign: TextAlign.center,
@@ -2901,11 +2987,21 @@ class HomeScreenState extends State<HomeScreen> {
                 softWrap: true,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimaryOf(context),
                   letterSpacing: -0.2,
-                  height: 1.2,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$itemCount items',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Color(0xFF71827B),
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
@@ -2917,6 +3013,8 @@ class HomeScreenState extends State<HomeScreen> {
 }
 
 class _GoldenCrownPainter extends CustomPainter {
+  const _GoldenCrownPainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;

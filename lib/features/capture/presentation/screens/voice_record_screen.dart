@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -302,31 +303,51 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: AppColors.backgroundOf(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundOf(context),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: AppColors.textPrimaryOf(context),
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           _recordState == VoiceRecordState.review
               ? 'Review Voice Note'
               : 'Record Voice',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimaryOf(context),
+            color: Colors.white,
             letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: AppColors.headerGradientOf(context),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                    .withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+        ),
       ),
       body: SafeArea(
         child: _recordState == VoiceRecordState.review
@@ -659,7 +680,9 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                         Icon(
                           icon,
                           size: 16,
-                          color: isSelected ? Colors.white : unselectedIconColor,
+                          color: isSelected
+                              ? Colors.white
+                              : unselectedIconColor,
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -670,8 +693,8 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                             color: isSelected
                                 ? Colors.white
                                 : (isAuto
-                                    ? const Color(0xFF483873)
-                                    : unselectedTextColor),
+                                      ? const Color(0xFF483873)
+                                      : unselectedTextColor),
                           ),
                         ),
                       ],

@@ -77,9 +77,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
           reverseTransitionDuration: const Duration(milliseconds: 240),
           pageBuilder: (context, animation, secondaryAnimation) =>
               CategoryMemoriesScreen(
-            category: category,
-            onCaptureTap: widget.onCaptureTap,
-          ),
+                category: category,
+                onCaptureTap: widget.onCaptureTap,
+              ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             final curvedSlide = CurvedAnimation(
               parent: animation,
@@ -98,8 +98,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
                 end: Offset.zero,
               ).animate(curvedSlide),
               child: FadeTransition(
-                opacity:
-                    Tween<double>(begin: 0.0, end: 1.0).animate(curvedFade),
+                opacity: Tween<double>(
+                  begin: 0.0,
+                  end: 1.0,
+                ).animate(curvedFade),
                 child: child,
               ),
             );
@@ -134,10 +136,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
         ),
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: AppColors.textWhite,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -145,24 +144,21 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppColors.textWhite,
+            color: Colors.white,
             letterSpacing: -0.3,
           ),
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF4E3985), Color(0xFF2C1E52)],
-            ),
+            gradient: AppColors.headerGradientOf(context),
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(32),
               bottomRight: Radius.circular(32),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF2C1E52).withValues(alpha: 0.28),
+                color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                    .withValues(alpha: 0.20),
                 blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
@@ -279,21 +275,19 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkCardBackground
-                : Colors.white,
+            color: AppColors.cardBackgroundOf(context),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isDark
                   ? category.iconColor.withValues(alpha: 0.25)
-                  : const Color(0xFFEBE6F5),
+                  : AppColors.border,
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
                     ? Colors.black.withValues(alpha: 0.22)
-                    : AppColors.violetTwilight500.withValues(alpha: 0.05),
+                    : AppColors.primary.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -345,7 +339,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
                           fontWeight: FontWeight.w700,
                           color: isDark
                               ? AppColors.darkTextPrimary
-                              : AppColors.violetTwilight900,
+                              : AppColors.textPrimary,
                           letterSpacing: -0.3,
                         ),
                         maxLines: 1,
@@ -388,10 +382,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
             onTap: () => BankCardTemplateSheet.show(context),
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 3,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
@@ -399,11 +390,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.add_rounded,
-                    size: 12,
-                    color: AppColors.primary,
-                  ),
+                  Icon(Icons.add_rounded, size: 12, color: AppColors.primary),
                   SizedBox(width: 3),
                   Text(
                     'Add Card',
@@ -430,10 +417,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
             onTap: () => BillTemplateSheet.show(context),
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 3,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
@@ -441,11 +425,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen>
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.add_rounded,
-                    size: 12,
-                    color: AppColors.primary,
-                  ),
+                  Icon(Icons.add_rounded, size: 12, color: AppColors.primary),
                   SizedBox(width: 3),
                   Text(
                     'Add Bill',
@@ -567,9 +547,10 @@ class _BouncingTapCardState extends State<_BouncingTapCard>
       duration: const Duration(milliseconds: 90),
       reverseDuration: const Duration(milliseconds: 130),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.975).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.975,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -582,10 +563,8 @@ class _BouncingTapCardState extends State<_BouncingTapCard>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _scaleAnimation,
-      builder: (context, child) => Transform.scale(
-        scale: _scaleAnimation.value,
-        child: child,
-      ),
+      builder: (context, child) =>
+          Transform.scale(scale: _scaleAnimation.value, child: child),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

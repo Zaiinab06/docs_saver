@@ -206,6 +206,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final canGoBack = widget.showBackButton ?? Navigator.of(context).canPop();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return BlocProvider.value(
       value: _bloc,
@@ -228,7 +229,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ? IconButton(
                   icon: const Icon(
                     Icons.arrow_back_rounded,
-                    color: AppColors.textWhite,
+                    color: Colors.white,
                   ),
                   onPressed: () => Navigator.of(context).pop(),
                 )
@@ -316,14 +317,15 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           flexibleSpace: Container(
             decoration: BoxDecoration(
-              gradient: AppColors.headerGradient,
+              gradient: AppColors.headerGradientOf(context),
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(24),
                 bottomRight: Radius.circular(24),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.22),
+                  color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                      .withValues(alpha: 0.20),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
