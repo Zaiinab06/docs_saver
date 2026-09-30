@@ -14,7 +14,7 @@ import '../../../capture/presentation/screens/voice_record_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
 import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
 import '../../../capture/presentation/widgets/bill_template_sheet.dart';
-import '../../domain/models/category_section.dart';
+import '../models/category_section.dart';
 
 /// Dedicated Category Memories screen for displaying real memories
 /// belonging to a specific child category, with dynamic empty state and capture integration.
@@ -663,3 +663,4 @@ class _CategoryMemoriesScreenState extends State<CategoryMemoriesScreen> {
     );
   }
 }
+

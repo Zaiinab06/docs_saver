@@ -7,7 +7,7 @@ import 'package:second_brain/features/capture/domain/usecases/get_memories_useca
 import 'package:second_brain/features/capture/domain/usecases/save_memory_usecase.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_bloc.dart';
 import 'package:second_brain/features/capture/presentation/bloc/capture_event.dart';
-import 'package:second_brain/features/home/domain/models/category_section.dart';
+import 'package:second_brain/features/home/presentation/models/category_section.dart';
 import 'package:second_brain/features/home/presentation/screens/category_detail_screen.dart';
 import 'package:second_brain/features/home/presentation/screens/category_memories_screen.dart';
 
@@ -143,3 +143,4 @@ void main() {
     });
   });
 }
+

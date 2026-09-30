@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:second_brain/features/capture/presentation/screens/memory_detail_screen.dart';
+import 'package:second_brain/features/home/presentation/models/category_section.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -45,7 +46,6 @@ import '../../../integrations/domain/entities/google_doc_entity.dart';
 import '../../../integrations/domain/repositories/google_auth_repository.dart';
 import '../../../../core/utils/profile_notifier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../domain/models/category_section.dart';
 import 'category_detail_screen.dart';
 import '../../../settings/presentation/screens/edit_profile_screen.dart';
 
@@ -508,7 +508,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickActions(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     final actions = [
       (
         'Take Photo',
@@ -943,7 +943,10 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  (IconData, Color, Color) _memoryIconAndColor(BuildContext context, MemoryEntity memory) {
+  (IconData, Color, Color) _memoryIconAndColor(
+    BuildContext context,
+    MemoryEntity memory,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const darkBg = Color(0xFF23332F);
     final cat = memory.category.toLowerCase();
@@ -1022,8 +1025,12 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final userName = _getUserName();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBgColor = isDark ? const Color(0xFF0F1715) : AppColors.backgroundOf(context);
-    final bodyBgColor = isDark ? const Color(0xFF0F1715) : const Color(0xFFF8F8FC);
+    final scaffoldBgColor = isDark
+        ? const Color(0xFF0F1715)
+        : AppColors.backgroundOf(context);
+    final bodyBgColor = isDark
+        ? const Color(0xFF0F1715)
+        : const Color(0xFFF8F8FC);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -1050,8 +1057,15 @@ class HomeScreenState extends State<HomeScreen> {
                           ValueListenableBuilder<String?>(
                             valueListenable: ProfileNotifier.nameNotifier,
                             builder: (context, newName, _) {
-                              final nameToUse = (newName != null && newName.trim().isNotEmpty) ? newName.trim() : userName;
-                              return _buildHeader(context, nameToUse, _getUserInitial(nameToUse));
+                              final nameToUse =
+                                  (newName != null && newName.trim().isNotEmpty)
+                                  ? newName.trim()
+                                  : userName;
+                              return _buildHeader(
+                                context,
+                                nameToUse,
+                                _getUserInitial(nameToUse),
+                              );
                             },
                           ),
                           ConstrainedBox(
@@ -1090,8 +1104,8 @@ class HomeScreenState extends State<HomeScreen> {
               right: 0,
               child: Container(
                 height: MediaQuery.of(context).padding.top,
-                color: Theme.of(context).brightness == Brightness.dark 
-                    ? const Color(0xFF0C1412) 
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF0C1412)
                     : const Color(0xFF0F3E32),
               ),
             ),
@@ -1296,7 +1310,9 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                            color: const Color(
+                              0xFF134E3F,
+                            ).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -1367,7 +1383,9 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                            color: const Color(
+                              0xFF134E3F,
+                            ).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -1543,7 +1561,9 @@ class HomeScreenState extends State<HomeScreen> {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                              color: const Color(
+                                0xFF134E3F,
+                              ).withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
@@ -1593,7 +1613,8 @@ class HomeScreenState extends State<HomeScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     key: const Key('video_option_gallery'),
-                    onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
+                    onTap: () =>
+                        Navigator.of(sheetCtx).pop(ImageSource.gallery),
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -1614,7 +1635,9 @@ class HomeScreenState extends State<HomeScreen> {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                              color: const Color(
+                                0xFF134E3F,
+                              ).withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
@@ -2701,7 +2724,8 @@ class HomeScreenState extends State<HomeScreen> {
                                 ? customName.trim()
                                 : userName;
                             final capitalized = effectiveName.isNotEmpty
-                                ? effectiveName[0].toUpperCase() + effectiveName.substring(1)
+                                ? effectiveName[0].toUpperCase() +
+                                      effectiveName.substring(1)
                                 : 'User';
                             return Text(
                               'Hey $capitalized 👋',
@@ -2756,19 +2780,26 @@ class HomeScreenState extends State<HomeScreen> {
                           onTap: () {
                             String email = '';
                             try {
-                              final user = Supabase.instance.client.auth.currentUser;
+                              final user =
+                                  Supabase.instance.client.auth.currentUser;
                               if (user?.email != null) {
                                 email = user!.email!;
                               }
                             } catch (_) {}
-                            final initialImage = ProfileNotifier.imagePathNotifier.value != null 
-                                ? File(ProfileNotifier.imagePathNotifier.value!) 
+                            final initialImage =
+                                ProfileNotifier.imagePathNotifier.value != null
+                                ? File(ProfileNotifier.imagePathNotifier.value!)
                                 : null;
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(
-                              initialName: userName,
-                              initialEmail: email,
-                              initialProfileImage: initialImage,
-                            )));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => EditProfileScreen(
+                                  initialName: userName,
+                                  initialEmail: email,
+                                  initialProfileImage: initialImage,
+                                ),
+                              ),
+                            );
                           },
                           borderRadius: BorderRadius.circular(100),
                           child: ValueListenableBuilder<String?>(
@@ -2793,10 +2824,13 @@ class HomeScreenState extends State<HomeScreen> {
                                       offset: const Offset(0, 2),
                                     ),
                                   ],
-                                  image: (imagePath != null && imagePath.isNotEmpty)
+                                  image:
+                                      (imagePath != null &&
+                                          imagePath.isNotEmpty)
                                       ? DecorationImage(
                                           image: imagePath.startsWith('http')
-                                              ? NetworkImage(imagePath) as ImageProvider
+                                              ? NetworkImage(imagePath)
+                                                    as ImageProvider
                                               : FileImage(File(imagePath)),
                                           fit: BoxFit.cover,
                                         )
@@ -2805,7 +2839,9 @@ class HomeScreenState extends State<HomeScreen> {
                                 child: (imagePath == null || imagePath.isEmpty)
                                     ? Center(
                                         child: Text(
-                                          userInitial.isNotEmpty ? userInitial : 'S',
+                                          userInitial.isNotEmpty
+                                              ? userInitial
+                                              : 'S',
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 16,
@@ -2850,7 +2886,10 @@ class HomeScreenState extends State<HomeScreen> {
                           : const Color(0xFFFFFFFF),
                       borderRadius: BorderRadius.circular(28),
                       border: isDark
-                          ? Border.all(color: const Color(0x14FFFFFF), width: 1.0)
+                          ? Border.all(
+                              color: const Color(0x14FFFFFF),
+                              width: 1.0,
+                            )
                           : Border.all(color: Colors.white, width: 1.0),
                       boxShadow: [
                         BoxShadow(
@@ -3147,7 +3186,9 @@ class HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : AppColors.textPrimaryOf(context),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : AppColors.textPrimaryOf(context),
                   letterSpacing: -0.2,
                   height: 1.15,
                 ),
@@ -3158,7 +3199,9 @@ class HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 10.5,
-                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF71827B),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : const Color(0xFF71827B),
                   fontWeight: FontWeight.w400,
                 ),
               ),

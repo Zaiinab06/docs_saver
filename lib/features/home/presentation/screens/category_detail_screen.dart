@@ -6,7 +6,7 @@ import '../../../capture/presentation/bloc/capture_bloc.dart';
 import '../../../capture/presentation/bloc/capture_state.dart';
 import '../../../capture/presentation/widgets/bank_card_template_sheet.dart';
 import '../../../capture/presentation/widgets/bill_template_sheet.dart';
-import '../../domain/models/category_section.dart';
+import '../models/category_section.dart';
 import 'category_memories_screen.dart';
 
 class CategoryDetailScreen extends StatefulWidget {
@@ -561,3 +561,4 @@ class _BouncingTapCardState extends State<_BouncingTapCard>
     );
   }
 }
+

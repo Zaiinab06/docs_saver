@@ -1,17 +1,37 @@
-# second_brain
+# DocsSaver 📁✨
 
-A new Flutter project.
+A modern, offline-first personal knowledge and document management mobile application built with Flutter, following Clean Architecture principles.
 
-## Getting Started
+## 🌟 Key Features
+- **Smart Document Scanning:** Google ML Kit document scanner integration.
+- **Multi-modal Capture:** Fast capture for Notes, Audio/Voice recordings, Web Links, Photos, and Videos.
+- **Semantic & Visual Search:** Instant search by context, meaning, or feeling.
+- **Categorization & Bookmarking:** Save, organize, pin, and retrieve critical memories seamlessly.
+- **Deep Sage Pine Design:** Consistent, cohesive modern theme with adaptive dark and light mode support.
 
-This project is a starting point for a Flutter application.
+## 🏛️ Architecture
+DocsSaver strictly adheres to Feature-First Clean Architecture:
+- **Presentation Layer:** BLoC/Cubit pattern, responsive widgets, and adaptive theming.
+- **Domain Layer:** Pure Dart entities, use cases, and abstract repository contracts.
+- **Data Layer:** Remote data sources (Supabase/APIs), Local cache (Isar), data models, and repository implementations.
 
-A few resources to get you started if this is your first Flutter project:
+## 🛠️ Tech Stack & Dependencies
+- **Framework:** Flutter (Dart)
+- **State Management:** flutter_bloc
+- **Theme Primary:** Deep Sage Pine (`#134E3F`)
+- **Local Storage:** Isar Database / SharedPreferences
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🚀 Getting Started
+1. Clone the repository:
+   ```bash
+   git clone <repo_url>
+   cd docs_saver
+   ```
+2. Install dependencies:
+   ```bash
+   flutter pub get
+   ```
+3. Run the app:
+   ```bash
+   flutter run
+   ```
