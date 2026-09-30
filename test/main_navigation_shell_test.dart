@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -127,6 +128,7 @@ void main() {
   late FakeAuthRepository fakeAuthRepository;
   late FakeCaptureRepository fakeCaptureRepository;
   late AuthBloc authBloc;
+  late SharedPreferences prefs;
   late CaptureBloc captureBloc;
 
   final testPinnedMemory = MemoryEntity(
@@ -153,7 +155,9 @@ void main() {
     serverUpdatedAt: DateTime(2026, 9, 14, 10, 0),
   );
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
     fakeAuthRepository = FakeAuthRepository(
       currentUser: const UserEntity(
         id: 'u-1',
@@ -605,7 +609,7 @@ void main() {
     testWidgets(
       'AuthSessionGate renders MainNavigationShell when authenticated',
       (tester) async {
-        await tester.pumpWidget(buildApp(home: const AuthSessionGate()));
+        await tester.pumpWidget(buildApp(home: AuthSessionGate(prefs: prefs)));
         await tester.pumpAndSettle();
 
         expect(find.byType(MainNavigationShell), findsOneWidget);

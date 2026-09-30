@@ -81,7 +81,7 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
     if (!mounted) return;
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthSessionGate()),
+      MaterialPageRoute(builder: (_) => AuthSessionGate(prefs: prefs)),
       (route) => false,
     );
   }

@@ -58,12 +58,30 @@ dependencies:
   image: ^4.10.1
   video_player: ^2.14.0
   get_thumbnail_video: 0.7.0
+  flutter_native_splash: ^2.4.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
   isar_community_generator: ^3.3.2
   build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.13.1
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
+  adaptive_icon_background: "#134E3F"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
+  min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#134E3F"
+  image: "assets/images/app_icon_foreground.png"
+  android_12:
+    image: "assets/images/app_icon_foreground.png"
+    color: "#134E3F"
+    icon_background_color: "#134E3F"
+
   
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -86,6 +104,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - assets/app_icon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

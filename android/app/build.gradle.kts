@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.second_brain"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

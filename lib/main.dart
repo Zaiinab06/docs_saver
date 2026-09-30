@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/utils/profile_notifier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'core/constants/supabase_constants.dart';
 import 'core/network/network_checker.dart';
 import 'core/services/isar_service.dart';
-import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/auth/data/datasources/auth_remote_data_source.dart';
@@ -32,7 +32,8 @@ import 'features/navigation/presentation/screens/main_navigation_shell.dart';
 import 'features/onboarding/presentation/screens/onboarding_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   await Supabase.initialize(
     url: SupabaseConstants.supabaseUrl,
@@ -73,7 +74,7 @@ void main() async {
   final themeCubit = ThemeCubit(prefs);
 
   runApp(
-    SecondBrainApp(
+    SecondBrainApp(prefs: prefs,
       themeCubit: themeCubit,
       authRepository: authRepository,
       signUpUseCase: signUpUseCase,
@@ -86,10 +87,12 @@ void main() async {
       subscribeToMemoriesUseCase: subscribeToMemoriesUseCase,
     ),
   );
-}
+    FlutterNativeSplash.remove();
+  }
 
 class SecondBrainApp extends StatelessWidget {
   final ThemeCubit? themeCubit;
+  final SharedPreferences prefs;
   final AuthRepository authRepository;
   final SignUpUseCase signUpUseCase;
   final SignInUseCase signInUseCase;
@@ -103,6 +106,7 @@ class SecondBrainApp extends StatelessWidget {
   const SecondBrainApp({
     super.key,
     this.themeCubit,
+    required this.prefs,
     required this.authRepository,
     required this.signUpUseCase,
     required this.signInUseCase,
@@ -145,7 +149,7 @@ class SecondBrainApp extends StatelessWidget {
             themeMode: themeMode,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            home: const AuthSessionGate(),
+            home: AuthSessionGate(prefs: prefs),
           );
         },
       ),
@@ -154,7 +158,9 @@ class SecondBrainApp extends StatelessWidget {
 }
 
 class AuthSessionGate extends StatefulWidget {
-  const AuthSessionGate({super.key});
+  final SharedPreferences prefs;
+
+  const AuthSessionGate({super.key, required this.prefs});
 
   @override
   State<AuthSessionGate> createState() => _AuthSessionGateState();
@@ -181,38 +187,22 @@ class _AuthSessionGateState extends State<AuthSessionGate> {
               : (state as AuthSuccess).user;
           return MainNavigationShell(userName: user.fullName);
         } else if (state is AuthLoading || state is AuthInitial) {
-          return const Scaffold(
-            backgroundColor: AppColors.background,
+          return Scaffold(
+            backgroundColor: const Color(0xFF134E3F),
             body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              child: Image.asset(
+                'assets/app_icon.png',
+                width: 120,
+                height: 120,
               ),
             ),
           );
         } else {
-          // Re-read SharedPreferences so logout always routes to OnboardingScreen
-          return FutureBuilder<SharedPreferences>(
-            future: SharedPreferences.getInstance(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Scaffold(
-                  backgroundColor: AppColors.background,
-                  body: Center(
-                    child: CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  ),
-                );
-              }
-              final hasSeen =
-                  snapshot.data!.getBool('has_seen_onboarding') ?? false;
-              if (!hasSeen) {
-                return const OnboardingScreen();
-              }
-              return const AuthScreen();
-            },
-          );
+          final hasSeen = widget.prefs.getBool('has_seen_onboarding') ?? false;
+          if (!hasSeen) {
+            return const OnboardingScreen();
+          }
+          return const AuthScreen();
         }
       },
     );

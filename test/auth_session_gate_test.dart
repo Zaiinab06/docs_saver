@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -112,8 +113,12 @@ void main() {
   late FakeAuthRepository fakeAuthRepository;
   late FakeCaptureRepository fakeCaptureRepository;
   late CaptureBloc captureBloc;
+  late SharedPreferences prefs;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+    
     fakeAuthRepository = FakeAuthRepository();
     fakeCaptureRepository = FakeCaptureRepository();
     captureBloc = CaptureBloc(
@@ -139,7 +144,7 @@ void main() {
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.background,
         ),
-        home: const AuthSessionGate(),
+        home: AuthSessionGate(prefs: prefs),
       ),
     );
   }
