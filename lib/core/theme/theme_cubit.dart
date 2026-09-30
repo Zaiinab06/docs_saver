@@ -9,12 +9,12 @@ class ThemeCubit extends Cubit<ThemeMode> {
   ThemeCubit([this._prefs]) : super(_resolveInitialTheme(_prefs));
 
   static ThemeMode _resolveInitialTheme(SharedPreferences? prefs) {
-    if (prefs == null) return ThemeMode.system;
+    if (prefs == null) return ThemeMode.light;
     final saved = prefs.getString(prefsKey);
     if (saved == 'light') return ThemeMode.light;
     if (saved == 'dark') return ThemeMode.dark;
     if (saved == 'system') return ThemeMode.system;
-    return ThemeMode.system;
+    return ThemeMode.light;
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

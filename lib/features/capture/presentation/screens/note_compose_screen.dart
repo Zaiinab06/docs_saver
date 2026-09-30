@@ -487,20 +487,24 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                   controller: _contentController,
                   minLines: 6,
                   maxLines: 12,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14.5,
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1E293B),
                     height: 1.45,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Write your thoughts, ideas, or notes here...',
                     hintStyle: TextStyle(
                       fontSize: 14,
-                      color: AppColors.textSecondary,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       fontWeight: FontWeight.w400,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
+                    contentPadding: const EdgeInsets.all(16),
                   ),
                 ),
               ),

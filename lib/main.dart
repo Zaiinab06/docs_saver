@@ -35,60 +35,65 @@ void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  await Supabase.initialize(
-    url: SupabaseConstants.supabaseUrl,
-    publishableKey: SupabaseConstants.supabaseAnonKey,
-  );
+  late SharedPreferences prefs;
 
-  await IsarService.init();
+  try {
+    await Future.wait([
+      Supabase.initialize(
+        url: SupabaseConstants.supabaseUrl,
+        publishableKey: SupabaseConstants.supabaseAnonKey,
+      ),
+      IsarService.init(),
+      ProfileNotifier.loadProfile(),
+      SharedPreferences.getInstance().then((p) => prefs = p),
+    ]).timeout(const Duration(seconds: 4));
+  } catch (e) {
+    debugPrint('Init error: $e');
+    prefs = await SharedPreferences.getInstance();
+  } finally {
+    NetworkChecker.startMonitoring();
 
-  NetworkChecker.startMonitoring();
+    final authRemoteDataSource = AuthRemoteDataSourceImpl();
+    final authRepository = AuthRepositoryImpl(
+      remoteDataSource: authRemoteDataSource,
+    );
+    final signUpUseCase = SignUpUseCase(authRepository);
+    final signInUseCase = SignInUseCase(authRepository);
+    final signOutUseCase = SignOutUseCase(authRepository);
+    final getCurrentUserUseCase = GetCurrentUserUseCase(authRepository);
 
-  await ProfileNotifier.loadProfile();
+    final localDataSource = CaptureLocalDataSourceImpl();
+    final remoteDataSource = CaptureRemoteDataSourceImpl();
+    final captureRepository = CaptureRepositoryImpl(
+      localDataSource: localDataSource,
+      remoteDataSource: remoteDataSource,
+    );
+    final saveMemoryUseCase = SaveMemoryUseCase(captureRepository);
+    final getMemoriesUseCase = GetMemoriesUseCase(captureRepository);
+    final subscribeToMemoriesUseCase = SubscribeToMemoriesUseCase(
+      captureRepository,
+    );
 
-  final prefs = await SharedPreferences.getInstance();
+    final themeCubit = ThemeCubit(prefs);
 
-  // Auth feature dependencies
-  final authRemoteDataSource = AuthRemoteDataSourceImpl();
-  final authRepository = AuthRepositoryImpl(
-    remoteDataSource: authRemoteDataSource,
-  );
-  final signUpUseCase = SignUpUseCase(authRepository);
-  final signInUseCase = SignInUseCase(authRepository);
-  final signOutUseCase = SignOutUseCase(authRepository);
-  final getCurrentUserUseCase = GetCurrentUserUseCase(authRepository);
-
-  // Capture feature dependencies
-  final localDataSource = CaptureLocalDataSourceImpl();
-  final remoteDataSource = CaptureRemoteDataSourceImpl();
-  final captureRepository = CaptureRepositoryImpl(
-    localDataSource: localDataSource,
-    remoteDataSource: remoteDataSource,
-  );
-  final saveMemoryUseCase = SaveMemoryUseCase(captureRepository);
-  final getMemoriesUseCase = GetMemoriesUseCase(captureRepository);
-  final subscribeToMemoriesUseCase = SubscribeToMemoriesUseCase(
-    captureRepository,
-  );
-
-  final themeCubit = ThemeCubit(prefs);
-
-  runApp(
-    SecondBrainApp(prefs: prefs,
-      themeCubit: themeCubit,
-      authRepository: authRepository,
-      signUpUseCase: signUpUseCase,
-      signInUseCase: signInUseCase,
-      signOutUseCase: signOutUseCase,
-      getCurrentUserUseCase: getCurrentUserUseCase,
-      captureRepository: captureRepository,
-      saveMemoryUseCase: saveMemoryUseCase,
-      getMemoriesUseCase: getMemoriesUseCase,
-      subscribeToMemoriesUseCase: subscribeToMemoriesUseCase,
-    ),
-  );
+    runApp(
+      SecondBrainApp(
+        prefs: prefs,
+        themeCubit: themeCubit,
+        authRepository: authRepository,
+        signUpUseCase: signUpUseCase,
+        signInUseCase: signInUseCase,
+        signOutUseCase: signOutUseCase,
+        getCurrentUserUseCase: getCurrentUserUseCase,
+        captureRepository: captureRepository,
+        saveMemoryUseCase: saveMemoryUseCase,
+        getMemoriesUseCase: getMemoriesUseCase,
+        subscribeToMemoriesUseCase: subscribeToMemoriesUseCase,
+      ),
+    );
     FlutterNativeSplash.remove();
   }
+}
 
 class SecondBrainApp extends StatelessWidget {
   final ThemeCubit? themeCubit;
@@ -208,4 +213,5 @@ class _AuthSessionGateState extends State<AuthSessionGate> {
     );
   }
 }
+
 

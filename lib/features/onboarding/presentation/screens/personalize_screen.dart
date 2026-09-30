@@ -125,7 +125,7 @@ class _PersonalizeScreenState extends State<PersonalizeScreen> {
 
               // Heading: 19-20px, Bold, #1A1A1A
               const Text(
-                'How will you use your second brain?',
+                'How will you use DocsSaver?',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
