@@ -311,10 +311,15 @@ class HomeScreenState extends State<HomeScreen> {
 
   String _getUserInitial(String name) {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.toLowerCase() == 'there') {
-      return 'S';
+    if (trimmed.isNotEmpty && trimmed.toLowerCase() != 'there') {
+      return trimmed[0].toUpperCase();
     }
-    return trimmed[0].toUpperCase();
+    // Derive initial from Supabase email when name is generic or empty
+    try {
+      final email = Supabase.instance.client.auth.currentUser?.email ?? '';
+      if (email.isNotEmpty) return email[0].toUpperCase();
+    } catch (_) {}
+    return '?';
   }
 
   List<MemoryEntity> _memoriesFromState(CaptureState state) {
@@ -1262,7 +1267,7 @@ class HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFF64748B),
+                  color: Color(0xFF6B7280),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1278,10 +1283,10 @@ class HomeScreenState extends State<HomeScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F7FC),
+                      color: const Color(0xFFFAFBF9),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF4E3985).withValues(alpha: 0.12),
+                        color: const Color(0xFFF1F5F9),
                         width: 1.0,
                       ),
                     ),
@@ -1291,14 +1296,12 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF4E3985,
-                            ).withValues(alpha: 0.10),
+                            color: const Color(0xFF134E3F).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
                             Icons.camera_alt_rounded,
-                            color: Color(0xFF4E3985),
+                            color: Color(0xFF134E3F),
                             size: 22,
                           ),
                         ),
@@ -1321,8 +1324,8 @@ class HomeScreenState extends State<HomeScreen> {
                               Text(
                                 'Open camera to snap a new photo',
                                 style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
                                 ),
                               ),
                             ],
@@ -1351,10 +1354,10 @@ class HomeScreenState extends State<HomeScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F7FC),
+                      color: const Color(0xFFFAFBF9),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF4E3985).withValues(alpha: 0.12),
+                        color: const Color(0xFFF1F5F9),
                         width: 1.0,
                       ),
                     ),
@@ -1364,14 +1367,12 @@ class HomeScreenState extends State<HomeScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF4E3985,
-                            ).withValues(alpha: 0.10),
+                            color: const Color(0xFF134E3F).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
                             Icons.photo_library_rounded,
-                            color: Color(0xFF4E3985),
+                            color: Color(0xFF134E3F),
                             size: 22,
                           ),
                         ),
@@ -1394,8 +1395,8 @@ class HomeScreenState extends State<HomeScreen> {
                               Text(
                                 'Select an existing photo from device',
                                 style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
                                 ),
                               ),
                             ],
@@ -1476,13 +1477,13 @@ class HomeScreenState extends State<HomeScreen> {
       final picker = ImagePicker();
       final source = await showModalBottomSheet<ImageSource>(
         context: context,
-        backgroundColor: AppColors.cardBackgroundOf(context),
+        backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (sheetCtx) => SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1492,70 +1493,171 @@ class HomeScreenState extends State<HomeScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.borderOf(sheetCtx),
+                      color: const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
+                const SizedBox(height: 18),
+                const Text(
                   'Capture Video',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimaryOf(sheetCtx),
+                    color: Color(0xFF1E293B),
+                    letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 12),
-                ListTile(
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFCE4EC),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.videocam_outlined,
-                      color: Color(0xFFE91E63),
-                      size: 22,
-                    ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Choose an option to capture or upload',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF6B7280),
                   ),
-                  title: Text(
-                    'Record Video',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimaryOf(sheetCtx),
-                    ),
-                  ),
-                  subtitle: const Text('Use camera to record a video'),
-                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
                 ),
-                ListTile(
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEDE7FF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.video_library_outlined,
-                      color: Color(0xFF6D35E8),
-                      size: 22,
+                const SizedBox(height: 16),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: const Key('video_option_camera'),
+                    onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFBF9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFF1F5F9),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.videocam_rounded,
+                              color: Color(0xFF134E3F),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Record Video',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1E293B),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Use camera to record a video',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF94A3B8),
+                            size: 20,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  title: Text(
-                    'Choose from Gallery',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimaryOf(sheetCtx),
+                ),
+                const SizedBox(height: 10),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: const Key('video_option_gallery'),
+                    onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFBF9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFF1F5F9),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF134E3F).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.video_library_rounded,
+                              color: Color(0xFF134E3F),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Choose from Gallery',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1E293B),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Pick an existing video from your device',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF94A3B8),
+                            size: 20,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  subtitle: const Text(
-                    'Pick an existing video from your device',
-                  ),
-                  onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
                 ),
               ],
             ),
@@ -2592,23 +2694,26 @@ class HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                'Hey $userName',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                        ValueListenableBuilder<String>(
+                          valueListenable: ProfileNotifier.nameNotifier,
+                          builder: (context, customName, _) {
+                            final effectiveName = customName.trim().isNotEmpty
+                                ? customName.trim()
+                                : userName;
+                            final capitalized = effectiveName.isNotEmpty
+                                ? effectiveName[0].toUpperCase() + effectiveName.substring(1)
+                                : 'User';
+                            return Text(
+                              'Hey $capitalized 👋',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text('👋', style: TextStyle(fontSize: 20)),
-                          ],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          },
                         ),
                         const SizedBox(height: 4),
                         const Text(

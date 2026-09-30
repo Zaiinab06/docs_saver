@@ -6,7 +6,7 @@ class AppColors {
   // ==========================================
   // Brand & Surface Tokens — Light Mode (Sage & Ivory)
   // ==========================================
-  static const Color primary = Color(0xFF1F6B57);
+  static const Color primary = Color(0xFF134E3F);
   static const Color secondary = Color(0xFFA8C9B5);
   static const Color accent = Color(0xFFFF9B78);
   static const Color accent2 = Color(0xFFF6C66A);

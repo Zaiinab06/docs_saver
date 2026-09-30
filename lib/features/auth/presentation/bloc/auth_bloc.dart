@@ -1,12 +1,14 @@
 // ignore_for_file: avoid_print
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/sign_in_usecase.dart';
 import '../../domain/usecases/sign_out_usecase.dart';
 import '../../domain/usecases/sign_up_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../../../core/utils/profile_notifier.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -118,6 +120,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
     try {
       await signOutUseCase();
+      // Clear cached profile so the next user doesn't see stale name/image
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_full_name');
+      await prefs.remove('user_custom_name');
+      await prefs.remove('user_profile_image');
+      // Reset onboarding flag so logout always routes back to OnboardingScreen
+      await prefs.remove('has_seen_onboarding');
+      ProfileNotifier.nameNotifier.value = '';
+      ProfileNotifier.imagePathNotifier.value = null;
       emit(Unauthenticated());
     } catch (e) {
       emit(AuthFailure(_cleanErrorMessage(e)));

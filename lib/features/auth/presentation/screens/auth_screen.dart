@@ -9,9 +9,20 @@ import '../bloc/auth_state.dart';
 
 enum AuthMode { signIn, signUp }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+const _kPrimary = Color(0xFF134E3F);
+const _kBorder = Color(0xFFE2E8F0);
+const _kLabelColor = Color(0xFF2D3748);
+const _kSubtextColor = Color(0xFF718096);
+const _kInputFill = Color(0xFFF7FAFC);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AuthScreen
+// ─────────────────────────────────────────────────────────────────────────────
 class AuthScreen extends StatefulWidget {
   final AuthMode initialMode;
-
   const AuthScreen({super.key, this.initialMode = AuthMode.signIn});
 
   @override
@@ -25,6 +36,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
 
   @override
   void initState() {
@@ -40,18 +52,18 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
+  // ── Mode switching ──────────────────────────────────────────────────────────
   void _switchMode(AuthMode newMode) {
     if (_currentMode != newMode) {
       _emailController.clear();
       _passwordController.clear();
       _nameController.clear();
       _formKey.currentState?.reset();
-      setState(() {
-        _currentMode = newMode;
-      });
+      setState(() => _currentMode = newMode);
     }
   }
 
+  // ── Form submission ─────────────────────────────────────────────────────────
   void _onSubmit() {
     print('DEBUG: Sign Up button clicked');
     final isValid = _formKey.currentState?.validate() ?? false;
@@ -73,11 +85,8 @@ class _AuthScreenState extends State<AuthScreen> {
           backgroundColor: AppColors.snackBarBackground,
           content: const Row(
             children: [
-              Icon(
-                Icons.error_outline_rounded,
-                color: AppColors.errorBorder,
-                size: 20,
-              ),
+              Icon(Icons.error_outline_rounded,
+                  color: AppColors.errorBorder, size: 20),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -102,23 +111,22 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (_currentMode == AuthMode.signIn) {
       context.read<AuthBloc>().add(
-        SignInRequested(email: email, password: password),
-      );
+            SignInRequested(email: email, password: password),
+          );
     } else {
-      print(
-        'DEBUG: Dispatching SignUpEvent with email: ${_emailController.text}',
-      );
+      print('DEBUG: Dispatching SignUpEvent with email: ${_emailController.text}');
       final fullName = _nameController.text.trim();
       context.read<AuthBloc>().add(
-        SignUpRequested(
-          email: email,
-          password: password,
-          fullName: fullName.isNotEmpty ? fullName : null,
-        ),
-      );
+            SignUpRequested(
+              email: email,
+              password: password,
+              fullName: fullName.isNotEmpty ? fullName : null,
+            ),
+          );
     }
   }
 
+  // ── Error formatting ────────────────────────────────────────────────────────
   String _formatErrorMessage(String message) {
     if (message.toLowerCase().contains('email not confirmed')) {
       return 'Email not confirmed. Please check your inbox and verify your email before signing in.';
@@ -138,6 +146,7 @@ class _AuthScreenState extends State<AuthScreen> {
     return message;
   }
 
+  // ── Validators ──────────────────────────────────────────────────────────────
   String? _validateName(String? value) {
     if (_currentMode == AuthMode.signUp &&
         (value == null || value.trim().isEmpty)) {
@@ -166,10 +175,11 @@ class _AuthScreenState extends State<AuthScreen> {
     return null;
   }
 
+  // ── Build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundOf(context),
+      backgroundColor: Colors.white,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
@@ -188,11 +198,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 backgroundColor: AppColors.snackBarBackground,
                 content: Row(
                   children: [
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
+                    const Icon(Icons.info_outline_rounded,
+                        color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -227,11 +234,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 backgroundColor: AppColors.snackBarBackground,
                 content: Row(
                   children: [
-                    const Icon(
-                      Icons.mark_email_read_rounded,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
+                    const Icon(Icons.mark_email_read_rounded,
+                        color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -257,387 +261,241 @@ class _AuthScreenState extends State<AuthScreen> {
         },
         builder: (context, state) {
           final isLoading = state is AuthLoading;
+          final isSignIn = _currentMode == AuthMode.signIn;
 
           return SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 16.0,
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header Section: Logo & Branding
-                      Center(
-                        child: Container(
-                          width: 68,
-                          height: 68,
-                          decoration: BoxDecoration(
-                            color: AppColors.lightCyanTint,
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(
-                                  alpha: 0.12,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Top spacing ──────────────────────────────────────────
+                    const SizedBox(height: 16),
+
+                    // ── Title ───────────────────────────────────────────────
+                    Text(
+                      isSignIn ? 'Welcome Back' : 'Create Account',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: _kLabelColor,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Subtitle ────────────────────────────────────────────
+                    Text(
+                      isSignIn
+                          ? 'Log in to your account to continue.'
+                          : 'Sign up to get started with your dashboard.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: _kSubtextColor,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // ── Email-confirmation card ──────────────────────────────
+                    if (state is AuthNeedsConfirmation) ...[
+                      _buildEmailConfirmationCard(
+                          state.email, state.message),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // ── Full Name (sign-up only) ─────────────────────────────
+                    AnimatedCrossFade(
+                      firstChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildFieldLabel('Full Name'),
+                          const SizedBox(height: 6),
+                          _buildTextField(
+                            controller: _nameController,
+                            hintText: 'Enter your name',
+                            prefixIcon: Icons.person_outline_rounded,
+                            validator: _validateName,
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                      secondChild: const SizedBox.shrink(),
+                      crossFadeState: isSignIn
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 250),
+                    ),
+
+                    // ── Email ───────────────────────────────────────────────
+                    _buildFieldLabel('Email'),
+                    const SizedBox(height: 6),
+                    _buildTextField(
+                      controller: _emailController,
+                      hintText: 'Enter your email',
+                      prefixIcon: Icons.mail_outline_rounded,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: _validateEmail,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── Password ────────────────────────────────────────────
+                    _buildFieldLabel('Password'),
+                    const SizedBox(height: 6),
+                    _buildTextField(
+                      controller: _passwordController,
+                      hintText: isSignIn
+                          ? AppStrings.passwordHintSignIn
+                          : AppStrings.passwordHintSignUp,
+                      prefixIcon: Icons.lock_outline_rounded,
+                      obscureText: _obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: _kSubtextColor,
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                      validator: _validatePassword,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Remember me / Forgot password (sign-in only) ────────
+                    if (isSignIn)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Checkbox(
+                                  value: _rememberMe,
+                                  activeColor: _kPrimary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  side: const BorderSide(
+                                      color: _kSubtextColor, width: 1.5),
+                                  onChanged: (v) =>
+                                      setState(() => _rememberMe = v ?? false),
                                 ),
-                                blurRadius: 20,
-                                offset: const Offset(0, 6),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Remember me',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _kLabelColor,
+                                ),
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.psychology_rounded,
-                              size: 36,
-                              color: AppColors.primary,
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Title
-                      const Text(
-                        AppStrings.authWelcomeTitle,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Subtitle
-                      const Text(
-                        AppStrings.authWelcomeSubtitle,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      if (state is AuthNeedsConfirmation) ...[
-                        _buildEmailConfirmationCard(state.email, state.message),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Sliding Pill Segment / Toggle
-                      Container(
-                        height: 48,
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppColors.toggleBackground,
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: AppColors.border, width: 1),
-                        ),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final tabWidth = (constraints.maxWidth) / 2;
-                            return Stack(
-                              children: [
-                                // Sliding pill indicator
-                                AnimatedAlign(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeInOut,
-                                  alignment: _currentMode == AuthMode.signIn
-                                      ? Alignment.centerLeft
-                                      : Alignment.centerRight,
-                                  child: Container(
-                                    width: tabWidth,
-                                    height: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.cardBackgroundOf(
-                                        context,
-                                      ),
-                                      borderRadius: BorderRadius.circular(100),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                // Segment Labels
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () =>
-                                            _switchMode(AuthMode.signIn),
-                                        child: Center(
-                                          child: AnimatedDefaultTextStyle(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            style: TextStyle(
-                                              fontSize: 13.5,
-                                              fontWeight:
-                                                  _currentMode ==
-                                                      AuthMode.signIn
-                                                  ? FontWeight.w600
-                                                  : FontWeight.w500,
-                                              color:
-                                                  _currentMode ==
-                                                      AuthMode.signIn
-                                                  ? AppColors.primary
-                                                  : AppColors.textSecondaryOf(
-                                                      context,
-                                                    ),
-                                            ),
-                                            child: const Text(
-                                              AppStrings.signInTab,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () =>
-                                            _switchMode(AuthMode.signUp),
-                                        child: Center(
-                                          child: AnimatedDefaultTextStyle(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            style: TextStyle(
-                                              fontSize: 13.5,
-                                              fontWeight:
-                                                  _currentMode ==
-                                                      AuthMode.signUp
-                                                  ? FontWeight.w600
-                                                  : FontWeight.w500,
-                                              color:
-                                                  _currentMode ==
-                                                      AuthMode.signUp
-                                                  ? AppColors.primary
-                                                  : AppColors.textSecondaryOf(
-                                                      context,
-                                                    ),
-                                            ),
-                                            child: const Text(
-                                              AppStrings.signUpTab,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // Form Fields Card Container
-                      Container(
-                        padding: const EdgeInsets.all(22),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackgroundOf(context),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: AppColors.borderOf(context),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.06),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Name Field (Visible only in Sign Up mode)
-                            AnimatedCrossFade(
-                              firstChild: Column(
-                                children: [
-                                  _buildTextField(
-                                    controller: _nameController,
-                                    label: AppStrings.nameLabel,
-                                    hintText: AppStrings.nameHint,
-                                    icon: Icons.person_outline_rounded,
-                                    validator: _validateName,
-                                  ),
-                                  const SizedBox(height: 18),
-                                ],
-                              ),
-                              secondChild: const SizedBox.shrink(),
-                              crossFadeState: _currentMode == AuthMode.signUp
-                                  ? CrossFadeState.showFirst
-                                  : CrossFadeState.showSecond,
-                              duration: const Duration(milliseconds: 250),
-                            ),
-
-                            // Email Field
-                            _buildTextField(
-                              controller: _emailController,
-                              label: AppStrings.emailLabel,
-                              hintText: AppStrings.emailHint,
-                              icon: Icons.mail_outline_rounded,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: _validateEmail,
-                            ),
-
-                            const SizedBox(height: 18),
-
-                            // Password Field
-                            _buildTextField(
-                              controller: _passwordController,
-                              label: AppStrings.passwordLabel,
-                              hintText: _currentMode == AuthMode.signUp
-                                  ? AppStrings.passwordHintSignUp
-                                  : AppStrings.passwordHintSignIn,
-                              icon: Icons.lock_outline_rounded,
-                              obscureText: _obscurePassword,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  color: AppColors.textSecondary,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
-                              validator: _validatePassword,
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // Primary Action Button: Full Pill with Primary Gradient
-                      Container(
-                        width: double.infinity,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          borderRadius: BorderRadius.circular(100),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.30),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: isLoading ? null : _onSubmit,
-                            borderRadius: BorderRadius.circular(100),
-                            child: Center(
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator.adaptive(
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              AppColors.textWhite,
-                                            ),
-                                        strokeWidth: 2.4,
-                                      ),
-                                    )
-                                  : Text(
-                                      _currentMode == AuthMode.signIn
-                                          ? AppStrings.signInButton
-                                          : AppStrings.signUpButton,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textWhite,
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Footer Navigation Toggle
-                      Center(
-                        child: TextButton(
-                          onPressed: () {
-                            _switchMode(
-                              _currentMode == AuthMode.signIn
-                                  ? AuthMode.signUp
-                                  : AuthMode.signIn,
-                            );
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                          ),
-                          child: RichText(
-                            text: TextSpan(
-                              style: const TextStyle(
+                            onPressed: () {
+                              // TODO: wire forgot-password flow
+                            },
+                            child: const Text(
+                              'Forgot Password?',
+                              style: TextStyle(
                                 fontSize: 13,
-                                color: AppColors.textSecondary,
+                                color: _kPrimary,
+                                fontWeight: FontWeight.w600,
                               ),
-                              children: [
-                                TextSpan(
-                                  text: _currentMode == AuthMode.signIn
-                                      ? AppStrings.dontHaveAccount
-                                      : AppStrings.alreadyHaveAccount,
-                                ),
-                                TextSpan(
-                                  text: _currentMode == AuthMode.signIn
-                                      ? AppStrings.signUpTab
-                                      : AppStrings.signInTab,
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
                             ),
+                          ),
+                        ],
+                      ),
+
+                    const SizedBox(height: 28),
+
+                    // ── Primary action button ───────────────────────────────
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isLoading ? null : _onSubmit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kPrimary,
+                          disabledBackgroundColor:
+                              _kPrimary.withValues(alpha: 0.6),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.4,
+                                ),
+                              )
+                            : Text(
+                                isSignIn
+                                    ? AppStrings.signInButton
+                                    : AppStrings.signUpButton,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ── Footer navigation ───────────────────────────────────
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => _switchMode(
+                          isSignIn ? AuthMode.signUp : AuthMode.signIn,
+                        ),
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: _kSubtextColor,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: isSignIn
+                                    ? AppStrings.dontHaveAccount
+                                    : AppStrings.alreadyHaveAccount,
+                              ),
+                              TextSpan(
+                                text: isSignIn
+                                    ? AppStrings.signUpTab
+                                    : AppStrings.signInTab,
+                                style: const TextStyle(
+                                  color: _kPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -647,103 +505,99 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  // ── Field label ─────────────────────────────────────────────────────────────
+  Widget _buildFieldLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: _kLabelColor,
+      ),
+    );
+  }
+
+  // ── Text field ──────────────────────────────────────────────────────────────
   Widget _buildTextField({
     required TextEditingController controller,
-    required String label,
     required String hintText,
-    required IconData icon,
+    required IconData prefixIcon,
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      cursorColor: _kPrimary,
+      style: const TextStyle(
+        fontSize: 14,
+        color: _kLabelColor,
+      ),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: _kInputFill,
+        hintText: hintText,
+        hintStyle: const TextStyle(
+          fontSize: 13,
+          color: _kSubtextColor,
+          fontWeight: FontWeight.w400,
+        ),
+        prefixIcon: Icon(prefixIcon, size: 20, color: _kSubtextColor),
+        suffixIcon: suffixIcon,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kBorder, width: 1.2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kBorder, width: 1.2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kPrimary, width: 1.8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.errorBorder,
+            width: 1.2,
           ),
         ),
-        TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          cursorColor: AppColors.primary,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: AppColors.textPrimary,
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.errorBorder,
+            width: 1.2,
           ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: AppColors.inputFill,
-            hintText: hintText,
-            hintStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: AppColors.textSecondary,
-            ),
-            prefixIcon: Icon(icon, size: 20, color: AppColors.textSecondary),
-            suffixIcon: suffixIcon,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 15,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.border, width: 1.2),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.border, width: 1.2),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(
-                color: AppColors.focusedBorder,
-                width: 1.6,
-              ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(
-                color: AppColors.errorBorder,
-                width: 1.2,
-              ),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(
-                color: AppColors.errorBorder,
-                width: 1.2,
-              ),
-            ),
-            errorStyle: const TextStyle(
-              color: AppColors.errorText,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          validator: validator,
         ),
-      ],
+        errorStyle: const TextStyle(
+          color: AppColors.errorText,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      validator: validator,
     );
   }
 
+  // ── Email confirmation card ──────────────────────────────────────────────────
   Widget _buildEmailConfirmationCard(String email, String? message) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.lightCyanTint,
+        color: const Color(0xFFE6F0EE),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.categoryChipBorder, width: 1.5),
+        border: Border.all(
+          color: _kPrimary.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
       ),
       child: Column(
         children: [
@@ -754,18 +608,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
+                    color: _kPrimary.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
-                child: const Icon(
-                  Icons.mark_email_read_rounded,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
+                child: const Icon(Icons.mark_email_read_rounded,
+                    color: _kPrimary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -777,7 +628,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: _kLabelColor,
                         letterSpacing: -0.2,
                       ),
                     ),
@@ -787,8 +638,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           'We sent a verification link to $email. Please click the link to activate your account.',
                       style: const TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.textSecondary,
+                        color: _kSubtextColor,
                         height: 1.4,
                       ),
                     ),
@@ -802,29 +652,24 @@ class _AuthScreenState extends State<AuthScreen> {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () {
                 context.read<AuthBloc>().add(
-                  ResendVerificationEmailRequested(email: email),
-                );
+                      ResendVerificationEmailRequested(email: email),
+                    );
               },
-              icon: const Icon(
-                Icons.refresh_rounded,
-                size: 14,
-                color: AppColors.primaryDark,
-              ),
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 14, color: _kPrimary),
               label: const Text(
                 'Resend verification email',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.primaryDark,
+                  color: _kPrimary,
                 ),
               ),
             ),

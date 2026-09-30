@@ -213,11 +213,11 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
               ? (_selectedCategory == null)
               : (_selectedCategory == cat.name);
 
-          const selectedBgColor = Color(0xFF483873);
-          const unselectedBgColor = Color(0xFFF1EEF9);
-          const unselectedBorderColor = Color(0xFFE6E0F5);
-          const unselectedTextColor = Color(0xFF3B2F63);
-          const unselectedIconColor = Color(0xFF483873);
+          const selectedBgColor = Color(0xFF134E3F);
+          const unselectedBgColor = Color(0xFFF1F5F3);
+          const unselectedBorderColor = Color(0xFFE2E8F0);
+          const unselectedTextColor = Color(0xFF2D3748);
+          const unselectedIconColor = Color(0xFF134E3F);
 
           return InkWell(
             key: Key(
@@ -265,7 +265,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
                       color: isSelected
                           ? Colors.white
                           : (isAuto
-                              ? const Color(0xFF483873)
+                              ? const Color(0xFF134E3F)
                               : unselectedTextColor),
                     ),
                   ),
@@ -369,7 +369,7 @@ class _NoteComposeScreenState extends State<NoteComposeScreen> {
               onPressed: _addCustomTag,
               icon: const Icon(
                 Icons.add_circle_rounded,
-                color: AppColors.primary,
+                color: Color(0xFF134E3F),
                 size: 28,
               ),
             ),

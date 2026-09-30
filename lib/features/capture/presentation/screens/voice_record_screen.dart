@@ -424,7 +424,7 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: isRecording
-                    ? AppColors.primary
+                    ? const Color(0xFF134E3F)
                     : AppColors.textSecondary,
               ),
             ),
@@ -443,7 +443,7 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                       height: 140,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.primary.withValues(alpha: 0.2),
+                        color: const Color(0xFF134E3F).withValues(alpha: 0.08),
                       ),
                     ),
                   ),
@@ -462,11 +462,11 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
+                      color: const Color(0xFF134E3F),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
+                          color: const Color(0xFF134E3F).withValues(alpha: 0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -632,10 +632,11 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                     ? (_selectedCategory == null)
                     : (_selectedCategory == name);
 
-                const selectedBgColor = Color(0xFF483873);
-                const unselectedBgColor = Color(0xFFF1EEF9);
-                const unselectedTextColor = Color(0xFF2C2448);
-                const unselectedIconColor = Color(0xFF483873);
+                const selectedBgColor = Color(0xFF134E3F);
+                const unselectedBgColor = Color(0xFFF1F5F3);
+                const unselectedBorderColor = Color(0xFFE2E8F0);
+                const unselectedTextColor = Color(0xFF2D3748);
+                const unselectedIconColor = Color(0xFF134E3F);
 
                 return InkWell(
                   key: Key(
@@ -661,7 +662,7 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                       border: Border.all(
                         color: isSelected
                             ? selectedBgColor
-                            : Colors.transparent,
+                            : unselectedBorderColor,
                         width: 1.0,
                       ),
                       boxShadow: isSelected
@@ -693,7 +694,7 @@ class _VoiceRecordScreenState extends State<VoiceRecordScreen>
                             color: isSelected
                                 ? Colors.white
                                 : (isAuto
-                                      ? const Color(0xFF483873)
+                                      ? const Color(0xFF134E3F)
                                       : unselectedTextColor),
                           ),
                         ),

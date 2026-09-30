@@ -341,13 +341,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           await prefs.setString('user_full_name', newName);
                           if (_profileImageFile != null) {
                             await prefs.setString('user_profile_image', _profileImageFile!.path);
-                            ProfileNotifier.imagePathNotifier.value = _profileImageFile!.path;
+                            await ProfileNotifier.setImagePath(_profileImageFile!.path);
                           } else {
                             await prefs.remove('user_profile_image');
-                            ProfileNotifier.imagePathNotifier.value = null;
+                            await ProfileNotifier.clearImage();
                           }
                           // Update global notifier
-                          ProfileNotifier.nameNotifier.value = newName;
+                          await ProfileNotifier.setName(newName);
                           
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -392,3 +392,4 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+

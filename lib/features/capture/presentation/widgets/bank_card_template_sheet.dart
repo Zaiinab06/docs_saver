@@ -342,7 +342,7 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
                     const Expanded(
                       child: Text(
                         'Save Bank Card',
-                        style: const TextStyle(
+                        style: TextStyle(
                   color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1055,6 +1055,8 @@ class _BankCardTemplateSheetState extends State<BankCardTemplateSheet> {
     );
   }
 }
+
+
 
 
 

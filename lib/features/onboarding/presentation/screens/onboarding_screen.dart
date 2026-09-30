@@ -94,7 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Visibility(
-                      visible: _currentPage < _slides.length - 1,
+                      visible: _currentPage == 0,
                       maintainSize: true,
                       maintainAnimation: true,
                       maintainState: true,
@@ -132,6 +132,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     imagePath: slide.image,
                     title: slide.title,
                     subtitle: slide.subtitle,
+                    index: index,
                   );
                 },
               ),
@@ -345,11 +346,13 @@ class _OnboardingSlide extends StatelessWidget {
   final String imagePath;
   final String title;
   final String subtitle;
+  final int index;
 
   const _OnboardingSlide({
     required this.imagePath,
     required this.title,
     required this.subtitle,
+    required this.index,
   });
 
   @override
@@ -359,10 +362,20 @@ class _OnboardingSlide extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Shared illustration container with normalized visual footprint
-        OnboardingIllustration(
-          imagePath: imagePath,
+        // Uniform constrained illustration container — same height for all slides
+        SizedBox(
           height: illustrationHeight,
+          width: double.infinity,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: index == 0 ? 32.0 : 16.0,
+              vertical: index == 0 ? 12.0 : 0.0,
+            ),
+            child: Image.asset(
+              imagePath,
+              fit: BoxFit.contain,
+            ),
+          ),
         ),
 
         // Locked vertical gap below illustration container

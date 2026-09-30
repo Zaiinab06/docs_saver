@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/utils/profile_notifier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'core/constants/supabase_constants.dart';
@@ -42,8 +43,9 @@ void main() async {
 
   NetworkChecker.startMonitoring();
 
+  await ProfileNotifier.loadProfile();
+
   final prefs = await SharedPreferences.getInstance();
-  final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
   // Auth feature dependencies
   final authRemoteDataSource = AuthRemoteDataSourceImpl();
@@ -82,7 +84,6 @@ void main() async {
       saveMemoryUseCase: saveMemoryUseCase,
       getMemoriesUseCase: getMemoriesUseCase,
       subscribeToMemoriesUseCase: subscribeToMemoriesUseCase,
-      hasSeenOnboarding: hasSeenOnboarding,
     ),
   );
 }
@@ -98,7 +99,6 @@ class SecondBrainApp extends StatelessWidget {
   final SaveMemoryUseCase saveMemoryUseCase;
   final GetMemoriesUseCase getMemoriesUseCase;
   final SubscribeToMemoriesUseCase subscribeToMemoriesUseCase;
-  final bool hasSeenOnboarding;
 
   const SecondBrainApp({
     super.key,
@@ -112,7 +112,6 @@ class SecondBrainApp extends StatelessWidget {
     required this.saveMemoryUseCase,
     required this.getMemoriesUseCase,
     required this.subscribeToMemoriesUseCase,
-    this.hasSeenOnboarding = false,
   });
 
   @override
@@ -146,7 +145,7 @@ class SecondBrainApp extends StatelessWidget {
             themeMode: themeMode,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            home: AuthSessionGate(hasSeenOnboarding: hasSeenOnboarding),
+            home: const AuthSessionGate(),
           );
         },
       ),
@@ -154,11 +153,14 @@ class SecondBrainApp extends StatelessWidget {
   }
 }
 
-class AuthSessionGate extends StatelessWidget {
-  final bool hasSeenOnboarding;
+class AuthSessionGate extends StatefulWidget {
+  const AuthSessionGate({super.key});
 
-  const AuthSessionGate({super.key, this.hasSeenOnboarding = true});
+  @override
+  State<AuthSessionGate> createState() => _AuthSessionGateState();
+}
 
+class _AuthSessionGateState extends State<AuthSessionGate> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
@@ -188,12 +190,32 @@ class AuthSessionGate extends StatelessWidget {
             ),
           );
         } else {
-          if (!hasSeenOnboarding) {
-            return const OnboardingScreen();
-          }
-          return const AuthScreen();
+          // Re-read SharedPreferences so logout always routes to OnboardingScreen
+          return FutureBuilder<SharedPreferences>(
+            future: SharedPreferences.getInstance(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Scaffold(
+                  backgroundColor: AppColors.background,
+                  body: Center(
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  ),
+                );
+              }
+              final hasSeen =
+                  snapshot.data!.getBool('has_seen_onboarding') ?? false;
+              if (!hasSeen) {
+                return const OnboardingScreen();
+              }
+              return const AuthScreen();
+            },
+          );
         }
       },
     );
   }
 }
+

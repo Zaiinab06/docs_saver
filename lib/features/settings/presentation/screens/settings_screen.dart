@@ -101,8 +101,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   String _getUserName(BuildContext context) {
-    if (ProfileNotifier.nameNotifier.value != null && ProfileNotifier.nameNotifier.value!.trim().isNotEmpty) {
-      return ProfileNotifier.nameNotifier.value!.trim();
+    if (ProfileNotifier.nameNotifier.value.trim().isNotEmpty) {
+      return ProfileNotifier.nameNotifier.value.trim();
     }
     try {
       final authState = context.read<AuthBloc>().state;

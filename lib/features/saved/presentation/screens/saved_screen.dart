@@ -699,60 +699,43 @@ class _SavedScreenState extends State<SavedScreen> {
   // ─── Empty State ───────────────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
-    final isPinnedTab = _selectedTab == SavedTab.pinned;
-
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.lightCyanTint,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.categoryChipBorder,
-                  width: 1.5,
-                ),
-              ),
-              child: Icon(
-                isPinnedTab
-                    ? Icons.push_pin_outlined
-                    : Icons.bookmark_border_rounded,
-                color: AppColors.primary,
-                size: 38,
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 250,
+            width: 250,
+            child: Image.asset(
+              'assets/images/nomemories.png',
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 20),
-            Text(
-              isPinnedTab ? 'No pinned memories yet' : 'No saved memories yet',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                letterSpacing: -0.3,
-              ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'No saved memories yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Text(
+              'Items you pin or bookmark will show up here',
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isPinnedTab
-                  ? 'Pin important notes, links, or ideas from your Home screen to access them quickly.'
-                  : 'Pinned memories will appear here. Pin important notes, links, or ideas from your Home screen to access them quickly.',
-              style: const TextStyle(
-                fontSize: 13.5,
+              style: TextStyle(
+                fontSize: 13,
                 fontWeight: FontWeight.w400,
-                color: AppColors.textSecondary,
-                height: 1.45,
+                color: isDark ? Colors.white70 : const Color(0xFF6B7280),
               ),
-              textAlign: TextAlign.center,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

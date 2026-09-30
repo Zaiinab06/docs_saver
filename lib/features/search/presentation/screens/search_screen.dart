@@ -358,55 +358,42 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildInitialState(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(24, 110, 24, 24),
-      child: Center(
-        child: Column(
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF162320) : AppColors.lightCyanTint,
-                shape: BoxShape.circle,
-                border: isDark ? Border.all(color: const Color(0x0FFFFFFF)) : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                size: 38,
-                color: isDark ? const Color(0xFF4EAE91) : AppColors.primary,
-              ),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 220,
+            width: 220,
+            child: Image.asset(
+              'assets/images/serach.png',
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Semantic Search',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : AppColors.textPrimary,
-                letterSpacing: -0.3,
-              ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Search your memories',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : const Color(0xFF1E293B),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Search by meaning, feeling, or concept —\nnot just exact keywords.',
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Text(
+              'Find notes, links, or ideas by feeling or context',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13.5,
-                color: isDark ? Colors.white60 : AppColors.textSecondary,
-                height: 1.4,
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: isDark ? Colors.white70 : const Color(0xFF6B7280),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
