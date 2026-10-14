@@ -101,12 +101,64 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
 
   void _checkAndStartPendingMonitoring() {
     if (_memory?.aiStatus == 'pending') {
+      // If a summary or meaningful content is already present, the AI pipeline
+      // completed successfully but failed to persist the final aiStatus update.
+      // Auto-heal by marking the record as processed immediately.
+      if (_hasSummaryOrContent()) {
+        _healStuckPendingStatus();
+        return;
+      }
       _startStatusPolling();
       _startTimeoutTimer();
       _subscribeToRealtime();
     } else {
       _stopPollingAndTimers();
     }
+  }
+
+  /// Returns true when the memory has meaningful AI-generated content,
+  /// meaning AI processing succeeded regardless of what aiStatus says.
+  bool _hasSummaryOrContent() {
+    // Explicit summary field (from AI pipeline)
+    if (effectiveSummary != null && effectiveSummary!.isNotEmpty) return true;
+    // Content was updated by AI (not a placeholder stub)
+    final c = _memory?.content.trim() ?? '';
+    if (c.isNotEmpty &&
+        !c.startsWith('Video recording saved:') &&
+        !c.toLowerCase().startsWith('saved video recording') &&
+        c != 'Captured Visual Memory') {
+      return true;
+    }
+    return false;
+  }
+
+  /// Marks the memory as 'processed' in local Isar when aiStatus is stuck as
+  /// 'pending' but AI content already arrived. This fixes the case where the
+  /// background pipeline writes the summary/content but fails to update aiStatus.
+  Future<void> _healStuckPendingStatus() async {
+    _stopPollingAndTimers();
+    if (_memory == null) return;
+    try {
+      final isar = IsarService.instance;
+      final model = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(_memory!.id)
+          .findFirst();
+      if (model != null && model.aiStatus == 'pending') {
+        model.aiStatus = 'processed';
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(model);
+        });
+        final healed = model.toEntity();
+        if (mounted) {
+          setState(() {
+            _memory = healed;
+            _isPinned = healed.isPinned;
+            _isTranscriptionTimedOut = false;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   void _stopPollingAndTimers() {
@@ -134,7 +186,13 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     _timeoutTimer?.cancel();
     _isTranscriptionTimedOut = false;
     _timeoutTimer = Timer(const Duration(seconds: 25), () {
-      if (mounted && _memory?.aiStatus == 'pending') {
+      if (!mounted) return;
+      // If AI succeeded in the meantime (summary/content present), auto-heal.
+      if (_hasSummaryOrContent()) {
+        _healStuckPendingStatus();
+        return;
+      }
+      if (_memory?.aiStatus == 'pending') {
         setState(() {
           _isTranscriptionTimedOut = true;
         });
@@ -176,8 +234,35 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             _stopPollingAndTimers();
             return;
           }
+          // Check if AI content arrived but aiStatus wasn't updated (stuck pending).
+          // Detect via summary in metadata or non-placeholder content.
+          final localSummary = entity.metadata?['summary']?.toString().trim() ?? '';
+          final localContent = entity.content.trim();
+          final hasAiContent = localSummary.isNotEmpty ||
+              (localContent.isNotEmpty &&
+                  !localContent.startsWith('Video recording saved:') &&
+                  !localContent.toLowerCase().startsWith('saved video recording') &&
+                  localContent != 'Captured Visual Memory');
+          if (hasAiContent) {
+            // Heal the stuck pending status in Isar
+            model.aiStatus = 'processed';
+            await isar.writeTxn(() async {
+              await isar.memoryModels.put(model);
+            });
+            final healed = model.toEntity();
+            if (mounted) {
+              setState(() {
+                _memory = healed;
+                _isPinned = healed.isPinned;
+                _isTranscriptionTimedOut = false;
+              });
+            }
+            _stopPollingAndTimers();
+            return;
+          }
         }
       } catch (_) {}
+
 
       // 2. Check Supabase table if online and authenticated
       try {
@@ -1296,7 +1381,15 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     final isVoiceWithoutTranscript = isVoice && memory.content.trim().isEmpty;
     final isDocumentWithoutText = isDocument && memory.content.trim().isEmpty;
 
-    if (memory.aiStatus == 'processed') {
+    // If AI content is present (summary in metadata or non-placeholder content),
+    // always show the "AI Organized" badge regardless of the aiStatus flag.
+    // This handles the race where the pipeline writes content but fails to update aiStatus.
+    if (memory.aiStatus == 'pending' && effectiveSummary != null && effectiveSummary!.isNotEmpty) {
+      bg = AppColors.lightCyanTint;
+      fg = AppColors.primary;
+      icon = Icons.auto_awesome_rounded;
+      label = 'AI Organized';
+    } else if (memory.aiStatus == 'processed') {
       if (isVoiceWithoutTranscript) {
         bg = AppColors.categoryPersonalBackground;
         fg = AppColors.errorText;
@@ -1859,14 +1952,17 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // Status banner for voice notes, documents, or video when content is empty or pending
+              // Status banner for voice notes, documents, or video when content is empty or pending.
+              // Suppressed entirely when effectiveSummary is present — AI already succeeded.
               if ((isVoiceMemory || isDocumentMemory || isVideoMemory) &&
+                  effectiveSummary == null &&
                   (trimmedContent.isEmpty ||
                       trimmedContent.startsWith('Video recording saved:') ||
                       trimmedContent.toLowerCase().startsWith('saved video recording'))) ...[
                 if (memory.aiStatus == 'failed' ||
                     (memory.aiStatus == 'processed' &&
                         trimmedContent.isEmpty)) ...[
+
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 20),
@@ -1905,7 +2001,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                     ),
                   ),
                 ] else if (memory.aiStatus == 'pending') ...[
-                  if (_isTranscriptionTimedOut && memory.isSynced)
+                  if (_isTranscriptionTimedOut && memory.isSynced && effectiveSummary == null)
                     _buildTranscriptionTimeoutCard(
                       memory,
                       isVoiceMemory: isVoiceMemory,

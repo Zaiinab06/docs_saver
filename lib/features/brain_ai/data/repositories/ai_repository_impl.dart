@@ -101,6 +101,8 @@ class AiRepositoryImpl implements AiRepository {
       final normalizedCategory = _normalizeCategory(rawCategory);
 
       // Extract and sanitize tags
+      // Banned tags: generic/noise words and prompt instruction keywords that
+      // sometimes leak into the AI's tag output.
       const bannedTags = {
         'photo',
         'image',
@@ -110,23 +112,91 @@ class AiRepositoryImpl implements AiRepository {
         'memory',
         'note',
         'picture',
+        // Prompt-instruction leakage prevention
+        'frame',
+        'scene',
+        'analyze',
+        'analysis',
+        'json',
+        'output',
+        'tag1',
+        'tag2',
+        'tag3',
+        'tag4',
+        'tag5',
+        'tag6',
+        'tag7',
+        'tag8',
+        'null',
+        'undefined',
+        'n/a',
       };
       try {
         if (data['tags'] is List) {
           final extractedTags = (data['tags'] as List)
-              .map((t) => t.toString().trim().toLowerCase().replaceAll('#', ''))
-              .where((t) => t.length > 1 && !bannedTags.contains(t))
+              .map((t) => t.toString().trim().toLowerCase().replaceAll('#', '').replaceAll(' ', '-'))
+              .where((t) => t.length > 1 && t.length < 40 && !bannedTags.contains(t))
               .toList();
           for (final tag in extractedTags) {
             if (!tags.contains(tag)) {
               tags.add(tag);
             }
           }
+        } else if (data['tags'] is String) {
+          // Handle comma-separated string format: "tag1, tag2, tag3"
+          final tagStr = (data['tags'] as String).trim();
+          if (tagStr.isNotEmpty) {
+            final splitTags = tagStr
+                .split(RegExp(r'[,;|]'))
+                .map((t) => t.trim().toLowerCase().replaceAll('#', '').replaceAll(' ', '-'))
+                .where((t) => t.length > 1 && t.length < 40 && !bannedTags.contains(t))
+                .toList();
+            for (final tag in splitTags) {
+              if (!tags.contains(tag)) {
+                tags.add(tag);
+              }
+            }
+          }
         }
       } catch (_) {}
 
+      // When AI returns no contextual tags, extract candidate tags from the summary
+      // by picking multi-character words that are not stop-words or banned terms.
+      if (tags.isEmpty && rawSummary.isNotEmpty) {
+        try {
+          const stopWords = {
+            'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'is',
+            'it', 'this', 'that', 'for', 'with', 'as', 'by', 'are', 'was', 'be',
+            'its', 'has', 'have', 'had', 'from', 'not', 'but', 'can', 'which',
+            'there', 'their', 'they', 'what', 'how', 'when', 'where', 'who',
+            'also', 'into', 'than', 'more', 'very', 'such', 'one', 'two',
+          };
+          // Extract words 4+ chars, title-case or plain, strip punctuation
+          final words = rawSummary
+              .replaceAll(RegExp(r'[^\w\s-]'), ' ')
+              .split(RegExp(r'\s+'))
+              .map((w) => w.toLowerCase().trim())
+              .where((w) =>
+                  w.length >= 4 &&
+                  w.length < 25 &&
+                  !stopWords.contains(w) &&
+                  !bannedTags.contains(w) &&
+                  RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(w))
+              .toSet()
+              .take(6)
+              .toList();
+          for (final w in words) {
+            if (!tags.contains(w)) {
+              tags.add(w);
+            }
+          }
+        } catch (_) {}
+      }
+
       if (((videoBase64 != null && videoBase64.isNotEmpty) ||
-              ocrText.toLowerCase().contains('video')) &&
+              // Only add 'video' tag from ocrText if the ocrText is a short
+              // instruction (not a long content body) to avoid false positives.
+              (ocrText.toLowerCase().contains('video') && ocrText.length < 500)) &&
           !tags.contains('video')) {
         tags.add('video');
       }
@@ -136,6 +206,7 @@ class AiRepositoryImpl implements AiRepository {
           !tags.contains('voice')) {
         tags.add('voice');
       }
+
 
       // Extract Living Memory entities
       try {
@@ -308,14 +379,15 @@ class AiRepositoryImpl implements AiRepository {
     }).toList();
 
     if (lines.isEmpty) return '';
-    final maxLines = lines.take(2).toList();
+    // Allow up to 6 lines so multi-sentence video/image summaries are not truncated.
+    final maxLines = lines.take(6).toList();
     final formatted = maxLines.map((line) {
       if (line.startsWith('•') ||
           line.startsWith('-') ||
           line.startsWith('*')) {
         return '• ${line.replaceAll(RegExp(r'^[•\-\*]\s*'), '').trim()}';
       }
-      return '• ${line.trim()}';
+      return line.trim();
     });
 
     return formatted.join('\n');

@@ -660,8 +660,18 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         if (frameBytes != null && frameBytes.isNotEmpty) {
           // 3. Client-Side AI Ingestion via Gemini Vision pipeline (same as Photo)
           final frameBase64 = await Isolate.run(() => base64Encode(frameBytes!));
+          // Explicit prompt requesting specific contextual tags from the video frame.
+          // This is used as ocrText (edge function instruction) AND injected into
+          // GeminiDirectService's image prompt as extraContext.
           const videoPrompt =
-              'Analyze this video frame/scene. Provide a concise, descriptive title, detailed bulleted summary of visible scene/objects/actions, suitable category, and 4-6 specific tags.';
+              'Analyze this video frame. Return a JSON object with keys: '
+              '"title" (3-6 word title), '
+              '"category" (Work|Personal|Study|Travel|Fashion|Food|Finance|Health), '
+              '"summary" (2-3 sentence description of the visible scene, objects, and setting), '
+              '"tags" (array of 4-8 specific descriptive tags drawn from what is visible — '
+              'e.g. architecture, building, palm-trees, urban, outdoor, modern — '
+              'NOT generic words like image, photo, picture, memory, video). '
+              'Output ONLY raw JSON, no markdown.';
 
           final effectiveAiRepo = aiRepository ??
               AiRepositoryImpl(
@@ -680,7 +690,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             '[VideoAI] Gemini Vision response: title="${aiResult.title}", category="${aiResult.category}", tags=${aiResult.tags}, summary="${aiResult.summary}"',
           );
 
-          if (aiResult.title.isNotEmpty || aiResult.summary.isNotEmpty) {
+          // Trigger update if we got any meaningful AI output (title, summary, OR tags)
+          if (aiResult.title.isNotEmpty ||
+              aiResult.summary.isNotEmpty ||
+              aiResult.tags.isNotEmpty) {
             await _updateMemoryWithVideoAiResult(
               memoryId: memory.id,
               aiResult: aiResult,

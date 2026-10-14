@@ -111,8 +111,25 @@ class GeminiDirectService {
           '{"title": "Short Title (3-6 words)", "category": "Work|Personal|Study|Travel|Fashion|Food|Finance|Health", "summary": "1-2 sentence concise summary of the useful meaning", "tags": ["tag1", "tag2", "voice"], "transcript": "verbatim transcription of spoken words"}\n'
           'Output ONLY valid raw JSON, no markdown formatting.'
         : (hasImage
-            ? 'Analyze this image and describe exactly what is in it. Return a valid JSON object with: {"title": "Short Title (3-5 words)", "category": "Work|Personal|Study|Home", "summary": "2-sentence factual summary of what is seen", "tags": ["tag1", "tag2", "tag3"]}. Output ONLY raw JSON, no markdown formatting.'
+            ? () {
+                // When ocrText carries a caller-supplied context or analysis instruction,
+                // embed it so the model produces more targeted output (e.g. video frame analysis).
+                final extraContext = ocrText.trim().isNotEmpty &&
+                        !ocrText.toLowerCase().contains('analyze this image') &&
+                        !ocrText.toLowerCase().contains('analyze this photo')
+                    ? '\nAdditional context from caller: $ocrText'
+                    : '';
+                return 'Carefully analyze every visible detail in this image.$extraContext\n'
+                    'Return a JSON object with exactly these keys:\n'
+                    '  "title": concise 3-6 word title describing the main subject,\n'
+                    '  "category": one of Work|Personal|Study|Travel|Fashion|Food|Finance|Health,\n'
+                    '  "summary": 2-3 sentence factual description of the visible scene, objects, people, text, or environment,\n'
+                    '  "tags": array of 4-8 specific descriptive tags drawn directly from what is visible '
+                    '(e.g. objects, colors, setting, activities, architectural features — NOT generic words like "image", "photo", "picture", "memory").\n'
+                    'Output ONLY raw JSON, no markdown code fences.';
+              }()
             : 'Analyze the following note content:\n"""\n$ocrText\n"""\nGenerate a concise Title, Category (e.g., Food, Personal, Work, Study), a 2-sentence summary, and 3-5 tags in JSON format with keys: "title", "category", "summary", "tags". Output ONLY raw JSON, no markdown formatting.');
+
 
     final List<Map<String, dynamic>> parts = [
       {'text': promptText},
