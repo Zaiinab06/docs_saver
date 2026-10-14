@@ -14,11 +14,12 @@ class CaptureLoading extends CaptureState {}
 
 class CaptureLoaded extends CaptureState {
   final List<MemoryEntity> memories;
+  final bool isOffline;
 
-  const CaptureLoaded(this.memories);
+  const CaptureLoaded(this.memories, {this.isOffline = false});
 
   @override
-  List<Object?> get props => [memories];
+  List<Object?> get props => [memories, isOffline];
 }
 
 class CaptureSuccess extends CaptureState {

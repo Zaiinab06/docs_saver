@@ -7,7 +7,6 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/ocr_text_normalizer.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -413,47 +412,21 @@ class _CaptureScreenState extends State<CaptureScreen> {
         ? titleInput
         : (contentInput.isNotEmpty
               ? _extractSmartTitle(contentInput)
-              : 'Photo Memory (${DateFormat('MMM d').format(DateTime.now())})');
+              : 'Photo Memory (${DateFormat('MMM d').format(DateTime.now())})')
+        ;
 
     final content = contentInput.isNotEmpty
         ? contentInput
         : (_persistedImagePath != null ? 'Captured visual memory' : '');
 
-    // Optional cloud backup to Supabase Storage if authenticated
-    String? mediaUrl = _persistedImagePath;
-    if (_persistedImagePath != null) {
-      try {
-        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-        if (currentUserId != null) {
-          final file = File(_persistedImagePath!);
-          final bytes = await file.readAsBytes();
-          final ext = file.path.split('.').last;
-          final storageKey =
-              '$currentUserId/${DateTime.now().millisecondsSinceEpoch}.$ext';
-
-          await Supabase.instance.client.storage
-              .from('memories')
-              .uploadBinary(
-                storageKey,
-                bytes,
-                fileOptions: FileOptions(contentType: 'image/$ext'),
-              );
-          final publicUrl = Supabase.instance.client.storage
-              .from('memories')
-              .getPublicUrl(storageKey);
-          if (publicUrl.isNotEmpty) {
-            mediaUrl = publicUrl;
-          }
-        }
-      } catch (_) {
-        // Fallback to local persistent path if offline or bucket unconfigured
-        mediaUrl = _persistedImagePath;
-      }
-    }
+    // Offline-first: use local file path as mediaUrl immediately.
+    // The BLoC's background ingestion (_triggerBackgroundIngestion) will upload
+    // the file to Supabase Storage and update the URL when online.
+    final String? mediaUrl = _persistedImagePath;
 
     if (!mounted) return;
 
-    // Persist through the existing repository and BLoC data layer
+    // Persist to local Isar instantly via BLoC (works offline)
     context.read<CaptureBloc>().add(
       AddMemoryEvent(
         title: title,

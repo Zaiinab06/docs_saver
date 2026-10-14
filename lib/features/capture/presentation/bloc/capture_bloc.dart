@@ -117,16 +117,41 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     Emitter<CaptureState> emit,
   ) async {
     _initRealtimeSubscription();
-    emit(CaptureLoading());
+
+    String? currentUserId;
     try {
-      String? currentUserId;
-      try {
-        currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      } catch (_) {}
-      final memories = await getMemoriesUseCase(currentUserId);
-      emit(CaptureLoaded(memories));
-    } catch (e) {
-      emit(CaptureFailure(e.toString()));
+      currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    } catch (_) {}
+
+    // 1. Immediately load from local Isar — zero-latency, works offline
+    List<MemoryEntity> localMemories = [];
+    try {
+      localMemories = await getMemoriesUseCase(currentUserId);
+    } catch (_) {}
+
+    if (localMemories.isNotEmpty) {
+      // Emit cached data right away so the UI never blocks on network
+      emit(CaptureLoaded(localMemories));
+    } else if (state is CaptureInitial) {
+      // First launch with no local data: show loading while we attempt remote fetch
+      emit(CaptureLoading());
+    }
+
+    // 2. Check connectivity and sync in background when online
+    bool isOnline = false;
+    try {
+      isOnline = await NetworkChecker.isConnected();
+    } catch (_) {}
+
+    if (isOnline) {
+      // Trigger background sync through the event so the _isSyncing guard
+      // prevents double-syncing if LoadMemoriesEvent fires rapidly
+      if (!isClosed) add(SyncPendingMemoriesEvent());
+    } else {
+      // Offline: re-emit local data with the offline flag so UI can show a banner
+      if (!isClosed) {
+        emit(CaptureLoaded(localMemories, isOffline: true));
+      }
     }
   }
 
@@ -253,7 +278,23 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         );
       }
     } catch (e) {
-      emit(CaptureFailure(e.toString()));
+      // Only emit failure for non-network errors (e.g. Isar corruption).
+      // Network failures are handled transparently: memory is already saved locally
+      // with isSynced=false and will be pushed when connectivity is restored.
+      final errStr = e.toString().toLowerCase();
+      final isNetworkError =
+          errStr.contains('socketexception') ||
+          errStr.contains('connection refused') ||
+          errStr.contains('network is unreachable') ||
+          errStr.contains('timed out') ||
+          errStr.contains('clientexception') ||
+          errStr.contains('handshakeexception') ||
+          errStr.contains('failed host lookup');
+      if (!isNetworkError) {
+        emit(CaptureFailure(e.toString()));
+      }
+      // Always reload from local cache after any error
+      if (!isClosed) add(LoadMemoriesEvent());
     }
   }
 
@@ -268,6 +309,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       emit(CaptureFailure(e.toString()));
     }
   }
+
 
   Future<void> _onSyncPendingMemories(
     SyncPendingMemoriesEvent event,

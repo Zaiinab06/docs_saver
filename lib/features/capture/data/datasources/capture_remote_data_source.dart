@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/memory_entity.dart';
 import '../models/memory_model.dart';
@@ -56,35 +57,56 @@ class CaptureRemoteDataSourceImpl implements CaptureRemoteDataSource {
   @override
   Stream<MemoryModel> subscribeToMemoryUpdates(String userId) {
     final controller = StreamController<MemoryModel>.broadcast();
-    final channel = supabase.channel('public:memories:$userId');
+    RealtimeChannel? channel;
 
-    channel
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'memories',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (payload) {
-            try {
-              final record = payload.newRecord;
-              if (record.isNotEmpty) {
-                final memoryModel = MemoryModel.fromMap(record, isSynced: true);
-                controller.add(memoryModel);
+    try {
+      channel = supabase.channel('public:memories:$userId');
+
+      channel
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'memories',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: userId,
+            ),
+            callback: (payload) {
+              try {
+                final record = payload.newRecord;
+                if (record.isNotEmpty) {
+                  final memoryModel = MemoryModel.fromMap(record, isSynced: true);
+                  if (!controller.isClosed) {
+                    controller.add(memoryModel);
+                  }
+                }
+              } catch (e) {
+                // Silently skip malformed payloads — do NOT error the stream
+                debugPrint('[RealtimeSubscription] Payload parse error (suppressed): $e');
               }
-            } catch (e) {
-              controller.addError(e);
+            },
+          )
+          .subscribe((status, [error]) {
+            if (status == RealtimeSubscribeStatus.channelError ||
+                status == RealtimeSubscribeStatus.timedOut) {
+              debugPrint(
+                '[RealtimeSubscription] Channel status=$status for user $userId '
+                '(suppressed, will reconnect automatically): $error',
+              );
+              // Do NOT close or error the stream — Supabase handles reconnection
             }
-          },
-        )
-        .subscribe();
+          });
+    } catch (e) {
+      // Subscription setup failed (e.g. no internet on first try)
+      debugPrint('[RealtimeSubscription] Channel creation failed (suppressed): $e');
+    }
 
     controller.onCancel = () {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
+      try {
+        channel?.unsubscribe();
+        if (channel != null) supabase.removeChannel(channel);
+      } catch (_) {}
     };
 
     return controller.stream;

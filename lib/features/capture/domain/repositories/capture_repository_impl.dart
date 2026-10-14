@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_local_data_source.dart';
 import 'package:second_brain/features/capture/data/datasources/capture_remote_data_source.dart';
@@ -195,12 +196,23 @@ class CaptureRepositoryImpl implements CaptureRepository {
 
   @override
   Stream<MemoryEntity> subscribeToMemoryUpdates(String userId) {
-    return remoteDataSource.subscribeToMemoryUpdates(userId).asyncMap((
-      model,
-    ) async {
-      await localDataSource.updateMemoryFromRemote(model);
-      return model.toEntity();
-    });
+    return remoteDataSource
+        .subscribeToMemoryUpdates(userId)
+        .asyncMap((model) async {
+          try {
+            await localDataSource.updateMemoryFromRemote(model);
+          } catch (e) {
+            debugPrint(
+              '[CaptureRepository] Failed to persist realtime update locally (suppressed): $e',
+            );
+          }
+          return model.toEntity();
+        })
+        .handleError((e) {
+          // Suppress stream-level errors (e.g. channel disconnects) so they
+          // don't propagate as uncaught exceptions when the device is offline.
+          debugPrint('[CaptureRepository] Realtime stream error (suppressed): $e');
+        });
   }
 
   static String resolveMimeType(String ext) {
