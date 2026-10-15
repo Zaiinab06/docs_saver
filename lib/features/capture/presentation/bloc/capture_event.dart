@@ -72,3 +72,28 @@ class RetryMemoryIngestionEvent extends CaptureEvent {
   List<Object?> get props => [memoryId];
 }
 
+class ToggleReminderEvent extends CaptureEvent {
+  final String memoryId;
+  final bool enable;
+  final DateTime? reminderDateTime;
+  final DateTime? dueDateTime;
+  final String? reminderType;
+
+  const ToggleReminderEvent({
+    required this.memoryId,
+    required this.enable,
+    this.reminderDateTime,
+    this.dueDateTime,
+    this.reminderType,
+  });
+
+  @override
+  List<Object?> get props => [
+    memoryId,
+    enable,
+    reminderDateTime,
+    dueDateTime,
+    reminderType,
+  ];
+}
+

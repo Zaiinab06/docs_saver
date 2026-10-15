@@ -10,6 +10,9 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/network/network_checker.dart';
 import '../../../../core/services/gemini_direct_service.dart';
 import '../../../../core/services/isar_service.dart';
+import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/smart_reminder_helper.dart';
+import '../../../../core/services/subscription_service.dart';
 import '../../../../core/services/video_frame_extractor.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
@@ -55,6 +58,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     on<SyncPendingMemoriesEvent>(_onSyncPendingMemories);
     on<MemoryUpdatedEvent>(_onMemoryUpdated);
     on<RetryMemoryIngestionEvent>(_onRetryMemoryIngestion);
+    on<ToggleReminderEvent>(_onToggleReminder);
 
     _initConnectivityListener(
       connectivityStream ?? NetworkChecker.onConnectivityChanged,
@@ -178,6 +182,17 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
 
       final now = DateTime.now();
 
+      final extractedReminder = SmartReminderHelper.extractSmartReminder(
+        dueDateStr: event.metadata?['due_date']?.toString(),
+        reminderTypeStr: event.metadata?['reminder_type']?.toString(),
+        text: '${event.title} ${event.content}',
+      );
+
+      final isPro = SubscriptionService.instance.isPremium;
+      final shouldSchedule = isPro &&
+          extractedReminder.reminderDateTime != null &&
+          extractedReminder.reminderDateTime!.isAfter(DateTime.now());
+
       final newMemory = MemoryEntity(
         id: const Uuid().v4(),
         userId: currentUserId,
@@ -188,12 +203,31 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         mediaUrl: event.mediaUrl,
         aiStatus: event.aiStatus,
         metadata: event.metadata,
+        reminderDateTime: extractedReminder.reminderDateTime,
+        dueDateTime: extractedReminder.dueDateTime,
+        reminderType: extractedReminder.reminderType,
+        isReminderActive: shouldSchedule,
         clientCreatedAt: now,
         clientUpdatedAt: now,
         serverUpdatedAt: now,
       );
 
       await saveMemoryUseCase(newMemory);
+
+      if (shouldSchedule && extractedReminder.reminderDateTime != null) {
+        unawaited(
+          NotificationService.instance.scheduleReminder(
+            memoryId: newMemory.id,
+            title: newMemory.title,
+            body: newMemory.content.isNotEmpty
+                ? newMemory.content
+                : 'Smart Reminder for ${newMemory.title}',
+            scheduledDate: extractedReminder.reminderDateTime!,
+            reminderType: extractedReminder.reminderType,
+          ),
+        );
+      }
+
       emit(const CaptureSuccess('Memory saved locally!'));
       add(LoadMemoriesEvent());
 
@@ -303,6 +337,7 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     Emitter<CaptureState> emit,
   ) async {
     try {
+      unawaited(NotificationService.instance.cancelReminder(event.memoryId));
       await repository.deleteMemory(event.memoryId);
       add(LoadMemoriesEvent());
     } catch (e) {
@@ -537,6 +572,12 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                 );
               }
 
+              final extracted = SmartReminderHelper.extractSmartReminder(
+                dueDateStr: (data['due_date'] ?? data['dueDate'])?.toString(),
+                reminderTypeStr: (data['reminder_type'] ?? data['reminderType'])?.toString(),
+                text: '$rawSummary $rawTranscript $rawTitle',
+              );
+
               final aiResult = AiIngestionResult(
                 title: rawTitle.isNotEmpty ? rawTitle : 'Voice Note',
                 category: rawCategory.isNotEmpty ? rawCategory : 'Personal',
@@ -544,6 +585,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
                 summary: rawSummary,
                 aiStatus: 'processed',
                 rawOcrText: rawTranscript,
+                dueDateTime: extracted.dueDateTime,
+                reminderDateTime: extracted.reminderDateTime,
+                reminderType: extracted.reminderType,
               );
 
               debugPrint(
@@ -885,6 +929,32 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       }
       meta['file_type'] = 'video';
 
+      final isPro = SubscriptionService.instance.isPremium;
+      final effectiveDueDateTime = aiResult.dueDateTime ?? existing?.dueDateTime;
+      final effectiveReminderDateTime =
+          aiResult.reminderDateTime ?? existing?.reminderDateTime;
+      final effectiveReminderType =
+          aiResult.reminderType ?? existing?.reminderType;
+      bool isReminderActive = existing?.isReminderActive ?? false;
+
+      if (effectiveReminderDateTime != null &&
+          effectiveReminderDateTime.isAfter(DateTime.now()) &&
+          isPro &&
+          !isReminderActive) {
+        isReminderActive = true;
+        unawaited(
+          NotificationService.instance.scheduleReminder(
+            memoryId: memoryId,
+            title: effectiveTitle,
+            body: effectiveContent.isNotEmpty
+                ? effectiveContent
+                : 'Smart Reminder for $effectiveTitle',
+            scheduledDate: effectiveReminderDateTime,
+            reminderType: effectiveReminderType,
+          ),
+        );
+      }
+
       // 1. Update Isar cache
       if (existing != null) {
         existing.title = effectiveTitle;
@@ -893,6 +963,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         existing.content = effectiveContent;
         existing.metadata = meta;
         existing.aiStatus = 'processed';
+        existing.dueDateTime = effectiveDueDateTime;
+        existing.reminderDateTime = effectiveReminderDateTime;
+        existing.reminderType = effectiveReminderType;
+        existing.isReminderActive = isReminderActive;
         if (mediaUrl != null && mediaUrl.isNotEmpty) {
           existing.mediaUrl = mediaUrl;
         }
@@ -930,6 +1004,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         aiStatus: 'processed',
         metadata: meta,
         mediaUrl: mediaUrl ?? (existing?.mediaUrl ?? originalMemory.mediaUrl),
+        dueDateTime: effectiveDueDateTime,
+        reminderDateTime: effectiveReminderDateTime,
+        reminderType: effectiveReminderType,
+        isReminderActive: isReminderActive,
       );
       add(MemoryUpdatedEvent(updatedEntity));
       add(LoadMemoriesEvent());
@@ -996,6 +1074,32 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       }
       meta['file_type'] = 'image';
 
+      final isPro = SubscriptionService.instance.isPremium;
+      final effectiveDueDateTime = aiResult.dueDateTime ?? existing?.dueDateTime;
+      final effectiveReminderDateTime =
+          aiResult.reminderDateTime ?? existing?.reminderDateTime;
+      final effectiveReminderType =
+          aiResult.reminderType ?? existing?.reminderType;
+      bool isReminderActive = existing?.isReminderActive ?? false;
+
+      if (effectiveReminderDateTime != null &&
+          effectiveReminderDateTime.isAfter(DateTime.now()) &&
+          isPro &&
+          !isReminderActive) {
+        isReminderActive = true;
+        unawaited(
+          NotificationService.instance.scheduleReminder(
+            memoryId: memoryId,
+            title: effectiveTitle,
+            body: effectiveContent.isNotEmpty
+                ? effectiveContent
+                : 'Smart Reminder for $effectiveTitle',
+            scheduledDate: effectiveReminderDateTime,
+            reminderType: effectiveReminderType,
+          ),
+        );
+      }
+
       // 1. Update Isar cache
       if (existing != null) {
         existing.title = effectiveTitle;
@@ -1004,6 +1108,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         existing.content = effectiveContent;
         existing.metadata = meta;
         existing.aiStatus = 'processed';
+        existing.dueDateTime = effectiveDueDateTime;
+        existing.reminderDateTime = effectiveReminderDateTime;
+        existing.reminderType = effectiveReminderType;
+        existing.isReminderActive = isReminderActive;
         if (mediaUrl != null && mediaUrl.isNotEmpty) {
           existing.mediaUrl = mediaUrl;
         }
@@ -1044,6 +1152,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         aiStatus: 'processed',
         metadata: meta,
         mediaUrl: mediaUrl ?? (existing?.mediaUrl ?? originalMemory.mediaUrl),
+        dueDateTime: effectiveDueDateTime,
+        reminderDateTime: effectiveReminderDateTime,
+        reminderType: effectiveReminderType,
+        isReminderActive: isReminderActive,
       );
       add(MemoryUpdatedEvent(updatedEntity));
       add(LoadMemoriesEvent());
@@ -1103,6 +1215,32 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         meta['entities'] = aiResult.entities.map((e) => e.toMap()).toList();
       }
 
+      final isPro = SubscriptionService.instance.isPremium;
+      final effectiveDueDateTime = aiResult.dueDateTime ?? existing?.dueDateTime;
+      final effectiveReminderDateTime =
+          aiResult.reminderDateTime ?? existing?.reminderDateTime;
+      final effectiveReminderType =
+          aiResult.reminderType ?? existing?.reminderType;
+      bool isReminderActive = existing?.isReminderActive ?? false;
+
+      if (effectiveReminderDateTime != null &&
+          effectiveReminderDateTime.isAfter(DateTime.now()) &&
+          isPro &&
+          !isReminderActive) {
+        isReminderActive = true;
+        unawaited(
+          NotificationService.instance.scheduleReminder(
+            memoryId: memoryId,
+            title: effectiveTitle,
+            body: effectiveContent.isNotEmpty
+                ? effectiveContent
+                : 'Smart Reminder for $effectiveTitle',
+            scheduledDate: effectiveReminderDateTime,
+            reminderType: effectiveReminderType,
+          ),
+        );
+      }
+
       if (existing != null) {
         existing.title = effectiveTitle;
         existing.category = effectiveCategory;
@@ -1112,6 +1250,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         existing.metadata = meta;
         existing.serverUpdatedAt = DateTime.now();
         existing.isSynced = true;
+        existing.dueDateTime = effectiveDueDateTime;
+        existing.reminderDateTime = effectiveReminderDateTime;
+        existing.reminderType = effectiveReminderType;
+        existing.isReminderActive = isReminderActive;
 
         await isar.writeTxn(() async {
           await isar.memoryModels.put(existing);
@@ -1143,6 +1285,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         content: effectiveContent,
         aiStatus: 'processed',
         metadata: meta,
+        dueDateTime: effectiveDueDateTime,
+        reminderDateTime: effectiveReminderDateTime,
+        reminderType: effectiveReminderType,
+        isReminderActive: isReminderActive,
       );
       add(MemoryUpdatedEvent(updatedEntity));
       add(LoadMemoriesEvent());
@@ -1302,6 +1448,41 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
             existing.isSynced = true;
           }
 
+          final resDueDate = resData?['due_date'] ??
+              resData?['dueDate'] ??
+              remoteRow?['due_date'] ??
+              remoteRow?['due_date_time'];
+          final resReminderType = resData?['reminder_type'] ??
+              resData?['reminderType'] ??
+              remoteRow?['reminder_type'];
+          final extracted = SmartReminderHelper.extractSmartReminder(
+            dueDateStr: resDueDate?.toString(),
+            reminderTypeStr: resReminderType?.toString(),
+            text: '${existing.title} ${existing.content}',
+          );
+          if (extracted.dueDateTime != null) {
+            existing.dueDateTime = extracted.dueDateTime;
+            existing.reminderDateTime = extracted.reminderDateTime;
+            existing.reminderType = extracted.reminderType;
+            if (SubscriptionService.instance.isPremium &&
+                extracted.reminderDateTime != null &&
+                extracted.reminderDateTime!.isAfter(DateTime.now()) &&
+                !existing.isReminderActive) {
+              existing.isReminderActive = true;
+              unawaited(
+                NotificationService.instance.scheduleReminder(
+                  memoryId: memoryId,
+                  title: existing.title,
+                  body: existing.content.isNotEmpty
+                      ? existing.content
+                      : 'Smart Reminder for ${existing.title}',
+                  scheduledDate: extracted.reminderDateTime!,
+                  reminderType: extracted.reminderType,
+                ),
+              );
+            }
+          }
+
           await isar.writeTxn(() async {
             await isar.memoryModels.put(existing);
           });
@@ -1356,6 +1537,92 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       }
     } catch (_) {
       add(LoadMemoriesEvent());
+    }
+  }
+
+  Future<void> _onToggleReminder(
+    ToggleReminderEvent event,
+    Emitter<CaptureState> emit,
+  ) async {
+    try {
+      final isar = IsarService.instance;
+      final existing = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(event.memoryId)
+          .findFirst();
+
+      if (existing == null) {
+        debugPrint(
+          '⚠️ [CaptureBloc] Memory not found in Isar for toggle reminder: ${event.memoryId}',
+        );
+        return;
+      }
+
+      final effectiveReminderTime =
+          event.reminderDateTime ?? existing.reminderDateTime;
+      final effectiveDueTime = event.dueDateTime ?? existing.dueDateTime;
+      final effectiveReminderType =
+          event.reminderType ?? existing.reminderType ?? 'custom';
+
+      if (event.enable) {
+        if (effectiveReminderTime != null) {
+          existing.isReminderActive = true;
+          existing.reminderDateTime = effectiveReminderTime;
+          existing.dueDateTime = effectiveDueTime;
+          existing.reminderType = effectiveReminderType;
+
+          try {
+            await NotificationService.instance.scheduleReminder(
+              memoryId: event.memoryId,
+              title: existing.title.isNotEmpty ? existing.title : 'Reminder',
+              body: existing.content.isNotEmpty
+                  ? existing.content
+                  : 'Smart Reminder for ${existing.title}',
+              scheduledDate: effectiveReminderTime,
+              reminderType: effectiveReminderType,
+            );
+          } catch (notifErr, notifStack) {
+            debugPrint(
+              '⚠️ [CaptureBloc] scheduleReminder notification error: $notifErr\n$notifStack',
+            );
+          }
+        }
+      } else {
+        existing.isReminderActive = false;
+        try {
+          await NotificationService.instance.cancelReminder(event.memoryId);
+        } catch (notifErr) {
+          debugPrint('⚠️ [CaptureBloc] cancelReminder notification error: $notifErr');
+        }
+      }
+
+      existing.serverUpdatedAt = DateTime.now();
+
+      await isar.writeTxn(() async {
+        await isar.memoryModels.put(existing);
+      });
+
+      // Also sync to Supabase if authenticated
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null && currentUserId != 'local_user') {
+        try {
+          await Supabase.instance.client.from('memories').update({
+            'is_reminder_active': existing.isReminderActive,
+            'reminder_date_time': existing.reminderDateTime?.toIso8601String(),
+            'due_date_time': existing.dueDateTime?.toIso8601String(),
+            'reminder_type': existing.reminderType,
+            'server_updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', event.memoryId);
+        } catch (e) {
+          debugPrint('[CaptureBloc] Supabase reminder update notice: $e');
+        }
+      }
+
+      final updatedEntity = existing.toEntity();
+      add(MemoryUpdatedEvent(updatedEntity));
+      add(LoadMemoriesEvent());
+    } catch (e, stack) {
+      debugPrint('[CaptureBloc Error] _onToggleReminder failed: $e\n$stack');
     }
   }
 

@@ -38,40 +38,60 @@ const MemoryModelSchema = CollectionSchema(
       type: IsarType.dateTime,
     ),
     r'content': PropertySchema(id: 4, name: r'content', type: IsarType.string),
-    r'embedding': PropertySchema(
+    r'dueDateTime': PropertySchema(
       id: 5,
+      name: r'dueDateTime',
+      type: IsarType.dateTime,
+    ),
+    r'embedding': PropertySchema(
+      id: 6,
       name: r'embedding',
       type: IsarType.doubleList,
     ),
     r'isConflictCopy': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'isConflictCopy',
       type: IsarType.bool,
     ),
-    r'isSynced': PropertySchema(id: 7, name: r'isSynced', type: IsarType.bool),
-    r'mediaUrl': PropertySchema(
+    r'isReminderActive': PropertySchema(
       id: 8,
+      name: r'isReminderActive',
+      type: IsarType.bool,
+    ),
+    r'isSynced': PropertySchema(id: 9, name: r'isSynced', type: IsarType.bool),
+    r'mediaUrl': PropertySchema(
+      id: 10,
       name: r'mediaUrl',
       type: IsarType.string,
     ),
     r'rawMetadataJson': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'rawMetadataJson',
       type: IsarType.string,
     ),
+    r'reminderDateTime': PropertySchema(
+      id: 12,
+      name: r'reminderDateTime',
+      type: IsarType.dateTime,
+    ),
+    r'reminderType': PropertySchema(
+      id: 13,
+      name: r'reminderType',
+      type: IsarType.string,
+    ),
     r'serverId': PropertySchema(
-      id: 10,
+      id: 14,
       name: r'serverId',
       type: IsarType.string,
     ),
     r'serverUpdatedAt': PropertySchema(
-      id: 11,
+      id: 15,
       name: r'serverUpdatedAt',
       type: IsarType.dateTime,
     ),
-    r'tags': PropertySchema(id: 12, name: r'tags', type: IsarType.stringList),
-    r'title': PropertySchema(id: 13, name: r'title', type: IsarType.string),
-    r'userId': PropertySchema(id: 14, name: r'userId', type: IsarType.string),
+    r'tags': PropertySchema(id: 16, name: r'tags', type: IsarType.stringList),
+    r'title': PropertySchema(id: 17, name: r'title', type: IsarType.string),
+    r'userId': PropertySchema(id: 18, name: r'userId', type: IsarType.string),
   },
 
   estimateSize: _memoryModelEstimateSize,
@@ -130,6 +150,12 @@ int _memoryModelEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.reminderType;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.serverId.length * 3;
   bytesCount += 3 + object.tags.length * 3;
   {
@@ -154,16 +180,20 @@ void _memoryModelSerialize(
   writer.writeDateTime(offsets[2], object.clientCreatedAt);
   writer.writeDateTime(offsets[3], object.clientUpdatedAt);
   writer.writeString(offsets[4], object.content);
-  writer.writeDoubleList(offsets[5], object.embedding);
-  writer.writeBool(offsets[6], object.isConflictCopy);
-  writer.writeBool(offsets[7], object.isSynced);
-  writer.writeString(offsets[8], object.mediaUrl);
-  writer.writeString(offsets[9], object.rawMetadataJson);
-  writer.writeString(offsets[10], object.serverId);
-  writer.writeDateTime(offsets[11], object.serverUpdatedAt);
-  writer.writeStringList(offsets[12], object.tags);
-  writer.writeString(offsets[13], object.title);
-  writer.writeString(offsets[14], object.userId);
+  writer.writeDateTime(offsets[5], object.dueDateTime);
+  writer.writeDoubleList(offsets[6], object.embedding);
+  writer.writeBool(offsets[7], object.isConflictCopy);
+  writer.writeBool(offsets[8], object.isReminderActive);
+  writer.writeBool(offsets[9], object.isSynced);
+  writer.writeString(offsets[10], object.mediaUrl);
+  writer.writeString(offsets[11], object.rawMetadataJson);
+  writer.writeDateTime(offsets[12], object.reminderDateTime);
+  writer.writeString(offsets[13], object.reminderType);
+  writer.writeString(offsets[14], object.serverId);
+  writer.writeDateTime(offsets[15], object.serverUpdatedAt);
+  writer.writeStringList(offsets[16], object.tags);
+  writer.writeString(offsets[17], object.title);
+  writer.writeString(offsets[18], object.userId);
 }
 
 MemoryModel _memoryModelDeserialize(
@@ -178,17 +208,21 @@ MemoryModel _memoryModelDeserialize(
   object.clientCreatedAt = reader.readDateTime(offsets[2]);
   object.clientUpdatedAt = reader.readDateTime(offsets[3]);
   object.content = reader.readString(offsets[4]);
-  object.embedding = reader.readDoubleList(offsets[5]);
+  object.dueDateTime = reader.readDateTimeOrNull(offsets[5]);
+  object.embedding = reader.readDoubleList(offsets[6]);
   object.id = id;
-  object.isConflictCopy = reader.readBool(offsets[6]);
-  object.isSynced = reader.readBool(offsets[7]);
-  object.mediaUrl = reader.readStringOrNull(offsets[8]);
-  object.rawMetadataJson = reader.readStringOrNull(offsets[9]);
-  object.serverId = reader.readString(offsets[10]);
-  object.serverUpdatedAt = reader.readDateTime(offsets[11]);
-  object.tags = reader.readStringList(offsets[12]) ?? [];
-  object.title = reader.readString(offsets[13]);
-  object.userId = reader.readString(offsets[14]);
+  object.isConflictCopy = reader.readBool(offsets[7]);
+  object.isReminderActive = reader.readBool(offsets[8]);
+  object.isSynced = reader.readBool(offsets[9]);
+  object.mediaUrl = reader.readStringOrNull(offsets[10]);
+  object.rawMetadataJson = reader.readStringOrNull(offsets[11]);
+  object.reminderDateTime = reader.readDateTimeOrNull(offsets[12]);
+  object.reminderType = reader.readStringOrNull(offsets[13]);
+  object.serverId = reader.readString(offsets[14]);
+  object.serverUpdatedAt = reader.readDateTime(offsets[15]);
+  object.tags = reader.readStringList(offsets[16]) ?? [];
+  object.title = reader.readString(offsets[17]);
+  object.userId = reader.readString(offsets[18]);
   return object;
 }
 
@@ -210,24 +244,32 @@ P _memoryModelDeserializeProp<P>(
     case 4:
       return (reader.readString(offset)) as P;
     case 5:
-      return (reader.readDoubleList(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 6:
-      return (reader.readBool(offset)) as P;
+      return (reader.readDoubleList(offset)) as P;
     case 7:
       return (reader.readBool(offset)) as P;
     case 8:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 9:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 10:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 11:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 13:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 14:
+      return (reader.readString(offset)) as P;
+    case 15:
+      return (reader.readDateTime(offset)) as P;
+    case 16:
+      return (reader.readStringList(offset) ?? []) as P;
+    case 17:
+      return (reader.readString(offset)) as P;
+    case 18:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -991,6 +1033,79 @@ extension MemoryModelQueryFilter
   }
 
   QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'dueDateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'dueDateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'dueDateTime', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeGreaterThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'dueDateTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeLessThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'dueDateTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  dueDateTimeBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'dueDateTime',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
   embeddingIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -1200,6 +1315,15 @@ extension MemoryModelQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(property: r'isConflictCopy', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  isReminderActiveEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'isReminderActive', value: value),
       );
     });
   }
@@ -1531,6 +1655,238 @@ extension MemoryModelQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(property: r'rawMetadataJson', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'reminderDateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'reminderDateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'reminderDateTime', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeGreaterThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'reminderDateTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeLessThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'reminderDateTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderDateTimeBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'reminderDateTime',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'reminderType'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'reminderType'),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeEqualTo(String? value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'reminderType',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeEndsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'reminderType',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'reminderType',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'reminderType', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterFilterCondition>
+  reminderTypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'reminderType', value: ''),
       );
     });
   }
@@ -2293,6 +2649,18 @@ extension MemoryModelQuerySortBy
     });
   }
 
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> sortByDueDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueDateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> sortByDueDateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueDateTime', Sort.desc);
+    });
+  }
+
   QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> sortByIsConflictCopy() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isConflictCopy', Sort.asc);
@@ -2303,6 +2671,20 @@ extension MemoryModelQuerySortBy
   sortByIsConflictCopyDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isConflictCopy', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  sortByIsReminderActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isReminderActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  sortByIsReminderActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isReminderActive', Sort.desc);
     });
   }
 
@@ -2340,6 +2722,33 @@ extension MemoryModelQuerySortBy
   sortByRawMetadataJsonDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rawMetadataJson', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  sortByReminderDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderDateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  sortByReminderDateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderDateTime', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> sortByReminderType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  sortByReminderTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderType', Sort.desc);
     });
   }
 
@@ -2457,6 +2866,18 @@ extension MemoryModelQuerySortThenBy
     });
   }
 
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> thenByDueDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueDateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> thenByDueDateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueDateTime', Sort.desc);
+    });
+  }
+
   QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -2479,6 +2900,20 @@ extension MemoryModelQuerySortThenBy
   thenByIsConflictCopyDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isConflictCopy', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  thenByIsReminderActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isReminderActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  thenByIsReminderActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isReminderActive', Sort.desc);
     });
   }
 
@@ -2516,6 +2951,33 @@ extension MemoryModelQuerySortThenBy
   thenByRawMetadataJsonDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rawMetadataJson', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  thenByReminderDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderDateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  thenByReminderDateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderDateTime', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy> thenByReminderType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QAfterSortBy>
+  thenByReminderTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderType', Sort.desc);
     });
   }
 
@@ -2609,6 +3071,12 @@ extension MemoryModelQueryWhereDistinct
     });
   }
 
+  QueryBuilder<MemoryModel, MemoryModel, QDistinct> distinctByDueDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'dueDateTime');
+    });
+  }
+
   QueryBuilder<MemoryModel, MemoryModel, QDistinct> distinctByEmbedding() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'embedding');
@@ -2618,6 +3086,13 @@ extension MemoryModelQueryWhereDistinct
   QueryBuilder<MemoryModel, MemoryModel, QDistinct> distinctByIsConflictCopy() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isConflictCopy');
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QDistinct>
+  distinctByIsReminderActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isReminderActive');
     });
   }
 
@@ -2643,6 +3118,21 @@ extension MemoryModelQueryWhereDistinct
         r'rawMetadataJson',
         caseSensitive: caseSensitive,
       );
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QDistinct>
+  distinctByReminderDateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'reminderDateTime');
+    });
+  }
+
+  QueryBuilder<MemoryModel, MemoryModel, QDistinct> distinctByReminderType({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'reminderType', caseSensitive: caseSensitive);
     });
   }
 
@@ -2724,6 +3214,12 @@ extension MemoryModelQueryProperty
     });
   }
 
+  QueryBuilder<MemoryModel, DateTime?, QQueryOperations> dueDateTimeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'dueDateTime');
+    });
+  }
+
   QueryBuilder<MemoryModel, List<double>?, QQueryOperations>
   embeddingProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -2734,6 +3230,12 @@ extension MemoryModelQueryProperty
   QueryBuilder<MemoryModel, bool, QQueryOperations> isConflictCopyProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isConflictCopy');
+    });
+  }
+
+  QueryBuilder<MemoryModel, bool, QQueryOperations> isReminderActiveProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isReminderActive');
     });
   }
 
@@ -2753,6 +3255,19 @@ extension MemoryModelQueryProperty
   rawMetadataJsonProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'rawMetadataJson');
+    });
+  }
+
+  QueryBuilder<MemoryModel, DateTime?, QQueryOperations>
+  reminderDateTimeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'reminderDateTime');
+    });
+  }
+
+  QueryBuilder<MemoryModel, String?, QQueryOperations> reminderTypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'reminderType');
     });
   }
 

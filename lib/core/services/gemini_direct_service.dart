@@ -108,7 +108,7 @@ class GeminiDirectService {
 
     final String promptText = hasAudio
         ? 'You are an expert speech recognition and audio transcription engine. Listen carefully to the attached audio and output clean structured JSON:\n'
-          '{"title": "Short Title (3-6 words)", "category": "Work|Personal|Study|Travel|Fashion|Food|Finance|Health", "summary": "1-2 sentence concise summary of the useful meaning", "tags": ["tag1", "tag2", "voice"], "transcript": "verbatim transcription of spoken words"}\n'
+          '{"title": "Short Title (3-6 words)", "category": "Work|Personal|Study|Travel|Fashion|Food|Finance|Health", "summary": "1-2 sentence concise summary of the useful meaning", "tags": ["tag1", "tag2", "voice"], "transcript": "verbatim transcription of spoken words", "due_date": "optional YYYY-MM-DD or YYYY-MM-DDTHH:MM if a meeting/due date/deadline is spoken, otherwise null", "reminder_type": "bill|meeting|custom or null"}\n'
           'Output ONLY valid raw JSON, no markdown formatting.'
         : (hasImage
             ? () {
@@ -125,10 +125,13 @@ class GeminiDirectService {
                     '  "category": one of Work|Personal|Study|Travel|Fashion|Food|Finance|Health,\n'
                     '  "summary": 2-3 sentence factual description of the visible scene, objects, people, text, or environment,\n'
                     '  "tags": array of 4-8 specific descriptive tags drawn directly from what is visible '
-                    '(e.g. objects, colors, setting, activities, architectural features — NOT generic words like "image", "photo", "picture", "memory").\n'
+                    '(e.g. objects, colors, setting, activities, architectural features — NOT generic words like "image", "photo", "picture", "memory"),\n'
+                    '  "due_date": optional date/time string (YYYY-MM-DD or YYYY-MM-DDTHH:MM) if this is a bill with due date, meeting with scheduled time, or document with expiry date, otherwise null,\n'
+                    '  "reminder_type": "bill" (for bills/utilities/invoices), "meeting" (for appointments/meetings), "custom" (for expiry dates or other deadlines), or null.\n'
                     'Output ONLY raw JSON, no markdown code fences.';
               }()
-            : 'Analyze the following note content:\n"""\n$ocrText\n"""\nGenerate a concise Title, Category (e.g., Food, Personal, Work, Study), a 2-sentence summary, and 3-5 tags in JSON format with keys: "title", "category", "summary", "tags". Output ONLY raw JSON, no markdown formatting.');
+            : 'Analyze the following note content:\n"""\n$ocrText\n"""\nGenerate a concise Title, Category (e.g., Food, Personal, Work, Study, Finance), a 2-sentence summary, 3-5 tags, and if there is a due date, deadline, meeting time, or expiry date, provide "due_date" (YYYY-MM-DD or YYYY-MM-DDTHH:MM) and "reminder_type" ("bill"|"meeting"|"custom"). Keys: "title", "category", "summary", "tags", "due_date", "reminder_type". Output ONLY raw JSON, no markdown formatting.');
+
 
 
     final List<Map<String, dynamic>> parts = [

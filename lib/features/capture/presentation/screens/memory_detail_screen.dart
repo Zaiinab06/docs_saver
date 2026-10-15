@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/isar_service.dart';
+import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/subscription_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/memory_model.dart';
 import '../../domain/entities/memory_entity.dart';
@@ -17,6 +19,7 @@ import '../bloc/capture_state.dart';
 import '../widgets/bank_card_display_card.dart';
 import '../widgets/bill_display_card.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/smart_reminder_paywall_sheet.dart';
 import '../widgets/video_player_preview_card.dart';
 import '../widgets/voice_audio_player_card.dart';
 
@@ -364,7 +367,10 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               _memory!.category != current.category ||
               _memory!.title != current.title ||
               _memory!.content != current.content ||
-              _memory!.tags.length != current.tags.length) {
+              _memory!.tags.length != current.tags.length ||
+              _memory!.isReminderActive != current.isReminderActive ||
+              _memory!.reminderDateTime != current.reminderDateTime ||
+              _memory!.dueDateTime != current.dueDateTime) {
             _memory = current;
             _isPinned = current.isPinned;
             _isLoading = false;
@@ -787,6 +793,520 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         }
       } catch (_) {}
     }
+  }
+
+  Future<void> _scheduleOrEditReminder() async {
+    if (_memory == null) return;
+    final isPro = SubscriptionService.instance.isPremium;
+    if (!isPro) {
+      final upgraded = await SmartReminderPaywallSheet.show(context);
+      if (upgraded != true || !mounted) return;
+    }
+
+    final now = DateTime.now();
+    final initialDate = (_memory!.reminderDateTime != null &&
+            _memory!.reminderDateTime!.isAfter(now))
+        ? _memory!.reminderDateTime!
+        : ((_memory!.dueDateTime != null && _memory!.dueDateTime!.isAfter(now))
+            ? _memory!.dueDateTime!
+            : now.add(const Duration(days: 1)));
+
+    final initialTime = _memory!.reminderDateTime != null
+        ? TimeOfDay.fromDateTime(_memory!.reminderDateTime!)
+        : const TimeOfDay(hour: 9, minute: 0);
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365 * 3)),
+      helpText: 'SELECT REMINDER DATE',
+      confirmText: 'NEXT',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      helpText: 'SELECT REMINDER TIME',
+      confirmText: 'SET REMINDER',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedTime == null || !mounted) return;
+
+    final scheduledDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    if (scheduledDateTime.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select a future date and time for the reminder.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // 1. Immediately persist to local Isar database
+    try {
+      final isar = IsarService.instance;
+      final model = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(_memory!.id)
+          .findFirst();
+      if (model != null) {
+        model.isReminderActive = true;
+        model.reminderDateTime = scheduledDateTime;
+        model.dueDateTime = _memory!.dueDateTime ?? scheduledDateTime;
+        model.reminderType = _memory!.reminderType ?? 'custom';
+        model.serverUpdatedAt = DateTime.now();
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(model);
+        });
+        debugPrint(
+          '💾 [MemoryDetail] Persisted active reminder to Isar for ${_memory!.id} at $scheduledDateTime',
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ [MemoryDetail] Error saving reminder to Isar: $e');
+    }
+
+    // 2. Schedule notification via NotificationService
+    try {
+      await NotificationService.instance.scheduleReminder(
+        memoryId: _memory!.id,
+        title: _memory!.title.isNotEmpty ? _memory!.title : 'Smart Reminder',
+        body: _memory!.content.isNotEmpty
+            ? _memory!.content
+            : 'Smart Reminder alert for ${_memory!.title}',
+        scheduledDate: scheduledDateTime,
+        reminderType: _memory!.reminderType ?? 'custom',
+      );
+    } catch (e) {
+      debugPrint('⚠️ [MemoryDetail] Error scheduling notification: $e');
+    }
+
+    // 3. Dispatch to CaptureBloc for remote sync & BLoC state
+    if (mounted) {
+      context.read<CaptureBloc>().add(
+        ToggleReminderEvent(
+          memoryId: _memory!.id,
+          enable: true,
+          reminderDateTime: scheduledDateTime,
+          dueDateTime: _memory!.dueDateTime ?? scheduledDateTime,
+          reminderType: _memory!.reminderType ?? 'custom',
+        ),
+      );
+    }
+
+    // 4. Update local widget state immediately
+    if (mounted) {
+      setState(() {
+        _memory = _memory!.copyWith(
+          isReminderActive: true,
+          reminderDateTime: scheduledDateTime,
+          dueDateTime: _memory!.dueDateTime ?? scheduledDateTime,
+          reminderType: _memory!.reminderType ?? 'custom',
+        );
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Smart Reminder set for ${DateFormat('MMM d, yyyy • h:mm a').format(scheduledDateTime)}',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _cancelReminder() async {
+    if (_memory == null) return;
+
+    // 1. Immediately persist cancellation to local Isar database
+    try {
+      final isar = IsarService.instance;
+      final model = await isar.memoryModels
+          .filter()
+          .serverIdEqualTo(_memory!.id)
+          .findFirst();
+      if (model != null) {
+        model.isReminderActive = false;
+        model.serverUpdatedAt = DateTime.now();
+        await isar.writeTxn(() async {
+          await isar.memoryModels.put(model);
+        });
+        debugPrint(
+          '💾 [MemoryDetail] Cleared reminder in Isar for ${_memory!.id}',
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ [MemoryDetail] Error clearing reminder in Isar: $e');
+    }
+
+    // 2. Cancel scheduled notification
+    try {
+      await NotificationService.instance.cancelReminder(_memory!.id);
+    } catch (e) {
+      debugPrint('⚠️ [MemoryDetail] Error cancelling notification: $e');
+    }
+
+    // 3. Dispatch to CaptureBloc
+    if (mounted) {
+      context.read<CaptureBloc>().add(
+        ToggleReminderEvent(
+          memoryId: _memory!.id,
+          enable: false,
+        ),
+      );
+
+      setState(() {
+        _memory = _memory!.copyWith(isReminderActive: false);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reminder cancelled.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Widget _buildSmartReminderWidget(MemoryEntity memory) {
+    if (memory.isReminderActive && memory.reminderDateTime != null) {
+      final scheduledDateStr = DateFormat(
+        'MMM d, yyyy • h:mm a',
+      ).format(memory.reminderDateTime!);
+      final dueStr = memory.dueDateTime != null
+          ? DateFormat('MMM d, yyyy').format(memory.dueDateTime!)
+          : null;
+      final typeLabel = (memory.reminderType ?? 'reminder').toUpperCase();
+
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.lightCyanTint,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Smart Reminder Scheduled',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'PRO',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Reminder set for $scheduledDateStr',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            if (dueStr != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Due: $dueStr • $typeLabel',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _scheduleOrEditReminder,
+                  icon: const Icon(Icons.edit_calendar_rounded, size: 15),
+                  label: const Text('Change Time'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.4),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _cancelReminder,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                  label: const Text('Cancel Reminder'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.errorText,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (memory.dueDateTime != null || memory.reminderDateTime != null) {
+      final dueDate = memory.dueDateTime ?? memory.reminderDateTime!;
+      final dueStr = DateFormat('EEE, MMM d, yyyy').format(dueDate);
+      final type = memory.reminderType ?? 'bill/meeting';
+
+      return ValueListenableBuilder<bool>(
+        valueListenable: SubscriptionService.instance.isPremiumNotifier,
+        builder: (context, isPro, _) {
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isPro
+                  ? AppColors.lightCyanTint.withValues(alpha: 0.4)
+                  : const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isPro
+                    ? AppColors.primary.withValues(alpha: 0.3)
+                    : const Color(0xFFFDE68A),
+                width: 1.2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: isPro
+                            ? AppColors.lightCyanTint
+                            : const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.alarm_add_rounded,
+                        color: isPro
+                            ? AppColors.primary
+                            : const Color(0xFFD97706),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Due Date Detected: $dueStr',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: isPro
+                              ? AppColors.textPrimary
+                              : const Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isPro
+                            ? AppColors.primary
+                            : const Color(0xFFD97706),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'PRO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isPro
+                      ? 'AI detected an upcoming ${type == 'meeting' ? 'meeting' : 'due date'}. Tap below to schedule your exact alert.'
+                      : 'Upgrade to DocsSaver Pro to automatically schedule exact reminders before bills, meetings, and expiry dates.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: isPro
+                        ? AppColors.textSecondary
+                        : const Color(0xFF78350F),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 36,
+                  child: ElevatedButton.icon(
+                    onPressed: _scheduleOrEditReminder,
+                    icon: Icon(
+                      isPro
+                          ? Icons.notifications_active_rounded
+                          : Icons.star_rounded,
+                      size: 16,
+                    ),
+                    label: Text(
+                      isPro ? 'Set Smart Reminder' : 'Unlock Smart Reminders',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isPro
+                          ? AppColors.primary
+                          : const Color(0xFFD97706),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: OutlinedButton.icon(
+        onPressed: _scheduleOrEditReminder,
+        icon: const Icon(Icons.alarm_add_rounded, size: 16),
+        label: const Text(
+          'Set Smart Reminder',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: BorderSide(
+            color: AppColors.primary.withValues(alpha: 0.35),
+            width: 1.0,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        ),
+      ),
+    );
   }
 
   Widget _buildNotFoundView() {
@@ -1684,6 +2204,20 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            tooltip: memory.isReminderActive
+                ? 'Reminder active'
+                : 'Set reminder',
+            icon: Icon(
+              memory.isReminderActive
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_none_rounded,
+              color: memory.isReminderActive
+                  ? AppColors.primary
+                  : AppColors.iconSecondary,
+            ),
+            onPressed: _scheduleOrEditReminder,
+          ),
+          IconButton(
             tooltip: _isPinned ? 'Unpin memory' : 'Pin memory',
             icon: Icon(
               _isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
@@ -1790,6 +2324,42 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                   // AI Status Badge
                   _buildAiStatusBadge(memory),
 
+                  // Reminder Active Chip
+                  if (memory.isReminderActive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.35),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.alarm_on_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Reminder Active',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Timestamp
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1814,6 +2384,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
               ),
 
               const SizedBox(height: 20),
+
+              // Smart Reminder Card / Action
+              _buildSmartReminderWidget(memory),
 
               // 4. Link Action Banner (if link detected)
               if (isLink && linkUrl != null && linkUrl.isNotEmpty) ...[

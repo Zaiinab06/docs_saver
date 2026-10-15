@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/services/gemini_direct_service.dart';
+import '../../../../core/services/smart_reminder_helper.dart';
 import '../../domain/entities/ai_ingestion_result.dart';
 import '../../domain/repositories/ai_repository.dart';
 import '../datasources/ai_remote_data_source.dart';
@@ -254,6 +255,14 @@ class AiRepositoryImpl implements AiRepository {
 
       final effectiveOcrText = rawTranscript.isNotEmpty ? rawTranscript : ocrText;
 
+      final smartReminder = SmartReminderHelper.extractSmartReminder(
+        aiDueDate: data['due_date'] ?? data['dueDateTime'],
+        aiReminderType: data['reminder_type'] ?? data['reminderType'],
+        content: resolvedSummary.isNotEmpty ? resolvedSummary : ocrText,
+        category: normalizedCategory,
+        tags: tags,
+      );
+
       return AiIngestionResult(
         title: resolvedTitle,
         category: normalizedCategory,
@@ -263,6 +272,9 @@ class AiRepositoryImpl implements AiRepository {
         aiStatus: aiStatus.isEmpty ? 'processed' : aiStatus,
         rawOcrText: effectiveOcrText,
         documentText: rawDocumentText.isNotEmpty ? rawDocumentText : null,
+        dueDateTime: smartReminder.dueDateTime,
+        reminderDateTime: smartReminder.reminderDateTime,
+        reminderType: smartReminder.reminderType,
       );
     } catch (e, stackTrace) {
       debugPrint('❌ AI ANALYSIS ERROR: $e');

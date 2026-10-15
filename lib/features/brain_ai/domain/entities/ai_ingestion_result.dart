@@ -36,6 +36,9 @@ class AiIngestionResult extends Equatable {
   final String aiStatus; // 'processed' | 'pending' | 'failed'
   final String? rawOcrText;
   final String? documentText;
+  final DateTime? dueDateTime;
+  final DateTime? reminderDateTime;
+  final String? reminderType; // 'bill', 'meeting', 'custom'
 
   const AiIngestionResult({
     required this.title,
@@ -46,6 +49,9 @@ class AiIngestionResult extends Equatable {
     required this.aiStatus,
     this.rawOcrText,
     this.documentText,
+    this.dueDateTime,
+    this.reminderDateTime,
+    this.reminderType,
   });
 
   factory AiIngestionResult.empty({
@@ -75,5 +81,8 @@ class AiIngestionResult extends Equatable {
     aiStatus,
     rawOcrText,
     documentText,
+    dueDateTime,
+    reminderDateTime,
+    reminderType,
   ];
 }

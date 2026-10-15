@@ -18,6 +18,10 @@ class MemoryEntity extends Equatable {
   final DateTime serverUpdatedAt;
   final bool isSynced;
   final Map<String, dynamic>? metadata;
+  final DateTime? reminderDateTime;
+  final DateTime? dueDateTime;
+  final String? reminderType; // 'bill', 'meeting', 'custom'
+  final bool isReminderActive;
 
   const MemoryEntity({
     required this.id,
@@ -35,13 +39,20 @@ class MemoryEntity extends Equatable {
     required this.serverUpdatedAt,
     this.isSynced = true,
     this.metadata,
+    this.reminderDateTime,
+    this.dueDateTime,
+    this.reminderType,
+    this.isReminderActive = false,
   });
+
+  bool get hasReminder => isReminderActive && reminderDateTime != null;
 
   bool get isPinned =>
       tags.any(
         (t) => t.toLowerCase() == 'pinned' || t.toLowerCase() == 'pin',
       ) ||
       category.toLowerCase() == 'pinned';
+
 
   /// Resolves the file type of the memory (e.g. 'video', 'audio', 'document', 'image')
   String? get fileType {
@@ -167,6 +178,10 @@ class MemoryEntity extends Equatable {
     DateTime? serverUpdatedAt,
     bool? isSynced,
     Map<String, dynamic>? metadata,
+    DateTime? reminderDateTime,
+    DateTime? dueDateTime,
+    String? reminderType,
+    bool? isReminderActive,
   }) {
     return MemoryEntity(
       id: id ?? this.id,
@@ -184,6 +199,10 @@ class MemoryEntity extends Equatable {
       serverUpdatedAt: serverUpdatedAt ?? this.serverUpdatedAt,
       isSynced: isSynced ?? this.isSynced,
       metadata: metadata ?? this.metadata,
+      reminderDateTime: reminderDateTime ?? this.reminderDateTime,
+      dueDateTime: dueDateTime ?? this.dueDateTime,
+      reminderType: reminderType ?? this.reminderType,
+      isReminderActive: isReminderActive ?? this.isReminderActive,
     );
   }
 
@@ -204,5 +223,9 @@ class MemoryEntity extends Equatable {
     serverUpdatedAt,
     isSynced,
     metadata,
+    reminderDateTime,
+    dueDateTime,
+    reminderType,
+    isReminderActive,
   ];
 }

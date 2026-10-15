@@ -51,6 +51,14 @@ class MemoryModel {
 
   bool isConflictCopy = false;
 
+  DateTime? reminderDateTime;
+
+  DateTime? dueDateTime;
+
+  String? reminderType; // 'bill', 'meeting', 'custom'
+
+  bool isReminderActive = false;
+
   late DateTime clientCreatedAt;
 
   late DateTime clientUpdatedAt;
@@ -116,6 +124,18 @@ class MemoryModel {
           ? DateTime.tryParse(map['server_updated_at'].toString()) ??
                 DateTime.now()
           : DateTime.now()
+      ..reminderDateTime = map['reminder_date_time'] != null
+          ? DateTime.tryParse(map['reminder_date_time'].toString())
+          : (map['reminderDateTime'] != null
+              ? DateTime.tryParse(map['reminderDateTime'].toString())
+              : null)
+      ..dueDateTime = map['due_date_time'] != null
+          ? DateTime.tryParse(map['due_date_time'].toString())
+          : (map['dueDateTime'] != null
+              ? DateTime.tryParse(map['dueDateTime'].toString())
+              : null)
+      ..reminderType = (map['reminder_type'] ?? map['reminderType'])?.toString()
+      ..isReminderActive = (map['is_reminder_active'] ?? map['isReminderActive']) as bool? ?? false
       ..isSynced = isSynced;
 
     if (map['embedding'] != null) {
@@ -176,6 +196,10 @@ extension MemoryModelMapper on MemoryModel {
       serverUpdatedAt: serverUpdatedAt,
       isSynced: isSynced,
       metadata: meta,
+      reminderDateTime: reminderDateTime,
+      dueDateTime: dueDateTime,
+      reminderType: reminderType,
+      isReminderActive: isReminderActive,
     );
   }
 }
@@ -202,6 +226,10 @@ extension MemoryEntityMapper on MemoryEntity {
       ..clientCreatedAt = clientCreatedAt
       ..clientUpdatedAt = clientUpdatedAt
       ..serverUpdatedAt = serverUpdatedAt
+      ..reminderDateTime = reminderDateTime
+      ..dueDateTime = dueDateTime
+      ..reminderType = reminderType
+      ..isReminderActive = isReminderActive
       ..isSynced = isSynced ?? this.isSynced;
     model.metadata = metadata;
     return model;

@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'core/constants/supabase_constants.dart';
 import 'core/network/network_checker.dart';
 import 'core/services/isar_service.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/subscription_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/auth/data/datasources/auth_remote_data_source.dart';
@@ -45,6 +47,8 @@ void main() async {
       ),
       IsarService.init(),
       ProfileNotifier.loadProfile(),
+      NotificationService.instance.init(),
+      SubscriptionService.instance.init(),
       SharedPreferences.getInstance().then((p) => prefs = p),
     ]).timeout(const Duration(seconds: 4));
   } catch (e) {
