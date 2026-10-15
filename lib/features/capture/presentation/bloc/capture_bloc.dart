@@ -133,13 +133,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       localMemories = await getMemoriesUseCase(currentUserId);
     } catch (_) {}
 
-    if (localMemories.isNotEmpty) {
-      // Emit cached data right away so the UI never blocks on network
-      emit(CaptureLoaded(localMemories));
-    } else if (state is CaptureInitial) {
-      // First launch with no local data: show loading while we attempt remote fetch
-      emit(CaptureLoading());
-    }
+    // Always emit local data right away so the UI never blocks or hangs in loading state
+    emit(CaptureLoaded(localMemories));
 
     // 2. Check connectivity and sync in background when online
     bool isOnline = false;
@@ -358,7 +353,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         currentUserId = Supabase.instance.client.auth.currentUser?.id;
       } catch (_) {}
       await repository.syncPendingMemories(userId: currentUserId);
-      add(LoadMemoriesEvent());
+      final refreshed = await getMemoriesUseCase(currentUserId);
+      if (!isClosed) emit(CaptureLoaded(refreshed));
 
       // Trigger background enrichment/embedding for synced memories lacking embeddings
       if (currentUserId != null && currentUserId != 'local_user') {

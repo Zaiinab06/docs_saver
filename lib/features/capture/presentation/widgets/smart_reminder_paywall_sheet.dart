@@ -104,7 +104,7 @@ class _SmartReminderPaywallSheetState extends State<SmartReminderPaywallSheet> {
         24,
         16,
         24,
-        MediaQuery.of(context).viewInsets.bottom + 28,
+        MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -258,32 +258,38 @@ class _SmartReminderPaywallSheetState extends State<SmartReminderPaywallSheet> {
           const SizedBox(height: 10),
 
           // Restore purchases & Maybe later row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: _isLoading ? null : _handleRestore,
-                child: Text(
-                  'Restore Purchases',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white60 : AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+          SafeArea(
+            bottom: true,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: _isLoading ? null : _handleRestore,
+                    child: Text(
+                      'Restore Purchases',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white60 : AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(
-                  'Maybe Later',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white60 : AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(
+                      'Maybe Later',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white60 : AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),

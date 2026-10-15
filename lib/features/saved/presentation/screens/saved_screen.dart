@@ -26,6 +26,15 @@ class SavedScreen extends StatefulWidget {
 class _SavedScreenState extends State<SavedScreen> {
   SavedTab _selectedTab = SavedTab.all;
 
+  @override
+  void initState() {
+    super.initState();
+    final bloc = context.read<CaptureBloc>();
+    if (bloc.state is! CaptureLoaded) {
+      bloc.add(LoadMemoriesEvent());
+    }
+  }
+
   // ─── Multi-select state ────────────────────────────────────────────────────
 
   final Set<String> _selectedMemoryIds = {};

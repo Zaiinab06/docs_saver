@@ -22,6 +22,8 @@ import '../../../capture/presentation/screens/photo_review_screen.dart';
 import '../../../capture/presentation/screens/note_compose_screen.dart';
 import '../../../capture/presentation/screens/voice_record_screen.dart';
 import '../../../capture/presentation/widgets/add_link_dialog.dart';
+import '../../../capture/presentation/widgets/smart_reminder_paywall_sheet.dart';
+import '../../../../core/services/subscription_service.dart';
 import '../../../brain_ai/data/datasources/ai_remote_data_source.dart';
 import '../../../brain_ai/data/repositories/ai_repository_impl.dart';
 import '../../../brain_ai/domain/entities/ai_ingestion_result.dart';
@@ -131,7 +133,7 @@ class HomeScreenState extends State<HomeScreen> {
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<Uri>? _deepLinkSubscription;
   AppLinks? _appLinks;
-  bool _isProBannerVisible = true;
+  bool _isProBannerDismissedForSession = false;
 
   @override
   void initState() {
@@ -327,15 +329,6 @@ class HomeScreenState extends State<HomeScreen> {
     return const [];
   }
 
-  void _showUnavailableFeature(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature is not available yet.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
   Widget _buildDashboard(BuildContext context, List<MemoryEntity> memories) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,13 +342,18 @@ class HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
 
         // 3. Pro Upgrade Banner
-        if (_isProBannerVisible) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildUpgradeBanner(context),
-          ),
-          const SizedBox(height: 12),
-        ],
+        ValueListenableBuilder<bool>(
+          valueListenable: SubscriptionService.instance.isPremiumNotifier,
+          builder: (context, isPro, _) {
+            if (isPro || _isProBannerDismissedForSession) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
+              child: _buildUpgradeBanner(context),
+            );
+          },
+        ),
 
         // 4. Categories Section (Compact Row)
         _buildCategoriesSection(context, memories),
@@ -400,109 +398,118 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openProPaywall(BuildContext context) async {
+    await SmartReminderPaywallSheet.show(context);
+  }
+
   Widget _buildUpgradeBanner(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            gradient: _unifiedSageBannerGradient,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: () => _openProPaywall(context),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.kDeepSagePine.withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: _unifiedSageBannerGradient,
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const CustomPaint(
-                  size: Size(32, 28),
-                  painter: _GoldenCrownPainter(),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Upgrade to DocsSaver Pro',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                        ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 18, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const CustomPaint(
+                      size: Size(32, 28),
+                      painter: _GoldenCrownPainter(),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Upgrade to DocsSaver Pro',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Unlock smart reminders and other features',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 3),
-                      Text(
-                        'Unlock smart reminders and other features',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(right: 24),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showUnavailableFeature('DocsSaver Pro'),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Ink(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEAA61E),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Go Pro',
-                          style: TextStyle(
-                            color: Color(0xFF241400),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
+                    ),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _openProPaywall(context),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAA61E),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Go Pro',
+                            style: TextStyle(
+                              color: Color(0xFF241400),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: const Key('pro_banner_close_btn'),
-              onTap: () => setState(() => _isProBannerVisible = false),
-              borderRadius: BorderRadius.circular(14),
-              child: const Padding(
-                padding: EdgeInsets.all(2.0),
-                child: Icon(Icons.close_rounded, color: Colors.white, size: 16),
               ),
             ),
           ),
-        ),
-      ],
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  setState(() {
+                    _isProBannerDismissedForSession = true;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 15,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

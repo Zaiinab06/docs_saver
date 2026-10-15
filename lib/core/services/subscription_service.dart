@@ -18,11 +18,17 @@ class SubscriptionService {
   bool get isPremium => isPremiumNotifier.value;
 
   Future<void> init() async {
-    // 1. Read locally cached state from SharedPreferences first
+    // 1. By default, start as non-premium so the Pro banner and upgrade paywall
+    // are visible to all free users by default.
+    isPremiumNotifier.value = false;
+
+    // Clear legacy mock persistence to prevent aggressive local caching from
+    // hiding the banner permanently across app sessions.
     try {
       final prefs = await SharedPreferences.getInstance();
-      final localPro = prefs.getBool(_prefMockProKey) ?? false;
-      isPremiumNotifier.value = localPro;
+      if (prefs.containsKey(_prefMockProKey)) {
+        await prefs.remove(_prefMockProKey);
+      }
     } catch (_) {}
 
     // 2. Configure RevenueCat if supported on platform
